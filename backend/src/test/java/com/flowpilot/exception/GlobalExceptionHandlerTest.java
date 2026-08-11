@@ -52,4 +52,12 @@ class GlobalExceptionHandlerTest {
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
         assertThat(detail.getDetail()).isEqualTo("Invalid email or password");
     }
+
+    @Test
+    void userNotFoundMapsTo404() {
+        ProblemDetail detail = handler.handleUserNotFound(new UserNotFoundException(42L));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
+        assertThat(detail.getDetail()).contains("42");
+    }
 }
