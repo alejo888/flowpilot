@@ -17,3 +17,5 @@ flowpilot:
     secret: ${FLOWPILOT_JWT_SECRET:}
     access-token-ttl-minutes: 15
     refresh-token-ttl-days: 7
+  password-reset:
+    ttl-minutes: 30
