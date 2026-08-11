@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 
@@ -59,5 +60,21 @@ class GlobalExceptionHandlerTest {
 
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
         assertThat(detail.getDetail()).contains("42");
+    }
+
+    @Test
+    void projectNotFoundMapsTo404() {
+        ProblemDetail detail = handler.handleProjectNotFound(new ProjectNotFoundException(7L));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
+        assertThat(detail.getDetail()).contains("7");
+    }
+
+    @Test
+    void accessDeniedMapsTo403() {
+        ProblemDetail detail = handler.handleAccessDenied(new AccessDeniedException("Not the owner"));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(detail.getDetail()).isEqualTo("Not the owner");
     }
 }
