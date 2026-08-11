@@ -3,17 +3,24 @@ package com.flowpilot.service;
 import com.flowpilot.dto.RolePermissionCatalogEntry;
 import com.flowpilot.dto.RolePermissionGrant;
 import com.flowpilot.dto.RolePermissionMatrixResponse;
+import com.flowpilot.dto.RolePermissionUpdateRequest;
 import com.flowpilot.entity.GlobalRole;
 import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.ProjectRole;
+import com.flowpilot.entity.RolePermission;
 import com.flowpilot.entity.User;
+import com.flowpilot.exception.RolePermissionConcurrencyException;
 import com.flowpilot.exception.UserNotFoundException;
 import com.flowpilot.repository.RolePermissionRepository;
 import com.flowpilot.repository.UserRepository;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Admin-only permission-matrix read (spec: role-permissions). Same
@@ -21,10 +28,10 @@ import org.springframework.stereotype.Service;
  * concern, deliberately unrelated to {@link ProjectAuthorizationService},
  * which governs project-scoped writes.
  *
- * <p>Slice 8a scope: {@code GET} only. The bulk atomic {@code PUT} (per-cell
- * grant replace, optimistic concurrency via {@code expectedUpdatedAt}, and
- * {@link ProjectAuthorizationService}'s cache eviction) is slice 8b's scope
- * and belongs on this same class.
+ * <p>Slice 8b adds the bulk atomic {@link #replaceAll} (per-cell grant
+ * replace, optimistic concurrency via {@code expectedUpdatedAt}, and {@link
+ * ProjectAuthorizationService#reloadCache()} in the same transaction — design's
+ * "Matrix write" data-flow line).
  */
 @Service
 public class RolePermissionAdminService {
@@ -61,11 +68,15 @@ public class RolePermissionAdminService {
 
     private final UserRepository userRepository;
     private final RolePermissionRepository rolePermissionRepository;
+    private final ProjectAuthorizationService projectAuthorizationService;
 
     public RolePermissionAdminService(
-            UserRepository userRepository, RolePermissionRepository rolePermissionRepository) {
+            UserRepository userRepository,
+            RolePermissionRepository rolePermissionRepository,
+            ProjectAuthorizationService projectAuthorizationService) {
         this.userRepository = userRepository;
         this.rolePermissionRepository = rolePermissionRepository;
+        this.projectAuthorizationService = projectAuthorizationService;
     }
 
     public RolePermissionMatrixResponse getMatrix(Long callerId) {
@@ -77,6 +88,51 @@ public class RolePermissionAdminService {
         OffsetDateTime updatedAt = rolePermissionRepository.findMaxUpdatedAt().orElse(null);
 
         return new RolePermissionMatrixResponse(List.of(ProjectRole.values()), CATALOG, grants, updatedAt);
+    }
+
+    /**
+     * Bulk atomic replace (spec: role-permissions, "Bulk update success" /
+     * "Concurrent conflicting edit" scenarios). Rejects with {@link
+     * RolePermissionConcurrencyException} (409) before touching any row if
+     * {@code request.expectedUpdatedAt()} no longer matches the persisted
+     * {@code MAX(updated_at)} — no partial apply. On success, flips {@code
+     * granted}/{@code updatedBy} on every matching existing row (the matrix
+     * is dense; rows are never inserted or deleted) and evicts {@link
+     * ProjectAuthorizationService}'s in-process cache in the same
+     * transaction so the new grants apply without a restart.
+     */
+    @Transactional
+    public RolePermissionMatrixResponse replaceAll(Long callerId, RolePermissionUpdateRequest request) {
+        requireAdmin(callerId);
+
+        OffsetDateTime persisted = rolePermissionRepository.findMaxUpdatedAt().orElse(null);
+        if (!Objects.equals(persisted, request.expectedUpdatedAt())) {
+            throw new RolePermissionConcurrencyException();
+        }
+
+        Map<String, RolePermission> byKey = new HashMap<>();
+        for (RolePermission row : rolePermissionRepository.findAll()) {
+            byKey.put(key(row.getRole(), row.getPermission()), row);
+        }
+
+        for (RolePermissionGrant grant : request.grants()) {
+            RolePermission row = byKey.get(key(grant.role(), grant.permission()));
+            if (row == null) {
+                throw new IllegalArgumentException(
+                        "Unknown role/permission combination: " + grant.role() + "/" + grant.permission());
+            }
+            row.setGranted(grant.granted());
+            row.setUpdatedBy(callerId);
+        }
+
+        rolePermissionRepository.saveAll(byKey.values());
+        projectAuthorizationService.reloadCache();
+
+        return getMatrix(callerId);
+    }
+
+    private static String key(ProjectRole role, Permission permission) {
+        return role.name() + ":" + permission.name();
     }
 
     private void requireAdmin(Long callerId) {
