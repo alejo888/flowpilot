@@ -1,4 +1,5 @@
 FROM maven:3.9-eclipse-temurin-25 AS build
+ENV MAVEN_CONFIG=""
 WORKDIR /app
 COPY pom.xml .
 COPY .mvn/ .mvn/
