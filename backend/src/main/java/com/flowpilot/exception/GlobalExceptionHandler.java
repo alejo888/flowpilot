@@ -59,6 +59,11 @@ public class GlobalExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
     }
 
+    @ExceptionHandler(LastAdministratorException.class)
+    public ProblemDetail handleLastAdministrator(LastAdministratorException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
     @ExceptionHandler(WorkItemNotFoundException.class)
     public ProblemDetail handleWorkItemNotFound(WorkItemNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());

@@ -213,6 +213,143 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /admin/users:
+    get:
+      summary: List all users with full admin projection (role, active) — admin-only
+      operationId: listAdminUsers
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserAdminResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller is not a global Administrador
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /admin/users/{id}/status:
+    patch:
+      summary: Activate or deactivate a user — admin-only
+      operationId: setUserStatus
+      description: >-
+        Rejects the change with 409 if it would leave zero active
+        Administradores (spec: user-administration, last-Administrador
+        lockout guard). Self-deactivation is allowed unless the caller is the
+        last active Administrador.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserStatusUpdateRequest'
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAdminResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller is not a global Administrador
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No user with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: Would leave zero active Administradores
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /admin/users/{id}/role:
+    put:
+      summary: Change a user's global role — admin-only
+      operationId: setUserRole
+      description: >-
+        Rejects a demotion away from Administrador with 409 if it would
+        leave zero active Administradores (spec: user-administration,
+        last-Administrador lockout guard). Self-demotion is allowed unless
+        the caller is the last active Administrador.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRoleUpdateRequest'
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAdminResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller is not a global Administrador
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No user with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: Would leave zero active Administradores
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /projects:
     get:
       summary: List projects visible to the caller
@@ -847,6 +984,39 @@ components:
         email:
           type: string
           format: email
+    GlobalRole:
+      type: string
+      enum: [ADMINISTRADOR, MIEMBRO_EQUIPO]
+    UserAdminResponse:
+      type: object
+      description: >-
+        Full admin-facing user projection (spec: user-administration).
+        Unlike UserSummaryResponse this exposes role and active.
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/GlobalRole'
+        active:
+          type: boolean
+    UserStatusUpdateRequest:
+      type: object
+      required: [active]
+      properties:
+        active:
+          type: boolean
+    UserRoleUpdateRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: '#/components/schemas/GlobalRole'
     ProjectStatus:
       type: string
       enum: [PLANIFICACION, ACTIVO, PAUSADO, FINALIZADO, CANCELADO]
