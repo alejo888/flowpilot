@@ -26,3 +26,7 @@ Thumbs.db
 # Local agent tooling (not part of the project)
 .atl/
 
+# Run-skill driver artifacts (not part of the project)
+.claude/skills/*/node_modules/
+.claude/skills/*/screenshots/
+
