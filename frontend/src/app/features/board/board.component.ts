@@ -1,5 +1,6 @@
 import { CdkDrag, CdkDragDrop, CdkDropList, CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { Component, OnInit, computed, inject, input } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 import { WorkItem } from './board.model';
 import { BoardStore } from './board.store';
@@ -8,16 +9,18 @@ import { BoardStore } from './board.store';
  * Minimal kanban board (spec: kanban-board). Fetches a project's board
  * columns + work items via {@link BoardStore} and renders them grouped by
  * column, with CDK drag-and-drop between/within columns calling
- * `PUT /api/work-items/{id}/move` on drop. NOT yet wired into the app
- * shell/router — a standalone piece meant to be mounted by a future
- * project-detail route (out of scope for this slice; see apply-progress).
+ * `PUT /api/work-items/{id}/move` on drop. Routed at
+ * `projects/:projectId/board` (see `app.routes.ts`), with a back-to-projects
+ * link (spec: projects-ui, Cross-Feature Navigation Links).
  */
 @Component({
   selector: 'app-board',
   standalone: true,
-  imports: [CdkDropListGroup, CdkDropList, CdkDrag],
+  imports: [CdkDropListGroup, CdkDropList, CdkDrag, RouterLink],
   template: `
     <div class="board" cdkDropListGroup>
+      <a routerLink="/projects" data-testid="board-projects-link">Volver a proyectos</a>
+
       @if (error(); as message) {
         <p data-testid="board-error" class="board-error">{{ message }}</p>
       }

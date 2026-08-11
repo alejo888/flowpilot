@@ -23,8 +23,11 @@ describe('ProjectsComponent', () => {
   let storeStub: {
     projects: ReturnType<typeof signal<Project[]>>;
     loading: ReturnType<typeof signal<boolean>>;
+    creating: ReturnType<typeof signal<boolean>>;
     error: ReturnType<typeof signal<string | null>>;
+    lastCreated: ReturnType<typeof signal<Project | null>>;
     loadProjects: ReturnType<typeof vi.fn>;
+    createProject: ReturnType<typeof vi.fn>;
   };
 
   async function setup(): Promise<void> {
@@ -37,12 +40,30 @@ describe('ProjectsComponent', () => {
     fixture.detectChanges();
   }
 
+  function setInput(testid: string, value: string): void {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const input = compiled.querySelector(`[data-testid="${testid}"]`) as HTMLInputElement;
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  function submitForm(): void {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const form = compiled.querySelector('form') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    fixture.detectChanges();
+  }
+
   beforeEach(() => {
     storeStub = {
       projects: signal([]),
       loading: signal(false),
+      creating: signal(false),
       error: signal(null),
+      lastCreated: signal(null),
       loadProjects: vi.fn(),
+      createProject: vi.fn(),
     };
   });
 
@@ -92,5 +113,75 @@ describe('ProjectsComponent', () => {
     expect(compiled.querySelector('[data-testid="projects-error"]')?.textContent).toContain(
       'No se pudieron cargar los proyectos',
     );
+  });
+
+  it('blocks submission client-side when the name is blank and does not call the store', async () => {
+    await setup();
+
+    setInput('project-create-name', '   ');
+    submitForm();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('[data-testid="project-create-error"]')?.textContent).toContain(
+      'El nombre es obligatorio',
+    );
+    expect(storeStub.createProject).not.toHaveBeenCalled();
+  });
+
+  it('calls store.createProject with the trimmed name and description on submit', async () => {
+    await setup();
+
+    setInput('project-create-name', '  Nuevo proyecto  ');
+    setInput('project-create-description', '  Detalle  ');
+    submitForm();
+
+    expect(storeStub.createProject).toHaveBeenCalledWith('Nuevo proyecto', 'Detalle');
+  });
+
+  it('sends a null description when the description field is left blank', async () => {
+    await setup();
+
+    setInput('project-create-name', 'Nuevo proyecto');
+    submitForm();
+
+    expect(storeStub.createProject).toHaveBeenCalledWith('Nuevo proyecto', null);
+  });
+
+  it('renders the store error from a failed creation at project-create submission scope', async () => {
+    await setup();
+    storeStub.error.set('El nombre no puede estar vacío');
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('[data-testid="projects-error"]')?.textContent).toContain(
+      'El nombre no puede estar vacío',
+    );
+  });
+
+  it('clears the form when the store reports a newly created project', async () => {
+    await setup();
+
+    setInput('project-create-name', 'Nuevo proyecto');
+    setInput('project-create-description', 'Detalle');
+
+    storeStub.lastCreated.set(project(9, 'Nuevo proyecto'));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const nameInput = compiled.querySelector('[data-testid="project-create-name"]') as HTMLInputElement;
+    const descriptionInput = compiled.querySelector(
+      '[data-testid="project-create-description"]',
+    ) as HTMLInputElement;
+    expect(nameInput.value).toBe('');
+    expect(descriptionInput.value).toBe('');
+  });
+
+  it('disables the submit button while creating is in flight', async () => {
+    storeStub.creating.set(true);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const submitButton = compiled.querySelector('[data-testid="project-create-submit"]') as HTMLButtonElement;
+    expect(submitButton.disabled).toBe(true);
   });
 });

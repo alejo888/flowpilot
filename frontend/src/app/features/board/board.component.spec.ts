@@ -1,5 +1,6 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
 import { BoardComponent } from './board.component';
 import { BoardStore } from './board.store';
@@ -47,7 +48,7 @@ describe('BoardComponent', () => {
 
     await TestBed.configureTestingModule({
       imports: [BoardComponent],
-      providers: [{ provide: BoardStore, useValue: storeStub }],
+      providers: [provideRouter([]), { provide: BoardStore, useValue: storeStub }],
     }).compileComponents();
 
     fixture = TestBed.createComponent(BoardComponent);
@@ -93,5 +94,11 @@ describe('BoardComponent', () => {
     fixture.componentInstance.onDrop(dropEvent as never);
 
     expect(storeStub.moveItem).toHaveBeenCalledWith(500, 2, 0);
+  });
+
+  it('links back to the projects list', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const link = compiled.querySelector('[data-testid="board-projects-link"]');
+    expect(link?.getAttribute('href')).toBe('/projects');
   });
 });

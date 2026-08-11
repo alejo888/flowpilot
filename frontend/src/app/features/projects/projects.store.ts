@@ -18,11 +18,15 @@ export class ProjectsStore {
 
   private readonly projectsSignal = signal<Project[]>([]);
   private readonly loadingSignal = signal<boolean>(false);
+  private readonly creatingSignal = signal<boolean>(false);
   private readonly errorSignal = signal<string | null>(null);
+  private readonly lastCreatedSignal = signal<Project | null>(null);
 
   readonly projects = this.projectsSignal.asReadonly();
   readonly loading = this.loadingSignal.asReadonly();
+  readonly creating = this.creatingSignal.asReadonly();
   readonly error = this.errorSignal.asReadonly();
+  readonly lastCreated = this.lastCreatedSignal.asReadonly();
 
   loadProjects(): void {
     this.errorSignal.set(null);
@@ -35,6 +39,23 @@ export class ProjectsStore {
       error: (err: unknown) => {
         this.errorSignal.set(errorMessage(err, 'No se pudieron cargar los proyectos'));
         this.loadingSignal.set(false);
+      },
+    });
+  }
+
+  createProject(name: string, description: string | null): void {
+    this.errorSignal.set(null);
+    this.lastCreatedSignal.set(null);
+    this.creatingSignal.set(true);
+    this.api.createProject({ name, description }).subscribe({
+      next: (created) => {
+        this.projectsSignal.set([...this.projectsSignal(), created]);
+        this.lastCreatedSignal.set(created);
+        this.creatingSignal.set(false);
+      },
+      error: (err: unknown) => {
+        this.errorSignal.set(errorMessage(err, 'No se pudo crear el proyecto'));
+        this.creatingSignal.set(false);
       },
     });
   }
