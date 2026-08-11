@@ -93,4 +93,12 @@ class GlobalExceptionHandlerTest {
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
         assertThat(detail.getDetail()).contains("7").contains("42");
     }
+
+    @Test
+    void lastAdministratorMapsTo409() {
+        ProblemDetail detail = handler.handleLastAdministrator(new LastAdministratorException());
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(detail.getDetail()).contains("Administrador");
+    }
 }
