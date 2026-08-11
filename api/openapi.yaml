@@ -3,15 +3,185 @@ info:
   title: FlowPilot API
   version: 0.1.0
   description: >
-    Contract-first REST API for FlowPilot. This is the bootstrap stub —
-    paths and schemas are added slice by slice, starting with Auth in PR1.
-    Hand-authored here is the source of truth; springdoc-openapi runs in CI
-    only as a drift check against the running application.
+    Contract-first REST API for FlowPilot. Paths and schemas are added slice
+    by slice. PR1 adds Auth. Hand-authored here is the source of truth;
+    springdoc-openapi runs in CI only as a drift check against the running
+    application.
 servers:
   - url: /api
-paths: {}
+paths:
+  /auth/register:
+    post:
+      summary: Self-service registration
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created
+        '400':
+          description: Validation error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: Email already registered
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /auth/login:
+    post:
+      summary: Login and issue tokens
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Access token issued; refresh cookie set
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessTokenResponse'
+        '401':
+          description: Invalid credentials or deactivated account
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /auth/refresh:
+    post:
+      summary: Rotate refresh token and issue a new access token
+      operationId: refresh
+      responses:
+        '200':
+          description: New access token issued; refresh cookie rotated
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessTokenResponse'
+        '401':
+          description: Missing, expired, revoked, reused, or inactive-user refresh token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /auth/logout:
+    post:
+      summary: Revoke the refresh token and clear the cookie
+      operationId: logout
+      responses:
+        '204':
+          description: Logged out
+  /auth/forgot-password:
+    post:
+      summary: Request a password reset (always 200, no account enumeration)
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '200':
+          description: Always returned, regardless of whether the account exists
+  /auth/reset-password:
+    post:
+      summary: Reset password using a valid reset token
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password updated; all refresh tokens revoked
+        '400':
+          description: Unknown, expired, or already-used reset token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 components:
-  schemas: {}
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    AccessTokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    ResetPasswordRequest:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+          minLength: 8
+    ProblemDetail:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
   responses: {}
   securitySchemes:
     bearerAuth:
