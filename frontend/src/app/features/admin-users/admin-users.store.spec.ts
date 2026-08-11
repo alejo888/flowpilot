@@ -54,7 +54,9 @@ describe('AdminUsersStore', () => {
   it('surfaces the server error and leaves state untouched when the last-admin guard rejects a deactivation', () => {
     apiSpy.listUsers.mockReturnValue(of([user(1, 'ADMINISTRADOR', true)]));
     apiSpy.setStatus.mockReturnValue(
-      throwError(() => new Error('Cannot deactivate or demote the last active Administrador')),
+      throwError(() => ({
+        error: { detail: 'Cannot deactivate or demote the last active Administrador' },
+      })),
     );
     store.load();
 
@@ -62,6 +64,16 @@ describe('AdminUsersStore', () => {
 
     expect(store.users()[0].active).toBe(true);
     expect(store.error()).toBe('Cannot deactivate or demote the last active Administrador');
+  });
+
+  it('falls back to a default message when the ProblemDetail has no detail field', () => {
+    apiSpy.listUsers.mockReturnValue(of([user(1, 'ADMINISTRADOR', true)]));
+    apiSpy.setStatus.mockReturnValue(throwError(() => ({})));
+    store.load();
+
+    store.setStatus(1, false);
+
+    expect(store.error()).toBe('No se pudo actualizar el estado');
   });
 
   it('replaces the user in place after a successful role change', () => {

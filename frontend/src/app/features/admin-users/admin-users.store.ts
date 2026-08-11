@@ -29,7 +29,7 @@ export class AdminUsersStore {
     this.errorSignal.set(null);
     this.api.listUsers().subscribe({
       next: (users) => this.usersSignal.set(users),
-      error: (err: unknown) => this.errorSignal.set(errorMessage(err)),
+      error: (err: unknown) => this.errorSignal.set(errorMessage(err, 'No se pudo cargar la lista de usuarios')),
     });
   }
 
@@ -37,7 +37,7 @@ export class AdminUsersStore {
     this.errorSignal.set(null);
     this.api.setStatus(id, { active }).subscribe({
       next: (updated) => this.replace(updated),
-      error: (err: unknown) => this.errorSignal.set(errorMessage(err)),
+      error: (err: unknown) => this.errorSignal.set(errorMessage(err, 'No se pudo actualizar el estado')),
     });
   }
 
@@ -45,7 +45,7 @@ export class AdminUsersStore {
     this.errorSignal.set(null);
     this.api.changeRole(id, { role }).subscribe({
       next: (updated) => this.replace(updated),
-      error: (err: unknown) => this.errorSignal.set(errorMessage(err)),
+      error: (err: unknown) => this.errorSignal.set(errorMessage(err, 'No se pudo actualizar el rol')),
     });
   }
 
@@ -54,6 +54,12 @@ export class AdminUsersStore {
   }
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : 'Request failed';
+/**
+ * `HttpErrorResponse` implements `Error` but does not extend it, so
+ * `err instanceof Error` is always false for real HTTP failures — reads the
+ * RFC 7807 `detail` field the backend actually sends instead (design
+ * pattern from `AuthStore`/`ProjectsStore`).
+ */
+function errorMessage(err: unknown, fallback: string): string {
+  return (err as { error?: { detail?: string } })?.error?.detail ?? fallback;
 }
