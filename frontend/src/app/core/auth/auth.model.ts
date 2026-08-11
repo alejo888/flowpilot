@@ -20,3 +20,6 @@ export interface ProblemDetail {
   detail?: string;
   instance?: string;
 }
+
+/** Global roles carried in the JWT access token's `role` claim (design D6). */
+export type GlobalRole = 'ADMINISTRADOR' | 'MIEMBRO_EQUIPO';
