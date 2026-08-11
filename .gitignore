@@ -1,0 +1,28 @@
+# Backend (Maven / Java)
+backend/target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# Frontend (Angular / Node)
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+npm-debug.log*
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Env / secrets
+.env
+*.env.local
+
+# OS
+Thumbs.db
+
+# Local agent tooling (not part of the project)
+.atl/
+

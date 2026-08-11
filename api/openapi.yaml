@@ -1,0 +1,20 @@
+openapi: 3.1.0
+info:
+  title: FlowPilot API
+  version: 0.1.0
+  description: >
+    Contract-first REST API for FlowPilot. This is the bootstrap stub —
+    paths and schemas are added slice by slice, starting with Auth in PR1.
+    Hand-authored here is the source of truth; springdoc-openapi runs in CI
+    only as a drift check against the running application.
+servers:
+  - url: /api
+paths: {}
+components:
+  schemas: {}
+  responses: {}
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
