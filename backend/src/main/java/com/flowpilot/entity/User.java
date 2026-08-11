@@ -74,6 +74,10 @@ public class User {
         return role;
     }
 
+    public void setRole(GlobalRole role) {
+        this.role = role;
+    }
+
     public boolean isActive() {
         return active;
     }
