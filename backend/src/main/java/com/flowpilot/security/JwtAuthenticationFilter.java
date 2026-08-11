@@ -45,7 +45,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 var authentication = new UsernamePasswordAuthenticationToken(
                         userId, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                var context = SecurityContextHolder.createEmptyContext();
+                context.setAuthentication(authentication);
+                SecurityContextHolder.setContext(context);
             } catch (JwtException | IllegalArgumentException ignored) {
                 // Invalid/expired token: leave context unauthenticated, let downstream 401.
             }
