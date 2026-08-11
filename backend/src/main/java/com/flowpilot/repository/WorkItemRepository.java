@@ -10,4 +10,6 @@ public interface WorkItemRepository extends JpaRepository<WorkItem, Long> {
     List<WorkItem> findByProjectIdOrderByColumnIdAscPositionAsc(Long projectId);
 
     Optional<WorkItem> findFirstByColumnIdOrderByPositionDesc(Long columnId);
+
+    List<WorkItem> findByColumnIdOrderByPositionAsc(Long columnId);
 }

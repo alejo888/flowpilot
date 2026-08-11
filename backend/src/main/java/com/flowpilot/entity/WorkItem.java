@@ -120,4 +120,24 @@ public class WorkItem {
     public void touch() {
         this.updatedAt = OffsetDateTime.now();
     }
+
+    /**
+     * Applies a move to a (possibly different) column at a new gap-based
+     * position (spec: kanban-board move; design D10). Used only by {@link
+     * com.flowpilot.service.BoardService#move}.
+     */
+    public void moveTo(Long columnId, int position) {
+        this.columnId = columnId;
+        this.position = position;
+        touch();
+    }
+
+    /**
+     * Reassigns this item's position without changing its column — used to
+     * re-sequence siblings during a move within the same column when the
+     * gap-based strategy runs out of room (design D10).
+     */
+    public void setPosition(int position) {
+        this.position = position;
+    }
 }

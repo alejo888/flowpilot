@@ -703,6 +703,54 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /work-items/{id}/move:
+    put:
+      summary: Move a work item to a column and/or position
+      operationId: moveWorkItem
+      description: >-
+        Any project member (owner, a global administrator, or a live
+        ProjectMember of the project) may move. Validates that columnId
+        belongs to the SAME project as the work item; a cross-project column
+        is rejected with 400 and no change. position is the desired
+        zero-based insertion index within the target column's existing
+        items (the moved item itself excluded), translated server-side into
+        a gap-based position (1024 step; the target column is fully
+        re-sequenced only when the computed gap would be less than 2).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkItemId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkItemMoveRequest'
+      responses:
+        '200':
+          description: Work item moved; columnId and position persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkItemResponse'
+        '400':
+          description: columnId belongs to a different project
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller is not the owner, an administrator, or a member
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No work item or no target column with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 components:
   parameters:
     ProjectId:
@@ -949,6 +997,20 @@ components:
         updatedAt:
           type: string
           format: date-time
+    WorkItemMoveRequest:
+      type: object
+      description: >-
+        position is the desired zero-based insertion index within the
+        target column's existing items (the moved item itself excluded),
+        not a raw gap-based position value.
+      required: [columnId, position]
+      properties:
+        columnId:
+          type: integer
+          format: int64
+        position:
+          type: integer
+          minimum: 0
   responses: {}
   securitySchemes:
     bearerAuth:
