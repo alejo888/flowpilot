@@ -1,10 +1,10 @@
 # FlowPilot
 
-FlowPilot is a lightweight project/task management MVP: Spring Boot 3 (Java) backend, Angular (standalone components) frontend, PostgreSQL, delivered as Docker Compose services.
+FlowPilot is a lightweight project/task management MVP: Spring Boot 4 (Java 25) backend, Angular (standalone components) frontend, PostgreSQL, delivered as Docker Compose services.
 
 ## Repository layout
 
-- `backend/` — Spring Boot 3.x layered monolith (Java), Maven, Flyway migrations.
+- `backend/` — Spring Boot 4.x layered monolith (Java 25), Maven, Flyway migrations.
 - `frontend/` — Angular standalone-components app.
 - `api/openapi.yaml` — hand-authored, contract-first REST API spec (source of truth).
 - `docker-compose.yml` — local/dev stack: Postgres, backend, frontend (nginx).
