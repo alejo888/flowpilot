@@ -13,6 +13,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent)
   },
   {
+    path: 'projects',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/projects/projects.component').then((m) => m.ProjectsComponent)
+  },
+  {
     path: 'projects/:projectId/board',
     canActivate: [authGuard],
     loadComponent: () => import('./features/board/board.component').then((m) => m.BoardComponent)
