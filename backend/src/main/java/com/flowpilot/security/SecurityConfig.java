@@ -10,28 +10,43 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Baseline security skeleton for the bootstrap slice.
+ * Stateless security config per design decision D3.
  *
- * No routes are wired yet — all requests are permitted so the app boots
- * cleanly with an empty controller layer. Slice 1 (Auth) replaces the
- * authorizeHttpRequests block with real rules and adds
- * {@code JwtAuthenticationFilter} before {@code UsernamePasswordAuthenticationFilter}
- * per design decision D3.
+ * {@code /api/auth/**} is public (registration/login/refresh/logout/reset all
+ * start unauthenticated); everything else requires a valid Bearer JWT.
+ * {@link JwtAuthenticationFilter} runs before
+ * {@code UsernamePasswordAuthenticationFilter} and never hits the DB (see its
+ * javadoc for the accepted deactivated-user tradeoff).
+ *
+ * CSRF stays disabled for the whole API: state-changing Bearer-authenticated
+ * endpoints are not vulnerable to CSRF, and the cookie-authenticated
+ * endpoints (refresh/logout) are documented in design decision D8 as needing
+ * a double-submit token — deferred, tracked as a follow-up, not yet wired.
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter)
+            throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .anyRequest().authenticated())
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    public JwtAuthenticationFilter jwtAuthenticationFilter(JwtService jwtService) {
+        return new JwtAuthenticationFilter(jwtService);
     }
 
     @Bean
