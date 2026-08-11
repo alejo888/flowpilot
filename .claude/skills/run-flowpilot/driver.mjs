@@ -5,7 +5,8 @@
 //   node driver.mjs login                     -> prints {accessToken, expiresIn}
 //   node driver.mjs api <path> [--token TOK]   -> GETs http://localhost:8080<path>, prints status+body
 //   node driver.mjs shot <route> [outfile]     -> screenshots http://localhost<route> via headless Chromium
-//   node driver.mjs smoke                      -> login + admin API checks + screenshots of known routes
+//   node driver.mjs ui-login [email] [pass]    -> submits the real login form, prints the URL landed on
+//   node driver.mjs smoke                      -> login (API + UI) + admin API checks + guard/redirect checks + screenshots
 //
 // Screenshots land in ./screenshots/ (relative to this file) unless an
 // outfile is given.
@@ -64,11 +65,35 @@ async function shot(route, outfile) {
   return { outPath, bodyText, consoleErrors };
 }
 
+// Submits the real login form (features/auth/login.component.ts) and reports
+// the URL the app navigated to afterward — this is how you prove the login
+// UI + JWT interceptor + AuthStore hydration actually work together, not
+// just the backend endpoint in isolation.
+async function uiLogin(email = ADMIN_EMAIL, password = ADMIN_PASSWORD, startRoute = '/login') {
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  await page.goto(`${FRONTEND}${startRoute}`, { waitUntil: 'networkidle' });
+  await page.fill('[data-testid="login-email"]', email);
+  await page.fill('[data-testid="login-password"]', password);
+  await page.click('[data-testid="login-submit"]');
+  await page.waitForTimeout(1000);
+  const landedUrl = page.url();
+  await browser.close();
+  return { landedUrl };
+}
+
 async function main() {
   const [cmd, ...args] = process.argv.slice(2);
 
   if (cmd === 'login') {
     const result = await login();
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (cmd === 'ui-login') {
+    const [email, password] = args;
+    const result = await uiLogin(email, password);
     console.log(JSON.stringify(result, null, 2));
     return;
   }
@@ -93,7 +118,7 @@ async function main() {
   }
 
   if (cmd === 'smoke') {
-    console.log('--- login ---');
+    console.log('--- api login ---');
     const { accessToken } = await login();
     console.log('OK, token acquired');
 
@@ -103,20 +128,55 @@ async function main() {
       console.log(r.status === 200 ? 'OK' : `UNEXPECTED STATUS ${r.status}: ${r.body}`);
     }
 
-    for (const route of ['/admin/users', '/admin/permissions', '/projects/1/board']) {
-      console.log(`--- shot ${route} ---`);
-      const r = await shot(route);
-      console.log(`saved: ${r.outPath}`);
-      if (r.consoleErrors.some((e) => !e.includes('401'))) {
-        console.log(`UNEXPECTED console errors: ${JSON.stringify(r.consoleErrors)}`);
-      } else {
-        console.log('console errors: only expected 401s (no login UI/JWT interceptor yet)');
-      }
+    fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+    const browser = await chromium.launch();
+
+    console.log('--- unauthenticated board -> guard redirect ---');
+    {
+      const page = await browser.newPage();
+      await page.goto(`${FRONTEND}/projects/1/board`, { waitUntil: 'networkidle' });
+      const url = page.url();
+      console.log(
+        url.includes('/login') && url.includes('returnUrl')
+          ? `OK, redirected to ${url}`
+          : `UNEXPECTED: expected redirect to /login?returnUrl=..., got ${url}`,
+      );
+      await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'smoke_unauth_redirect.png') });
+      await page.close();
     }
+
+    console.log('--- ui-login (admin) then authenticated routes, same browser context ---');
+    {
+      const page = await browser.newPage();
+      await page.goto(`${FRONTEND}/login`, { waitUntil: 'networkidle' });
+      await page.fill('[data-testid="login-email"]', ADMIN_EMAIL);
+      await page.fill('[data-testid="login-password"]', ADMIN_PASSWORD);
+      await page.click('[data-testid="login-submit"]');
+      await page.waitForTimeout(1000);
+      console.log(
+        page.url() === `${FRONTEND}/` ? 'OK, landed on home' : `UNEXPECTED landing URL: ${page.url()}`,
+      );
+
+      for (const route of ['/admin/users', '/admin/permissions', '/projects/1/board']) {
+        await page.goto(`${FRONTEND}${route}`, { waitUntil: 'networkidle' });
+        await page.waitForTimeout(500);
+        const outPath = path.join(SCREENSHOT_DIR, `smoke_authed${route.replace(/\W+/g, '_')}.png`);
+        await page.screenshot({ path: outPath });
+        console.log(
+          page.url().includes(route) ? `OK: ${route} -> saved ${outPath}` : `UNEXPECTED URL after ${route}: ${page.url()}`,
+        );
+      }
+      await page.close();
+    }
+
+    await browser.close();
+    console.log('\nNote: this covers the seeded admin only. To exercise adminGuard\'s');
+    console.log('denial path, POST /api/auth/register a second user (default role is');
+    console.log('non-admin) and log in as them via `node driver.mjs ui-login <email> <pass>`.');
     return;
   }
 
-  console.error('Usage: node driver.mjs <login|api <path>|shot <route> [outfile]|smoke>');
+  console.error('Usage: node driver.mjs <login|ui-login [email] [pass]|api <path>|shot <route> [outfile]|smoke>');
   process.exit(1);
 }
 

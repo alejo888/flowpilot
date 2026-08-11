@@ -46,16 +46,19 @@ cd .claude/skills/run-flowpilot
 node driver.mjs smoke
 ```
 
-`smoke` logs in as the seeded admin, hits two admin API routes, and screenshots the three wired frontend routes — the single command that proves the stack is actually working end-to-end, not just "containers up."
+`smoke` proves the stack works end-to-end: backend login + admin API checks, an unauthenticated guard-redirect check (`/projects/1/board` -> `/login?returnUrl=...`), then a real UI login as the seeded admin and screenshots of the three protected routes while authenticated.
 
 Screenshots land in `.claude/skills/run-flowpilot/screenshots/`.
 
 | command | what it does |
 |---|---|
 | `node driver.mjs login` | POSTs to `/api/auth/login` with the seeded admin (`admin@flowpilot.local` / `ChangeMe123!`), prints `{accessToken, expiresIn}` |
+| `node driver.mjs ui-login [email] [pass]` | Submits the real login form in headless Chromium, prints the URL the app navigated to afterward (proves login UI + interceptor + AuthStore hydration work together, not just the API) |
 | `node driver.mjs api <path> [--token TOK]` | GETs `http://localhost:8080<path>`, prints status + body |
 | `node driver.mjs shot <route> [outfile]` | Screenshots `http://localhost<route>` with headless Chromium, prints visible body text + console errors |
-| `node driver.mjs smoke` | login + `/api/users` + `/api/admin/role-permissions` checks + screenshots of `/admin/users`, `/admin/permissions`, `/projects/1/board` |
+| `node driver.mjs smoke` | api login + admin API checks + unauthenticated guard-redirect check + UI login as admin + screenshots of `/admin/users`, `/admin/permissions`, `/projects/1/board` while authenticated |
+
+To exercise `adminGuard`'s denial path (a non-admin hitting an admin route), register a second user first — `/api/auth/register` defaults new accounts to the non-admin role — then `node driver.mjs ui-login <that-email> <that-password>` and navigate to `/admin/users`; it redirects to `/` with a "No tienes acceso a esta sección." notice (`[data-testid="home-notice"]`).
 
 ## Run (human path)
 
@@ -63,7 +66,7 @@ Screenshots land in `.claude/skills/run-flowpilot/screenshots/`.
 docker compose up --build   # foreground; Ctrl-C to stop
 ```
 
-Then open `http://localhost` in a real browser. There is no login UI yet (see Gotchas) — use the API driver's `login` command to get a token if you need to hand-craft authenticated requests.
+Then open `http://localhost` in a real browser. The login form is at `/login` (seeded admin: `admin@flowpilot.local` / `ChangeMe123!`); `authGuard`/`adminGuard` redirect unauthenticated or under-privileged visitors there or to `/` automatically, so you don't need to hand-craft a bearer token to click around.
 
 ## Test
 
@@ -74,8 +77,7 @@ Frontend: `cd frontend && ng test --watch=false`.
 
 - **`backend/mvnw` must have LF line endings.** A Windows checkout without `.gitattributes` can leave it CRLF, which breaks the `#!/bin/sh` shebang *inside* the Linux build container (`./mvnw: not found`). The repo now has a root `.gitattributes` forcing `mvnw text eol=lf` — if you ever see this error again, the checkout bypassed it somehow; run `dos2unix backend/mvnw`.
 - **The official `maven:3.9-eclipse-temurin-25` image sets `MAVEN_CONFIG=/root/.m2`.** `mvnw`'s own script blindly prepends `$MAVEN_CONFIG` to its CLI args, so that env var gets read as a Maven goal → `[ERROR] Unknown lifecycle phase "/root/.m2"`. `backend/Dockerfile` fixes this with `ENV MAVEN_CONFIG=""` right after `FROM`. Don't remove that line.
-- **No frontend login UI or JWT interceptor exists yet** (`features/auth` is a placeholder). Every frontend page that calls the API will show a `401` — that's expected, not a regression. Use `driver.mjs login`/`api` to test the backend directly instead.
-- **`/projects/:id/board` swallows its load error silently.** `admin/users` and `admin/permissions` render a visible "Request failed" message on a 401; the board's `BoardStore` doesn't set its `error()` signal on HTTP failure, so the same 401 only shows up as a minified `ERROR nn` in the browser console, not on screen. Known gap, not fixed as part of this skill — if you're debugging "board shows nothing," this is why.
+- **`/projects/:id/board` swallows its load error silently.** `authGuard` blocks outright unauthenticated visits, but if a session goes bad mid-visit (e.g. refresh fails after the access token expires), `admin/users` and `admin/permissions` render a visible "Request failed" message on the resulting 401 while the board's `BoardStore` doesn't set its `error()` signal on HTTP failure — that 401 only shows up as a minified `ERROR nn` in the browser console, not on screen. Known gap, not fixed as part of this skill — if you're debugging "board shows nothing," this is why.
 - **`docker compose up -d` reports containers "Started" before Spring Boot has finished booting.** A `curl` right after will get connection-refused. Poll (see Build section) instead of a fixed sleep.
 
 ## Troubleshooting
