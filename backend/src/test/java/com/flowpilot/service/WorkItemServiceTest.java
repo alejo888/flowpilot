@@ -27,9 +27,11 @@ import org.springframework.security.access.AccessDeniedException;
 
 /**
  * WorkItem CRUD logic (spec: work-items). Writes (create/update/delete) are
- * gated by {@code isOwnerOrAdmin} — the same interim rule used by {@code
- * ProjectService}/{@code ProjectMemberService} writes (confirmed decision 5b
- * interim rule, slices 3-6). Reads are gated by {@code canView}. Create
+ * gated by {@code canManageWorkItems} — any project member (owner, global
+ * admin, or a {@code ProjectMember}) may create/edit/delete work items;
+ * task management is a team-wide capability, unlike {@code ProjectService}/
+ * {@code ProjectMemberService} writes which remain owner-or-admin-only.
+ * Reads are gated by {@code canView} (same owner/admin/member rule). Create
  * always targets the project's first (lowest-position) {@link BoardColumn},
  * per spec's "Create work item" scenario.
  */
@@ -54,7 +56,7 @@ class WorkItemServiceTest {
 
     @Test
     void createLandsInFirstColumnWithInitialPosition() throws Exception {
-        when(authorizationService.isOwnerOrAdmin(1L, 10L)).thenReturn(true);
+        when(authorizationService.canManageWorkItems(1L, 10L)).thenReturn(true);
         BoardColumn firstColumn = column(200L, 10L, 1024);
         when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
                 .thenReturn(Optional.of(firstColumn));
@@ -71,7 +73,7 @@ class WorkItemServiceTest {
 
     @Test
     void createSecondItemInColumnGetsNextGapPosition() throws Exception {
-        when(authorizationService.isOwnerOrAdmin(1L, 10L)).thenReturn(true);
+        when(authorizationService.canManageWorkItems(1L, 10L)).thenReturn(true);
         BoardColumn firstColumn = column(200L, 10L, 1024);
         when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
                 .thenReturn(Optional.of(firstColumn));
@@ -87,11 +89,26 @@ class WorkItemServiceTest {
 
     @Test
     void createByUnauthorizedUserThrows403() {
-        when(authorizationService.isOwnerOrAdmin(2L, 10L)).thenReturn(false);
+        when(authorizationService.canManageWorkItems(2L, 10L)).thenReturn(false);
 
         assertThatThrownBy(() -> workItemService.create(
                 10L, new WorkItemCreateRequest("Task", null, null), 2L))
                 .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void createByPlainProjectMemberSucceeds() throws Exception {
+        when(authorizationService.canManageWorkItems(3L, 10L)).thenReturn(true);
+        BoardColumn firstColumn = column(200L, 10L, 1024);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(firstColumn));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WorkItemResponse response = workItemService.create(
+                10L, new WorkItemCreateRequest("Task by member", null, null), 3L);
+
+        assertThat(response.title()).isEqualTo("Task by member");
     }
 
     @Test
@@ -148,7 +165,7 @@ class WorkItemServiceTest {
     void updateByAuthorizedUserSucceeds() throws Exception {
         WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
         when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
-        when(authorizationService.isOwnerOrAdmin(1L, 10L)).thenReturn(true);
+        when(authorizationService.canManageWorkItems(1L, 10L)).thenReturn(true);
 
         WorkItemResponse response = workItemService.update(
                 500L, new WorkItemUpdateRequest("New title", "New description", 42L), 1L);
@@ -160,10 +177,22 @@ class WorkItemServiceTest {
     }
 
     @Test
+    void updateByPlainProjectMemberSucceeds() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.canManageWorkItems(3L, 10L)).thenReturn(true);
+
+        WorkItemResponse response = workItemService.update(
+                500L, new WorkItemUpdateRequest("Member update", null, null), 3L);
+
+        assertThat(response.title()).isEqualTo("Member update");
+    }
+
+    @Test
     void updateByUnauthorizedUserThrows403() throws Exception {
         WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
         when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
-        when(authorizationService.isOwnerOrAdmin(2L, 10L)).thenReturn(false);
+        when(authorizationService.canManageWorkItems(2L, 10L)).thenReturn(false);
 
         assertThatThrownBy(() -> workItemService.update(
                 500L, new WorkItemUpdateRequest("New title", null, null), 2L))
@@ -174,9 +203,20 @@ class WorkItemServiceTest {
     void deleteByAuthorizedUserSucceeds() throws Exception {
         WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
         when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
-        when(authorizationService.isOwnerOrAdmin(1L, 10L)).thenReturn(true);
+        when(authorizationService.canManageWorkItems(1L, 10L)).thenReturn(true);
 
         workItemService.delete(500L, 1L);
+
+        verify(workItemRepository).delete(item);
+    }
+
+    @Test
+    void deleteByPlainProjectMemberSucceeds() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.canManageWorkItems(3L, 10L)).thenReturn(true);
+
+        workItemService.delete(500L, 3L);
 
         verify(workItemRepository).delete(item);
     }
@@ -185,7 +225,7 @@ class WorkItemServiceTest {
     void deleteByUnauthorizedUserThrows403() throws Exception {
         WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
         when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
-        when(authorizationService.isOwnerOrAdmin(2L, 10L)).thenReturn(false);
+        when(authorizationService.canManageWorkItems(2L, 10L)).thenReturn(false);
 
         assertThatThrownBy(() -> workItemService.delete(500L, 2L))
                 .isInstanceOf(AccessDeniedException.class);

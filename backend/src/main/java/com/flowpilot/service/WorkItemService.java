@@ -16,9 +16,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * WorkItem CRUD (spec: work-items). Writes funnel through {@link
- * ProjectAuthorizationService#isOwnerOrAdmin} — the same interim rule used by
- * {@code ProjectService}/{@code ProjectMemberService} writes (slices 3-6);
- * reads use {@link ProjectAuthorizationService#canView}. Creation always
+ * ProjectAuthorizationService#canManageWorkItems} — any project member
+ * (owner, global admin, or a {@code ProjectMember}) may create/edit/delete
+ * work items, since task management must stay usable by the whole team, not
+ * just the project owner; reads use {@link ProjectAuthorizationService#canView}
+ * (same owner/admin/member rule). {@code ProjectService}/{@code
+ * ProjectMemberService} writes remain owner-or-admin-only and are
+ * unaffected by this. Creation always
  * targets the project's first (lowest-position) {@link BoardColumn} and
  * appends to the end of that column using the gap-based strategy shared with
  * {@code BoardColumn.position} (design D10): {@code max(position) + 1024},
@@ -46,7 +50,7 @@ public class WorkItemService {
 
     @Transactional
     public WorkItemResponse create(Long projectId, WorkItemCreateRequest request, Long requesterId) {
-        requireOwnerOrAdmin(requesterId, projectId);
+        requireCanManageWorkItems(requesterId, projectId);
         BoardColumn firstColumn = boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(projectId)
                 .orElseThrow(() -> new ProjectNotFoundException(projectId));
         int position = nextPosition(firstColumn.getId());
@@ -73,7 +77,7 @@ public class WorkItemService {
     @Transactional
     public WorkItemResponse update(Long id, WorkItemUpdateRequest request, Long requesterId) {
         WorkItem item = getOrThrow(id);
-        requireOwnerOrAdmin(requesterId, item.getProjectId());
+        requireCanManageWorkItems(requesterId, item.getProjectId());
         item.setTitle(request.title());
         item.setDescription(request.description());
         item.setAssignedUserId(request.assignedUserId());
@@ -84,7 +88,7 @@ public class WorkItemService {
     @Transactional
     public void delete(Long id, Long requesterId) {
         WorkItem item = getOrThrow(id);
-        requireOwnerOrAdmin(requesterId, item.getProjectId());
+        requireCanManageWorkItems(requesterId, item.getProjectId());
         workItemRepository.delete(item);
     }
 
@@ -94,9 +98,9 @@ public class WorkItemService {
                 .orElse(POSITION_STEP);
     }
 
-    private void requireOwnerOrAdmin(Long requesterId, Long projectId) {
-        if (!authorizationService.isOwnerOrAdmin(requesterId, projectId)) {
-            throw new AccessDeniedException("Not the project owner or an administrator");
+    private void requireCanManageWorkItems(Long requesterId, Long projectId) {
+        if (!authorizationService.canManageWorkItems(requesterId, projectId)) {
+            throw new AccessDeniedException("Not a member of this project");
         }
     }
 

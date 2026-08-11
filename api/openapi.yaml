@@ -579,10 +579,12 @@ paths:
       summary: Create a work item
       operationId: createWorkItem
       description: >-
-        Only the project's owner or a global administrator may create a work
-        item (interim rule, same seam as project/member writes). The item is
-        always created in the project's first (lowest-position) BoardColumn;
-        moving between columns is a separate slice-6 endpoint.
+        Any project member (owner, a global administrator, or a live
+        ProjectMember of the project) may create a work item — task
+        management must stay usable by the whole team, not just the project
+        owner. The item is always created in the project's first
+        (lowest-position) BoardColumn; moving between columns is a separate
+        slice-6 endpoint.
       security:
         - bearerAuth: []
       parameters:
@@ -601,7 +603,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/WorkItemResponse'
         '403':
-          description: Caller is not the owner or an administrator
+          description: Caller is not the owner, an administrator, or a member
           content:
             application/problem+json:
               schema:
@@ -643,8 +645,9 @@ paths:
       summary: Update a work item's title/description/assignee
       operationId: updateWorkItem
       description: >-
-        Only the project's owner or a global administrator may edit. Does
-        NOT accept columnId/position — moving is the separate slice-6
+        Any project member (owner, a global administrator, or a live
+        ProjectMember of the project) may edit. Does NOT accept
+        columnId/position — moving is the separate slice-6
         PUT /work-items/{id}/move endpoint.
       security:
         - bearerAuth: []
@@ -664,7 +667,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/WorkItemResponse'
         '403':
-          description: Caller is not the owner or an administrator
+          description: Caller is not the owner, an administrator, or a member
           content:
             application/problem+json:
               schema:
@@ -679,7 +682,8 @@ paths:
       summary: Delete a work item
       operationId: deleteWorkItem
       description: >-
-        Only the project's owner or a global administrator may delete.
+        Any project member (owner, a global administrator, or a live
+        ProjectMember of the project) may delete.
       security:
         - bearerAuth: []
       parameters:
@@ -688,7 +692,7 @@ paths:
         '204':
           description: Work item deleted
         '403':
-          description: Caller is not the owner or an administrator
+          description: Caller is not the owner, an administrator, or a member
           content:
             application/problem+json:
               schema:
