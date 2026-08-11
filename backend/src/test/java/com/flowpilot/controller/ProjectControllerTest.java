@@ -104,15 +104,33 @@ class ProjectControllerTest {
 
     @Test
     void getByIdReturns404WhenMissing() throws Exception {
-        when(projectService.findById(99L)).thenThrow(new ProjectNotFoundException(99L));
+        when(projectService.findById(99L, 1L)).thenThrow(new ProjectNotFoundException(99L));
 
         mockMvc.perform(get("/api/projects/99").principal(authenticatedAs(1L)))
                 .andExpect(status().isNotFound());
     }
 
     @Test
+    void getByIdWithoutViewPermissionReturns403() throws Exception {
+        when(projectService.findById(1L, 99L))
+                .thenThrow(new AccessDeniedException("Not authorized to view this project"));
+
+        mockMvc.perform(get("/api/projects/1").principal(authenticatedAs(99L)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void boardColumnsWithoutViewPermissionReturns403() throws Exception {
+        when(projectService.listBoardColumns(1L, 99L))
+                .thenThrow(new AccessDeniedException("Not authorized to view this project"));
+
+        mockMvc.perform(get("/api/projects/1/board-columns").principal(authenticatedAs(99L)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void listBoardColumnsReturnsOrderedColumns() throws Exception {
-        when(projectService.listBoardColumns(1L)).thenReturn(List.of(
+        when(projectService.listBoardColumns(1L, 1L)).thenReturn(List.of(
                 new BoardColumnResponse(1L, "Por hacer", 1024),
                 new BoardColumnResponse(2L, "En progreso", 2048)));
 

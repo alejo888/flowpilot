@@ -25,7 +25,10 @@ import org.springframework.web.bind.annotation.RestController;
  * Project CRUD + lifecycle endpoints (spec: project-management). Every write
  * requires the caller to be the project's owner or a global administrator —
  * interim rule enforced by {@link com.flowpilot.service.ProjectAuthorizationService}
- * (slices 3-6, until slice 8a's permission matrix exists).
+ * (slices 3-6, until slice 8a's permission matrix exists). {@code GET /{id}}
+ * and {@code GET /{id}/board-columns} require {@code canView} (admin, owner,
+ * or a {@code ProjectMember}) — closes the read-authorization gap flagged in
+ * the slice-3 verify report (previously authentication-only).
  */
 @RestController
 @RequestMapping("/api/projects")
@@ -49,8 +52,8 @@ public class ProjectController {
     }
 
     @GetMapping("/{id}")
-    public ProjectResponse getById(@PathVariable Long id) {
-        return projectService.findById(id);
+    public ProjectResponse getById(@PathVariable Long id, Authentication authentication) {
+        return projectService.findById(id, currentUserId(authentication));
     }
 
     @PutMapping("/{id}")
@@ -76,8 +79,8 @@ public class ProjectController {
     }
 
     @GetMapping("/{id}/board-columns")
-    public List<BoardColumnResponse> boardColumns(@PathVariable Long id) {
-        return projectService.listBoardColumns(id);
+    public List<BoardColumnResponse> boardColumns(@PathVariable Long id, Authentication authentication) {
+        return projectService.listBoardColumns(id, currentUserId(authentication));
     }
 
     private Long currentUserId(Authentication authentication) {
