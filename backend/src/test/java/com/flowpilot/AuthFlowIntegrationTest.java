@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowpilot.dto.LoginRequest;
 import com.flowpilot.dto.RegisterRequest;
+import com.flowpilot.security.CookieService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class AuthFlowIntegrationTest {
+
+    /** Mirrors {@code CsrfProtectionFilter}'s expected header name for the double-submit check. */
+    private static final String CSRF_HEADER_NAME = "X-XSRF-TOKEN";
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
@@ -72,7 +76,12 @@ class AuthFlowIntegrationTest {
         assertThat(refreshCookie).isNotNull();
         assertThat(refreshCookie.isHttpOnly()).isTrue();
 
-        MvcResult refreshResult = mockMvc.perform(post("/api/auth/refresh").cookie(refreshCookie))
+        Cookie csrfCookie = loginResult.getResponse().getCookie(CookieService.CSRF_COOKIE_NAME);
+        assertThat(csrfCookie).isNotNull();
+
+        MvcResult refreshResult = mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(refreshCookie, csrfCookie)
+                        .header(CSRF_HEADER_NAME, csrfCookie.getValue()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").exists())
                 .andReturn();
@@ -81,15 +90,24 @@ class AuthFlowIntegrationTest {
         assertThat(rotatedCookie).isNotNull();
         assertThat(rotatedCookie.getValue()).isNotEqualTo(refreshCookie.getValue());
 
+        Cookie rotatedCsrfCookie = refreshResult.getResponse().getCookie(CookieService.CSRF_COOKIE_NAME);
+        assertThat(rotatedCsrfCookie).isNotNull();
+
         // Reusing the original (now-revoked) refresh token must fail.
-        mockMvc.perform(post("/api/auth/refresh").cookie(refreshCookie))
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(refreshCookie, csrfCookie)
+                        .header(CSRF_HEADER_NAME, csrfCookie.getValue()))
                 .andExpect(status().isUnauthorized());
 
-        mockMvc.perform(post("/api/auth/logout").cookie(rotatedCookie))
+        mockMvc.perform(post("/api/auth/logout")
+                        .cookie(rotatedCookie, rotatedCsrfCookie)
+                        .header(CSRF_HEADER_NAME, rotatedCsrfCookie.getValue()))
                 .andExpect(status().isNoContent());
 
         // The rotated token is now revoked too; refresh must fail after logout.
-        mockMvc.perform(post("/api/auth/refresh").cookie(rotatedCookie))
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(rotatedCookie, rotatedCsrfCookie)
+                        .header(CSRF_HEADER_NAME, rotatedCsrfCookie.getValue()))
                 .andExpect(status().isUnauthorized());
     }
 

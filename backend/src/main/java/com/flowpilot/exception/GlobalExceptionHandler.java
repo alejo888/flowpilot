@@ -40,7 +40,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DisabledException.class)
     public ProblemDetail handleDisabled(DisabledException ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Account is deactivated");
+        // Intentionally uses the same generic message as handleBadCredentials to avoid an
+        // account-existence/state enumeration signal on the login endpoint.
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid email or password");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

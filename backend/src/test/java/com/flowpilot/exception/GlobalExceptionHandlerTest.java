@@ -44,10 +44,12 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void disabledAccountMapsTo401WithDeactivatedDetail() {
+    void disabledAccountMapsTo401WithGenericDetail() {
+        // Uses the same generic detail as bad credentials to avoid an account-state
+        // enumeration signal on the login endpoint.
         ProblemDetail detail = handler.handleDisabled(new DisabledException("disabled"));
 
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
-        assertThat(detail.getDetail()).isEqualTo("Account is deactivated");
+        assertThat(detail.getDetail()).isEqualTo("Invalid email or password");
     }
 }
