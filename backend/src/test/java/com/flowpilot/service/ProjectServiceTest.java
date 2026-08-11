@@ -131,12 +131,12 @@ class ProjectServiceTest {
 
     @Test
     void listBoardColumnsReturnsOrderedByPosition() throws Exception {
-        when(projectRepository.findById(10L)).thenReturn(Optional.of(project(10L, 1L)));
+        when(authorizationService.canView(1L, 10L)).thenReturn(true);
         when(boardColumnRepository.findByProjectIdOrderByPositionAsc(10L)).thenReturn(List.of(
                 new BoardColumn(10L, "Por hacer", 1024),
                 new BoardColumn(10L, "En progreso", 2048)));
 
-        List<BoardColumnResponse> result = projectService.listBoardColumns(10L);
+        List<BoardColumnResponse> result = projectService.listBoardColumns(10L, 1L);
 
         assertThat(result).extracting(BoardColumnResponse::name)
                 .containsExactly("Por hacer", "En progreso");
@@ -144,9 +144,43 @@ class ProjectServiceTest {
 
     @Test
     void listBoardColumnsThrows404WhenProjectMissing() {
-        when(projectRepository.findById(99L)).thenReturn(Optional.empty());
+        when(authorizationService.canView(1L, 99L)).thenThrow(new ProjectNotFoundException(99L));
 
-        assertThatThrownBy(() -> projectService.listBoardColumns(99L))
+        assertThatThrownBy(() -> projectService.listBoardColumns(99L, 1L))
+                .isInstanceOf(ProjectNotFoundException.class);
+    }
+
+    @Test
+    void listBoardColumnsWithoutViewPermissionThrows403() {
+        when(authorizationService.canView(99L, 10L)).thenReturn(false);
+
+        assertThatThrownBy(() -> projectService.listBoardColumns(10L, 99L))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void findByIdReturnsProjectForAuthorizedViewer() throws Exception {
+        when(authorizationService.canView(1L, 10L)).thenReturn(true);
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project(10L, 1L)));
+
+        ProjectResponse response = projectService.findById(10L, 1L);
+
+        assertThat(response.id()).isEqualTo(10L);
+    }
+
+    @Test
+    void findByIdWithoutViewPermissionThrows403() {
+        when(authorizationService.canView(99L, 10L)).thenReturn(false);
+
+        assertThatThrownBy(() -> projectService.findById(10L, 99L))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void findByIdThrows404WhenProjectMissing() {
+        when(authorizationService.canView(1L, 99L)).thenThrow(new ProjectNotFoundException(99L));
+
+        assertThatThrownBy(() -> projectService.findById(99L, 1L))
                 .isInstanceOf(ProjectNotFoundException.class);
     }
 

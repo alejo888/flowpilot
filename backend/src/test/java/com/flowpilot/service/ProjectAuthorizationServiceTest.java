@@ -7,6 +7,7 @@ import com.flowpilot.entity.GlobalRole;
 import com.flowpilot.entity.Project;
 import com.flowpilot.entity.User;
 import com.flowpilot.exception.ProjectNotFoundException;
+import com.flowpilot.repository.ProjectMemberRepository;
 import com.flowpilot.repository.ProjectRepository;
 import com.flowpilot.repository.UserRepository;
 import java.lang.reflect.Field;
@@ -32,10 +33,14 @@ class ProjectAuthorizationServiceTest {
     @Mock
     private ProjectRepository projectRepository;
 
+    @Mock
+    private ProjectMemberRepository projectMemberRepository;
+
     private ProjectAuthorizationService authorizationService;
 
     private void setUp() {
-        authorizationService = new ProjectAuthorizationService(userRepository, projectRepository);
+        authorizationService =
+                new ProjectAuthorizationService(userRepository, projectRepository, projectMemberRepository);
     }
 
     @Test
@@ -88,6 +93,50 @@ class ProjectAuthorizationServiceTest {
         } catch (ProjectNotFoundException expected) {
             assertThat(expected.getMessage()).contains("99");
         }
+    }
+
+    @Test
+    void ownerCanView() throws Exception {
+        setUp();
+        User owner = user(1L, GlobalRole.MIEMBRO_EQUIPO);
+        Project project = project(10L, 1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+
+        assertThat(authorizationService.canView(1L, 10L)).isTrue();
+    }
+
+    @Test
+    void adminCanViewWithoutBeingAMember() throws Exception {
+        setUp();
+        User admin = user(3L, GlobalRole.ADMINISTRADOR);
+        when(userRepository.findById(3L)).thenReturn(Optional.of(admin));
+
+        assertThat(authorizationService.canView(3L, 10L)).isTrue();
+    }
+
+    @Test
+    void projectMemberCanView() throws Exception {
+        setUp();
+        User member = user(4L, GlobalRole.MIEMBRO_EQUIPO);
+        Project project = project(10L, 1L);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(member));
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+        when(projectMemberRepository.existsByProjectIdAndUserId(10L, 4L)).thenReturn(true);
+
+        assertThat(authorizationService.canView(4L, 10L)).isTrue();
+    }
+
+    @Test
+    void nonMemberNonOwnerNonAdminCannotView() throws Exception {
+        setUp();
+        User outsider = user(5L, GlobalRole.MIEMBRO_EQUIPO);
+        Project project = project(10L, 1L);
+        when(userRepository.findById(5L)).thenReturn(Optional.of(outsider));
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+        when(projectMemberRepository.existsByProjectIdAndUserId(10L, 5L)).thenReturn(false);
+
+        assertThat(authorizationService.canView(5L, 10L)).isFalse();
     }
 
     private User user(Long id, GlobalRole role) throws Exception {
