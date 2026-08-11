@@ -139,6 +139,50 @@ class ProjectAuthorizationServiceTest {
         assertThat(authorizationService.canView(5L, 10L)).isFalse();
     }
 
+    @Test
+    void ownerCanManageWorkItems() throws Exception {
+        setUp();
+        User owner = user(1L, GlobalRole.MIEMBRO_EQUIPO);
+        Project project = project(10L, 1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+
+        assertThat(authorizationService.canManageWorkItems(1L, 10L)).isTrue();
+    }
+
+    @Test
+    void adminCanManageWorkItemsWithoutBeingAMember() throws Exception {
+        setUp();
+        User admin = user(3L, GlobalRole.ADMINISTRADOR);
+        when(userRepository.findById(3L)).thenReturn(Optional.of(admin));
+
+        assertThat(authorizationService.canManageWorkItems(3L, 10L)).isTrue();
+    }
+
+    @Test
+    void plainProjectMemberCanManageWorkItems() throws Exception {
+        setUp();
+        User member = user(4L, GlobalRole.MIEMBRO_EQUIPO);
+        Project project = project(10L, 1L);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(member));
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+        when(projectMemberRepository.existsByProjectIdAndUserId(10L, 4L)).thenReturn(true);
+
+        assertThat(authorizationService.canManageWorkItems(4L, 10L)).isTrue();
+    }
+
+    @Test
+    void nonMemberNonOwnerNonAdminCannotManageWorkItems() throws Exception {
+        setUp();
+        User outsider = user(5L, GlobalRole.MIEMBRO_EQUIPO);
+        Project project = project(10L, 1L);
+        when(userRepository.findById(5L)).thenReturn(Optional.of(outsider));
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+        when(projectMemberRepository.existsByProjectIdAndUserId(10L, 5L)).thenReturn(false);
+
+        assertThat(authorizationService.canManageWorkItems(5L, 10L)).isFalse();
+    }
+
     private User user(Long id, GlobalRole role) throws Exception {
         User user = new User("Name", "user" + id + "@flowpilot.local", "hash", role, true);
         setId(user, User.class, id);

@@ -32,6 +32,14 @@ import org.springframework.stereotype.Service;
  * {@code GET /api/projects/{id}} and {@code GET
  * /api/projects/{id}/board-columns} previously had no ownership/membership
  * check at all.
+ *
+ * <p>{@link #canManageWorkItems} shares that same owner/admin/member formula
+ * for {@code WorkItem} writes (create/update/delete): task management is a
+ * team-wide capability in a Kanban tool, not an owner-only one — product
+ * decision, confirmed after PR #6 review. It reuses {@link #canView}'s exact
+ * check rather than {@link #isOwnerOrAdmin} so the logic lives in one place;
+ * {@code ProjectService}/{@code ProjectMemberService} writes remain
+ * owner-or-admin-only and are unaffected.
  */
 @Service
 public class ProjectAuthorizationService {
@@ -80,5 +88,17 @@ public class ProjectAuthorizationService {
         }
 
         return projectMemberRepository.existsByProjectIdAndUserId(projectId, userId);
+    }
+
+    /**
+     * Write gate for {@code WorkItem} create/update/delete: any project
+     * member may manage work items — admin, owner, or a live {@link
+     * com.flowpilot.entity.ProjectMember}. Delegates to {@link #canView}'s
+     * exact check; kept as a separate, purpose-named method so call sites
+     * read as an authorization decision for writes, not a read gate reused
+     * out of context.
+     */
+    public boolean canManageWorkItems(Long userId, Long projectId) {
+        return canView(userId, projectId);
     }
 }
