@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
 import { AccessNoticeStore } from '../../core/notifications/access-notice.store';
 import { HomeComponent } from './home.component';
@@ -12,7 +13,7 @@ describe('HomeComponent', () => {
 
     await TestBed.configureTestingModule({
       imports: [HomeComponent],
-      providers: [{ provide: AccessNoticeStore, useValue: accessNoticeStub }],
+      providers: [provideRouter([]), { provide: AccessNoticeStore, useValue: accessNoticeStub }],
     }).compileComponents();
   });
 
@@ -37,5 +38,16 @@ describe('HomeComponent', () => {
 
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('[data-testid="home-notice"]')).toBeNull();
+  });
+
+  it('links to the projects list', () => {
+    accessNoticeStub.consume.mockReturnValue(null);
+
+    fixture = TestBed.createComponent(HomeComponent);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const link = compiled.querySelector('[data-testid="home-projects-link"]');
+    expect(link?.getAttribute('href')).toBe('/projects');
   });
 });

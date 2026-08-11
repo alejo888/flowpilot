@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 
 import { ProjectsApiService } from './projects-api.service';
-import { Project } from './project.model';
+import { Project, ProjectCreateRequest } from './project.model';
 
 describe('ProjectsApiService', () => {
   let service: ProjectsApiService;
@@ -51,5 +51,28 @@ describe('ProjectsApiService', () => {
     req.flush(projects);
 
     expect(result).toEqual(projects);
+  });
+
+  it('creates a project', () => {
+    const request: ProjectCreateRequest = { name: 'Proyecto Nuevo', description: 'Detalle' };
+    const created: Project = {
+      id: 3,
+      name: 'Proyecto Nuevo',
+      description: 'Detalle',
+      status: 'PLANIFICACION',
+      ownerId: 7,
+      createdAt: '2026-08-03T00:00:00Z',
+      updatedAt: '2026-08-03T00:00:00Z',
+    };
+    let result: Project | undefined;
+
+    service.createProject(request).subscribe((response) => (result = response));
+
+    const req = httpMock.expectOne('/api/projects');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual(request);
+    req.flush(created);
+
+    expect(result).toEqual(created);
   });
 });

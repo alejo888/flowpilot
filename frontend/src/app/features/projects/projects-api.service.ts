@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
-import { Project } from './project.model';
+import { Project, ProjectCreateRequest } from './project.model';
 
 /**
  * Thin HTTP client for projects (spec: projects-ui). Uses relative
@@ -16,5 +16,9 @@ export class ProjectsApiService {
 
   listProjects(): Observable<Project[]> {
     return this.http.get<Project[]>('/api/projects');
+  }
+
+  createProject(request: ProjectCreateRequest): Observable<Project> {
+    return this.http.post<Project>('/api/projects', request);
   }
 }
