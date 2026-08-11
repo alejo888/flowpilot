@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.flowpilot.dto.ProjectMemberAddRequest;
 import com.flowpilot.dto.ProjectMemberResponse;
 import com.flowpilot.dto.ProjectMemberRoleUpdateRequest;
+import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.ProjectMember;
 import com.flowpilot.entity.ProjectRole;
 import com.flowpilot.exception.DuplicateMemberException;
@@ -29,9 +30,9 @@ import org.springframework.security.access.AccessDeniedException;
 
 /**
  * Add/remove/role-change member logic (spec: project-membership). Write
- * operations are gated by {@code isOwnerOrAdmin} (confirmed decision 5b
- * interim rule — same seam as {@code ProjectService} update/delete). Reads
- * are gated by {@code canView}.
+ * operations funnel through {@code hasPermission} with the operation's
+ * specific {@link Permission} (confirmed decision 5b, matrix-backed as of
+ * slice 8a). Reads are gated by {@code canView}.
  */
 @ExtendWith(MockitoExtension.class)
 class ProjectMemberServiceTest {
@@ -51,7 +52,7 @@ class ProjectMemberServiceTest {
 
     @Test
     void addMemberByAuthorizedUserSucceeds() throws Exception {
-        when(authorizationService.isOwnerOrAdmin(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.MEMBER_ADD)).thenReturn(true);
         when(projectMemberRepository.existsByProjectIdAndUserId(10L, 20L)).thenReturn(false);
         ProjectMember saved = member(100L, 10L, 20L, ProjectRole.DEVELOPER);
         when(projectMemberRepository.save(org.mockito.ArgumentMatchers.any(ProjectMember.class)))
@@ -66,7 +67,7 @@ class ProjectMemberServiceTest {
 
     @Test
     void addMemberByUnauthorizedUserThrows403() {
-        when(authorizationService.isOwnerOrAdmin(2L, 10L)).thenReturn(false);
+        when(authorizationService.hasPermission(2L, 10L, Permission.MEMBER_ADD)).thenReturn(false);
 
         assertThatThrownBy(() -> projectMemberService.addMember(
                 10L, new ProjectMemberAddRequest(20L, ProjectRole.DEVELOPER), 2L))
@@ -75,7 +76,7 @@ class ProjectMemberServiceTest {
 
     @Test
     void addDuplicateMemberThrows409() {
-        when(authorizationService.isOwnerOrAdmin(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.MEMBER_ADD)).thenReturn(true);
         when(projectMemberRepository.existsByProjectIdAndUserId(10L, 20L)).thenReturn(true);
 
         assertThatThrownBy(() -> projectMemberService.addMember(
@@ -86,7 +87,7 @@ class ProjectMemberServiceTest {
     @Test
     void adminCanAddMemberWithoutBeingAMemberThemselves() throws Exception {
         // Global admin implicit access — spec scenario "Global admin implicit access"
-        when(authorizationService.isOwnerOrAdmin(3L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(3L, 10L, Permission.MEMBER_ADD)).thenReturn(true);
         when(projectMemberRepository.existsByProjectIdAndUserId(10L, 20L)).thenReturn(false);
         ProjectMember saved = member(101L, 10L, 20L, ProjectRole.QA);
         when(projectMemberRepository.save(org.mockito.ArgumentMatchers.any(ProjectMember.class)))
@@ -100,7 +101,7 @@ class ProjectMemberServiceTest {
 
     @Test
     void removeMemberByAuthorizedUserSucceeds() throws Exception {
-        when(authorizationService.isOwnerOrAdmin(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.MEMBER_REMOVE)).thenReturn(true);
         ProjectMember existing = member(100L, 10L, 20L, ProjectRole.DEVELOPER);
         when(projectMemberRepository.findByProjectIdAndUserId(10L, 20L)).thenReturn(Optional.of(existing));
 
@@ -111,7 +112,7 @@ class ProjectMemberServiceTest {
 
     @Test
     void removeMemberByUnauthorizedUserThrows403() {
-        when(authorizationService.isOwnerOrAdmin(2L, 10L)).thenReturn(false);
+        when(authorizationService.hasPermission(2L, 10L, Permission.MEMBER_REMOVE)).thenReturn(false);
 
         assertThatThrownBy(() -> projectMemberService.removeMember(10L, 20L, 2L))
                 .isInstanceOf(AccessDeniedException.class);
@@ -119,7 +120,7 @@ class ProjectMemberServiceTest {
 
     @Test
     void removeMissingMemberThrows404() {
-        when(authorizationService.isOwnerOrAdmin(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.MEMBER_REMOVE)).thenReturn(true);
         when(projectMemberRepository.findByProjectIdAndUserId(10L, 20L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> projectMemberService.removeMember(10L, 20L, 1L))
@@ -128,7 +129,7 @@ class ProjectMemberServiceTest {
 
     @Test
     void changeRolePreservesJoinedAt() throws Exception {
-        when(authorizationService.isOwnerOrAdmin(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.MEMBER_CHANGE_ROLE)).thenReturn(true);
         ProjectMember existing = member(100L, 10L, 20L, ProjectRole.DEVELOPER);
         OffsetDateTime originalJoinedAt = existing.getJoinedAt();
         when(projectMemberRepository.findByProjectIdAndUserId(10L, 20L)).thenReturn(Optional.of(existing));
@@ -143,7 +144,7 @@ class ProjectMemberServiceTest {
 
     @Test
     void changeRoleByUnauthorizedUserThrows403() {
-        when(authorizationService.isOwnerOrAdmin(2L, 10L)).thenReturn(false);
+        when(authorizationService.hasPermission(2L, 10L, Permission.MEMBER_CHANGE_ROLE)).thenReturn(false);
 
         assertThatThrownBy(() -> projectMemberService.changeRole(
                 10L, 20L, new ProjectMemberRoleUpdateRequest(ProjectRole.QA), 2L))

@@ -16,6 +16,7 @@ import com.flowpilot.dto.ProjectStatusUpdateRequest;
 import com.flowpilot.dto.ProjectUpdateRequest;
 import com.flowpilot.entity.BoardColumn;
 import com.flowpilot.entity.GlobalRole;
+import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.Project;
 import com.flowpilot.entity.ProjectStatus;
 import com.flowpilot.entity.User;
@@ -80,7 +81,7 @@ class ProjectServiceTest {
 
     @Test
     void updateWithoutPermissionThrows403() throws Exception {
-        when(authorizationService.isOwnerOrAdmin(2L, 10L)).thenReturn(false);
+        when(authorizationService.hasPermission(2L, 10L, Permission.PROJECT_EDIT_SETTINGS)).thenReturn(false);
 
         assertThatThrownBy(() -> projectService.update(10L, new ProjectUpdateRequest("New", "desc"), 2L))
                 .isInstanceOf(AccessDeniedException.class);
@@ -89,7 +90,7 @@ class ProjectServiceTest {
     @Test
     void updateWithPermissionSucceeds() throws Exception {
         Project existing = project(10L, 1L);
-        when(authorizationService.isOwnerOrAdmin(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.PROJECT_EDIT_SETTINGS)).thenReturn(true);
         when(projectRepository.findById(10L)).thenReturn(Optional.of(existing));
 
         ProjectResponse response = projectService.update(10L, new ProjectUpdateRequest("Renamed", "new desc"), 1L);
@@ -101,7 +102,7 @@ class ProjectServiceTest {
     @Test
     void statusTransitionByAuthorizedUserSucceeds() throws Exception {
         Project existing = project(10L, 1L);
-        when(authorizationService.isOwnerOrAdmin(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.PROJECT_EDIT_SETTINGS)).thenReturn(true);
         when(projectRepository.findById(10L)).thenReturn(Optional.of(existing));
 
         ProjectResponse response = projectService.updateStatus(
@@ -112,7 +113,7 @@ class ProjectServiceTest {
 
     @Test
     void deleteWithoutPermissionThrows403() throws Exception {
-        when(authorizationService.isOwnerOrAdmin(2L, 10L)).thenReturn(false);
+        when(authorizationService.hasPermission(2L, 10L, Permission.PROJECT_DELETE)).thenReturn(false);
 
         assertThatThrownBy(() -> projectService.delete(10L, 2L))
                 .isInstanceOf(AccessDeniedException.class);
@@ -121,7 +122,7 @@ class ProjectServiceTest {
     @Test
     void deleteWithPermissionRemovesProject() throws Exception {
         Project existing = project(10L, 1L);
-        when(authorizationService.isOwnerOrAdmin(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.PROJECT_DELETE)).thenReturn(true);
         when(projectRepository.findById(10L)).thenReturn(Optional.of(existing));
 
         projectService.delete(10L, 1L);

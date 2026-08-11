@@ -4,6 +4,7 @@ import com.flowpilot.dto.WorkItemCreateRequest;
 import com.flowpilot.dto.WorkItemResponse;
 import com.flowpilot.dto.WorkItemUpdateRequest;
 import com.flowpilot.entity.BoardColumn;
+import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.exception.ProjectNotFoundException;
 import com.flowpilot.exception.WorkItemNotFoundException;
@@ -16,13 +17,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * WorkItem CRUD (spec: work-items). Writes funnel through {@link
- * ProjectAuthorizationService#canManageWorkItems} — any project member
- * (owner, global admin, or a {@code ProjectMember}) may create/edit/delete
- * work items, since task management must stay usable by the whole team, not
- * just the project owner; reads use {@link ProjectAuthorizationService#canView}
- * (same owner/admin/member rule). {@code ProjectService}/{@code
- * ProjectMemberService} writes remain owner-or-admin-only and are
- * unaffected by this. Creation always
+ * ProjectAuthorizationService#hasPermission}: {@code create} requires
+ * {@link Permission#WORKITEM_CREATE}, {@code update} requires {@link
+ * Permission#WORKITEM_EDIT}, {@code delete} requires {@link
+ * Permission#WORKITEM_DELETE} (proposal's Permission Catalog table; slice
+ * 8a, matrix-backed, confirmed decision 5b) — every seeded role grants at
+ * least create/edit by default, so task management stays usable by the
+ * whole team out of the box; reads use {@link
+ * ProjectAuthorizationService#canView} (owner/admin/member rule, unaffected
+ * by the matrix). Creation always
  * targets the project's first (lowest-position) {@link BoardColumn} and
  * appends to the end of that column using the gap-based strategy shared with
  * {@code BoardColumn.position} (design D10): {@code max(position) + 1024},
@@ -50,7 +53,7 @@ public class WorkItemService {
 
     @Transactional
     public WorkItemResponse create(Long projectId, WorkItemCreateRequest request, Long requesterId) {
-        requireCanManageWorkItems(requesterId, projectId);
+        requirePermission(requesterId, projectId, Permission.WORKITEM_CREATE);
         BoardColumn firstColumn = boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(projectId)
                 .orElseThrow(() -> new ProjectNotFoundException(projectId));
         int position = nextPosition(firstColumn.getId());
@@ -77,7 +80,7 @@ public class WorkItemService {
     @Transactional
     public WorkItemResponse update(Long id, WorkItemUpdateRequest request, Long requesterId) {
         WorkItem item = getOrThrow(id);
-        requireCanManageWorkItems(requesterId, item.getProjectId());
+        requirePermission(requesterId, item.getProjectId(), Permission.WORKITEM_EDIT);
         item.setTitle(request.title());
         item.setDescription(request.description());
         item.setAssignedUserId(request.assignedUserId());
@@ -88,7 +91,7 @@ public class WorkItemService {
     @Transactional
     public void delete(Long id, Long requesterId) {
         WorkItem item = getOrThrow(id);
-        requireCanManageWorkItems(requesterId, item.getProjectId());
+        requirePermission(requesterId, item.getProjectId(), Permission.WORKITEM_DELETE);
         workItemRepository.delete(item);
     }
 
@@ -98,9 +101,9 @@ public class WorkItemService {
                 .orElse(POSITION_STEP);
     }
 
-    private void requireCanManageWorkItems(Long requesterId, Long projectId) {
-        if (!authorizationService.canManageWorkItems(requesterId, projectId)) {
-            throw new AccessDeniedException("Not a member of this project");
+    private void requirePermission(Long requesterId, Long projectId, Permission permission) {
+        if (!authorizationService.hasPermission(requesterId, projectId, permission)) {
+            throw new AccessDeniedException("Missing permission " + permission + " on project " + projectId);
         }
     }
 

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import com.flowpilot.dto.WorkItemMoveRequest;
 import com.flowpilot.dto.WorkItemResponse;
 import com.flowpilot.entity.BoardColumn;
+import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.exception.BoardColumnNotFoundException;
 import com.flowpilot.exception.CrossProjectColumnException;
@@ -56,7 +57,7 @@ class BoardServiceTest {
         WorkItem item = workItem(500L, 10L, 200L, 1024);
         BoardColumn targetColumn = column(300L, 10L, 2048);
         when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
-        when(authorizationService.canManageWorkItems(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_MOVE)).thenReturn(true);
         when(boardColumnRepository.findById(300L)).thenReturn(Optional.of(targetColumn));
         when(workItemRepository.findByColumnIdOrderByPositionAsc(300L)).thenReturn(List.of());
 
@@ -73,7 +74,7 @@ class BoardServiceTest {
         WorkItem before = workItem(600L, 10L, 300L, 1024);
         WorkItem after = workItem(601L, 10L, 300L, 3072);
         when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
-        when(authorizationService.canManageWorkItems(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_MOVE)).thenReturn(true);
         when(boardColumnRepository.findById(300L)).thenReturn(Optional.of(targetColumn));
         when(workItemRepository.findByColumnIdOrderByPositionAsc(300L)).thenReturn(List.of(before, after));
 
@@ -90,7 +91,7 @@ class BoardServiceTest {
         BoardColumn targetColumn = column(300L, 10L, 2048);
         WorkItem onlySibling = workItem(600L, 10L, 300L, 1024);
         when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
-        when(authorizationService.canManageWorkItems(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_MOVE)).thenReturn(true);
         when(boardColumnRepository.findById(300L)).thenReturn(Optional.of(targetColumn));
         when(workItemRepository.findByColumnIdOrderByPositionAsc(300L)).thenReturn(List.of(onlySibling));
 
@@ -107,7 +108,7 @@ class BoardServiceTest {
         WorkItem after = workItem(601L, 10L, 300L, 1025);
         WorkItem tail = workItem(602L, 10L, 300L, 2049);
         when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
-        when(authorizationService.canManageWorkItems(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_MOVE)).thenReturn(true);
         when(boardColumnRepository.findById(300L)).thenReturn(Optional.of(targetColumn));
         when(workItemRepository.findByColumnIdOrderByPositionAsc(300L))
                 .thenReturn(List.of(before, after, tail));
@@ -124,7 +125,7 @@ class BoardServiceTest {
     void moveByUnauthorizedUserThrows403() throws Exception {
         WorkItem item = workItem(500L, 10L, 200L, 1024);
         when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
-        when(authorizationService.canManageWorkItems(2L, 10L)).thenReturn(false);
+        when(authorizationService.hasPermission(2L, 10L, Permission.WORKITEM_MOVE)).thenReturn(false);
 
         assertThatThrownBy(() -> boardService.move(500L, new WorkItemMoveRequest(300L, 0), 2L))
                 .isInstanceOf(AccessDeniedException.class);
@@ -142,7 +143,7 @@ class BoardServiceTest {
     void moveToMissingColumnThrows404() throws Exception {
         WorkItem item = workItem(500L, 10L, 200L, 1024);
         when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
-        when(authorizationService.canManageWorkItems(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_MOVE)).thenReturn(true);
         when(boardColumnRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> boardService.move(500L, new WorkItemMoveRequest(999L, 0), 1L))
@@ -154,7 +155,7 @@ class BoardServiceTest {
         WorkItem item = workItem(500L, 10L, 200L, 1024);
         BoardColumn foreignColumn = column(300L, 99L, 1024);
         when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
-        when(authorizationService.canManageWorkItems(1L, 10L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_MOVE)).thenReturn(true);
         when(boardColumnRepository.findById(300L)).thenReturn(Optional.of(foreignColumn));
 
         assertThatThrownBy(() -> boardService.move(500L, new WorkItemMoveRequest(300L, 0), 1L))
