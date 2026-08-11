@@ -77,4 +77,20 @@ class GlobalExceptionHandlerTest {
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.FORBIDDEN.value());
         assertThat(detail.getDetail()).isEqualTo("Not the owner");
     }
+
+    @Test
+    void projectMemberNotFoundMapsTo404() {
+        ProblemDetail detail = handler.handleProjectMemberNotFound(new ProjectMemberNotFoundException(7L, 42L));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
+        assertThat(detail.getDetail()).contains("7").contains("42");
+    }
+
+    @Test
+    void duplicateMemberMapsTo409() {
+        ProblemDetail detail = handler.handleDuplicateMember(new DuplicateMemberException(7L, 42L));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(detail.getDetail()).contains("7").contains("42");
+    }
 }
