@@ -5,7 +5,7 @@ info:
   description: >
     Contract-first REST API for FlowPilot. Paths and schemas are added slice
     by slice. PR1 adds Auth, PR2 adds the read-only user directory, PR3 adds
-    Projects + BoardColumns.
+    Projects + BoardColumns, PR4 adds project Members, PR5 adds WorkItems.
     Hand-authored here is the source of truth; springdoc-openapi runs in CI
     only as a drift check against the running application.
 servers:
@@ -550,6 +550,155 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /projects/{id}/work-items:
+    get:
+      summary: List a project's work items
+      operationId: listWorkItems
+      description: >-
+        Requires the same admin/owner/member view gate as GET /projects/{id}.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Work items, ordered by column then within-column position
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkItemResponse'
+        '403':
+          description: Caller is not the owner, an administrator, or a member
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    post:
+      summary: Create a work item
+      operationId: createWorkItem
+      description: >-
+        Only the project's owner or a global administrator may create a work
+        item (interim rule, same seam as project/member writes). The item is
+        always created in the project's first (lowest-position) BoardColumn;
+        moving between columns is a separate slice-6 endpoint.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkItemCreateRequest'
+      responses:
+        '201':
+          description: Work item created in the project's first column
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkItemResponse'
+        '403':
+          description: Caller is not the owner or an administrator
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No project with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /work-items/{id}:
+    get:
+      summary: Get a work item by id
+      operationId: getWorkItem
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkItemId'
+      responses:
+        '200':
+          description: Work item found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkItemResponse'
+        '403':
+          description: Caller is not the owner, an administrator, or a member of the parent project
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No work item with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    put:
+      summary: Update a work item's title/description/assignee
+      operationId: updateWorkItem
+      description: >-
+        Only the project's owner or a global administrator may edit. Does
+        NOT accept columnId/position — moving is the separate slice-6
+        PUT /work-items/{id}/move endpoint.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkItemId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkItemUpdateRequest'
+      responses:
+        '200':
+          description: Work item updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkItemResponse'
+        '403':
+          description: Caller is not the owner or an administrator
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No work item with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    delete:
+      summary: Delete a work item
+      operationId: deleteWorkItem
+      description: >-
+        Only the project's owner or a global administrator may delete.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkItemId'
+      responses:
+        '204':
+          description: Work item deleted
+        '403':
+          description: Caller is not the owner or an administrator
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No work item with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 components:
   parameters:
     ProjectId:
@@ -561,6 +710,13 @@ components:
         format: int64
     MemberUserId:
       name: userId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    WorkItemId:
+      name: id
       in: path
       required: true
       schema:
@@ -732,6 +888,61 @@ components:
         role:
           $ref: '#/components/schemas/ProjectRole'
         joinedAt:
+          type: string
+          format: date-time
+    WorkItemCreateRequest:
+      type: object
+      description: >-
+        No columnId — the item always lands in the project's first seeded
+        BoardColumn (spec: work-items).
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        assignedUserId:
+          type: integer
+          format: int64
+    WorkItemUpdateRequest:
+      type: object
+      description: >-
+        Excludes columnId/position — those are mutated only by the slice-6
+        move endpoint.
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        assignedUserId:
+          type: integer
+          format: int64
+    WorkItemResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        projectId:
+          type: integer
+          format: int64
+        columnId:
+          type: integer
+          format: int64
+        title:
+          type: string
+        description:
+          type: string
+        assignedUserId:
+          type: integer
+          format: int64
+        position:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
           type: string
           format: date-time
   responses: {}
