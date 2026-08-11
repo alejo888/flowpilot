@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://db:5432/flowpilot
+    username: ${SPRING_DATASOURCE_USERNAME:flowpilot}
+    password: ${SPRING_DATASOURCE_PASSWORD:flowpilot}

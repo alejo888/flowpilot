@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: flowpilot-backend
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: 8080
+
+flowpilot:
+  jwt:
+    secret: ${FLOWPILOT_JWT_SECRET:}
+    access-token-ttl-minutes: 15
+    refresh-token-ttl-days: 7

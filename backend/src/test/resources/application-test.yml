@@ -1,0 +1,7 @@
+spring:
+  flyway:
+    enabled: true
+
+flowpilot:
+  jwt:
+    secret: test-only-secret-change-me-test-only-secret-change-me

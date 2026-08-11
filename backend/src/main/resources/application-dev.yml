@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/flowpilot
+    username: flowpilot
+    password: flowpilot
+  mail:
+    host: localhost
+    port: 1025
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+
+flowpilot:
+  jwt:
+    secret: ${FLOWPILOT_JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}
