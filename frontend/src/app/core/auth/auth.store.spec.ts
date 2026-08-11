@@ -5,6 +5,20 @@ import { AuthApiService } from './auth-api.service';
 import { AccessTokenResponse } from './auth.model';
 import { AuthStore } from './auth.store';
 
+/** Builds a syntactically valid JWT string carrying the given payload claims. */
+function makeToken(payload: unknown): string {
+  const encode = (value: unknown): string => {
+    const bytes = new TextEncoder().encode(JSON.stringify(value));
+    const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+    return btoa(binary)
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  };
+
+  return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}.signature`;
+}
+
 describe('AuthStore', () => {
   let apiSpy: {
     login: ReturnType<typeof vi.fn>;
@@ -92,6 +106,71 @@ describe('AuthStore', () => {
 
     expect(store.accessToken()).toBeNull();
     expect(store.isAuthenticated()).toBe(false);
+  });
+
+  it('sets role and isAdmin from the JWT role claim on successful login', () => {
+    const response: AccessTokenResponse = {
+      accessToken: makeToken({ sub: 'admin@flowpilot.local', role: 'ADMINISTRADOR' }),
+      expiresIn: 900,
+    };
+    apiSpy.login.mockReturnValue(of(response));
+
+    store.login('admin@flowpilot.local', 'secret');
+
+    expect(store.role()).toBe('ADMINISTRADOR');
+    expect(store.isAdmin()).toBe(true);
+  });
+
+  it('sets role to a non-admin value and isAdmin to false for a member token', () => {
+    const response: AccessTokenResponse = {
+      accessToken: makeToken({ sub: 'member@flowpilot.local', role: 'MIEMBRO_EQUIPO' }),
+      expiresIn: 900,
+    };
+    apiSpy.login.mockReturnValue(of(response));
+
+    store.login('member@flowpilot.local', 'secret');
+
+    expect(store.role()).toBe('MIEMBRO_EQUIPO');
+    expect(store.isAdmin()).toBe(false);
+  });
+
+  it('updates role from the token returned by refresh', () => {
+    const response: AccessTokenResponse = {
+      accessToken: makeToken({ sub: 'admin@flowpilot.local', role: 'ADMINISTRADOR' }),
+      expiresIn: 900,
+    };
+    apiSpy.refresh.mockReturnValue(of(response));
+
+    store.refresh().subscribe();
+
+    expect(store.role()).toBe('ADMINISTRADOR');
+    expect(store.isAdmin()).toBe(true);
+  });
+
+  it('clears role and isAdmin on logout', () => {
+    const response: AccessTokenResponse = {
+      accessToken: makeToken({ sub: 'admin@flowpilot.local', role: 'ADMINISTRADOR' }),
+      expiresIn: 900,
+    };
+    apiSpy.login.mockReturnValue(of(response));
+    store.login('admin@flowpilot.local', 'secret');
+    expect(store.role()).toBe('ADMINISTRADOR');
+
+    apiSpy.logout.mockReturnValue(of(undefined));
+    store.logout();
+
+    expect(store.role()).toBeNull();
+    expect(store.isAdmin()).toBe(false);
+  });
+
+  it('sets role to null and isAdmin to false when the access token cannot be decoded', () => {
+    const response: AccessTokenResponse = { accessToken: 'not-a-jwt', expiresIn: 900 };
+    apiSpy.login.mockReturnValue(of(response));
+
+    store.login('user@flowpilot.local', 'secret');
+
+    expect(store.role()).toBeNull();
+    expect(store.isAdmin()).toBe(false);
   });
 
   it('shares a single in-flight refresh call across two concurrent subscribers', () => {
