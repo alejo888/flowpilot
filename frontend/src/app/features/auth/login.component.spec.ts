@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 
 import { AuthStore } from '../../core/auth/auth.store';
 import { LoginComponent } from './login.component';
@@ -12,7 +12,8 @@ describe('LoginComponent', () => {
     error: ReturnType<typeof signal<string | null>>;
     isAuthenticated: ReturnType<typeof signal<boolean>>;
   };
-  let router: { navigate: ReturnType<typeof vi.fn> };
+  let router: { navigateByUrl: ReturnType<typeof vi.fn> };
+  let activatedRouteStub: { snapshot: { queryParamMap: ReturnType<typeof convertToParamMap> } };
 
   function setFieldValue(testId: string, value: string): void {
     const compiled = fixture.nativeElement as HTMLElement;
@@ -27,24 +28,36 @@ describe('LoginComponent', () => {
     form.dispatchEvent(new Event('submit'));
   }
 
-  beforeEach(async () => {
-    authStoreStub = {
-      login: vi.fn(),
-      error: signal<string | null>(null),
-      isAuthenticated: signal(false),
+  async function createFixture(returnUrl: string | null): Promise<void> {
+    TestBed.resetTestingModule();
+    activatedRouteStub = {
+      snapshot: {
+        queryParamMap: convertToParamMap(returnUrl ? { returnUrl } : {}),
+      },
     };
-    router = { navigate: vi.fn() };
 
     await TestBed.configureTestingModule({
       imports: [LoginComponent],
       providers: [
         { provide: AuthStore, useValue: authStoreStub },
         { provide: Router, useValue: router },
+        { provide: ActivatedRoute, useValue: activatedRouteStub },
       ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(LoginComponent);
     fixture.detectChanges();
+  }
+
+  beforeEach(async () => {
+    authStoreStub = {
+      login: vi.fn(),
+      error: signal<string | null>(null),
+      isAuthenticated: signal(false),
+    };
+    router = { navigateByUrl: vi.fn() };
+
+    await createFixture(null);
   });
 
   it('calls AuthStore.login with the entered email and password on submit', () => {
@@ -71,7 +84,7 @@ describe('LoginComponent', () => {
     expect(compiled.querySelector('[data-testid="login-error"]')).toBeNull();
   });
 
-  it('navigates away from /login once isAuthenticated becomes true', () => {
+  it('navigates to "" once isAuthenticated becomes true when there is no returnUrl', () => {
     setFieldValue('login-email', 'user@flowpilot.local');
     setFieldValue('login-password', 'secret123');
     submitForm();
@@ -79,7 +92,33 @@ describe('LoginComponent', () => {
     authStoreStub.isAuthenticated.set(true);
     fixture.detectChanges();
 
-    expect(router.navigate).toHaveBeenCalledWith(['/']);
+    expect(router.navigateByUrl).toHaveBeenCalledWith('');
+  });
+
+  it('navigates to a valid returnUrl once isAuthenticated becomes true', async () => {
+    await createFixture('/projects/1/board');
+
+    setFieldValue('login-email', 'user@flowpilot.local');
+    setFieldValue('login-password', 'secret123');
+    submitForm();
+
+    authStoreStub.isAuthenticated.set(true);
+    fixture.detectChanges();
+
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/projects/1/board');
+  });
+
+  it('falls back to "" when returnUrl is unsafe (open-redirect attempt)', async () => {
+    await createFixture('https://evil.example.com');
+
+    setFieldValue('login-email', 'user@flowpilot.local');
+    setFieldValue('login-password', 'secret123');
+    submitForm();
+
+    authStoreStub.isAuthenticated.set(true);
+    fixture.detectChanges();
+
+    expect(router.navigateByUrl).toHaveBeenCalledWith('');
   });
 
   it('disables the submit button while the login request is pending, then re-enables it on error', () => {
