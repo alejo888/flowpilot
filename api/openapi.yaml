@@ -4,7 +4,8 @@ info:
   version: 0.1.0
   description: >
     Contract-first REST API for FlowPilot. Paths and schemas are added slice
-    by slice. PR1 adds Auth, PR2 adds the read-only user directory.
+    by slice. PR1 adds Auth, PR2 adds the read-only user directory, PR3 adds
+    Projects + BoardColumns.
     Hand-authored here is the source of truth; springdoc-openapi runs in CI
     only as a drift check against the running application.
 servers:
@@ -212,7 +213,209 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /projects:
+    get:
+      summary: List projects visible to the caller
+      operationId: listProjects
+      description: >-
+        Global administrators see every project; everyone else sees only
+        projects they own (interim rule — project membership does not exist
+        until slice 4).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    post:
+      summary: Create a project
+      operationId: createProject
+      description: >-
+        The caller becomes the project's owner. Seeds exactly 4 default
+        BoardColumns ("Por hacer", "En progreso", "En revisión", "Terminado")
+        atomically in the same transaction.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+      responses:
+        '201':
+          description: Project created, 4 BoardColumns seeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /projects/{id}:
+    get:
+      summary: Get a project by id
+      operationId: getProject
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Project found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '404':
+          description: No project with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    put:
+      summary: Update a project's name/description
+      operationId: updateProject
+      description: >-
+        Only the project's owner or a global administrator may edit
+        (interim owner rule, design's ProjectAuthorizationService).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdateRequest'
+      responses:
+        '200':
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '403':
+          description: Caller is not the owner or an administrator
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No project with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    delete:
+      summary: Delete a project
+      operationId: deleteProject
+      description: >-
+        Only the project's owner or a global administrator may delete
+        (PROJECT_DELETE is granted to no role in the future permission
+        matrix; owner/admin coverage is interim + permanent per the design).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '204':
+          description: Project deleted
+        '403':
+          description: Caller is not the owner or an administrator
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No project with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /projects/{id}/status:
+    patch:
+      summary: Transition a project's lifecycle status
+      operationId: updateProjectStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectStatusUpdateRequest'
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '403':
+          description: Caller is not the owner or an administrator
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No project with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /projects/{id}/board-columns:
+    get:
+      summary: List a project's Kanban columns, ordered by position
+      operationId: listBoardColumns
+      description: >-
+        Read-only. Exactly 4 columns are seeded on project creation
+        (design decision 9). Consumed by the future Kanban board slice.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Board columns ordered by position
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BoardColumnResponse'
+        '404':
+          description: No project with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 components:
+  parameters:
+    ProjectId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
   schemas:
     RegisterRequest:
       type: object
@@ -286,6 +489,62 @@ components:
         email:
           type: string
           format: email
+    ProjectStatus:
+      type: string
+      enum: [PLANIFICACION, ACTIVO, PAUSADO, FINALIZADO, CANCELADO]
+    ProjectCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+    ProjectUpdateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+    ProjectStatusUpdateRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/ProjectStatus'
+    ProjectResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/ProjectStatus'
+        ownerId:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    BoardColumnResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        position:
+          type: integer
   responses: {}
   securitySchemes:
     bearerAuth:
