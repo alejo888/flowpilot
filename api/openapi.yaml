@@ -219,8 +219,9 @@ paths:
       operationId: listProjects
       description: >-
         Global administrators see every project; everyone else sees only
-        projects they own (interim rule — project membership does not exist
-        until slice 4).
+        projects they own. The list endpoint's ownership filter is unchanged
+        by slice 4; single-resource reads (GET /projects/{id} and
+        /board-columns) now also require admin/owner/member (see below).
       security:
         - bearerAuth: []
       responses:
@@ -270,6 +271,10 @@ paths:
     get:
       summary: Get a project by id
       operationId: getProject
+      description: >-
+        Requires the caller to be a global administrator, the project's
+        owner, or a ProjectMember of the project (closes the read-gap
+        flagged in the slice-3 verify report: previously authentication-only).
       security:
         - bearerAuth: []
       parameters:
@@ -281,6 +286,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectResponse'
+        '403':
+          description: Caller is not the owner, an administrator, or a member
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: No project with that id
           content:
@@ -388,6 +399,7 @@ paths:
       description: >-
         Read-only. Exactly 4 columns are seeded on project creation
         (design decision 9). Consumed by the future Kanban board slice.
+        Requires the same admin/owner/member view gate as GET /projects/{id}.
       security:
         - bearerAuth: []
       parameters:
@@ -401,8 +413,139 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/BoardColumnResponse'
+        '403':
+          description: Caller is not the owner, an administrator, or a member
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: No project with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /projects/{id}/members:
+    get:
+      summary: List a project's members
+      operationId: listProjectMembers
+      description: >-
+        Requires the caller to be a global administrator, the project's
+        owner, or an existing ProjectMember.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectMemberResponse'
+        '403':
+          description: Caller is not the owner, an administrator, or a member
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    post:
+      summary: Add a member to a project
+      operationId: addProjectMember
+      description: >-
+        Only the project's owner or a global administrator may add members
+        (interim rule, same seam as project PUT/DELETE). Rejects duplicate
+        memberships with 409.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectMemberAddRequest'
+      responses:
+        '201':
+          description: Member added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMemberResponse'
+        '403':
+          description: Caller is not the owner or an administrator
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: User is already a member of this project
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /projects/{id}/members/{userId}:
+    put:
+      summary: Change a member's role in place
+      operationId: changeProjectMemberRole
+      description: >-
+        Only the project's owner or a global administrator may change a
+        member's role. joinedAt is preserved.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/MemberUserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectMemberRoleUpdateRequest'
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMemberResponse'
+        '403':
+          description: Caller is not the owner or an administrator
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No such member
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    delete:
+      summary: Remove a member from a project
+      operationId: removeProjectMember
+      description: >-
+        Only the project's owner or a global administrator may remove a
+        member.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/MemberUserId'
+      responses:
+        '204':
+          description: Member removed
+        '403':
+          description: Caller is not the owner or an administrator
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No such member
           content:
             application/problem+json:
               schema:
@@ -411,6 +554,13 @@ components:
   parameters:
     ProjectId:
       name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    MemberUserId:
+      name: userId
       in: path
       required: true
       schema:
@@ -545,6 +695,45 @@ components:
           type: string
         position:
           type: integer
+    ProjectRole:
+      type: string
+      description: >-
+        Descriptive label only in the MVP — not yet permission-bearing
+        (the permission matrix lands in slice 8a).
+      enum:
+        [PRODUCT_OWNER, PROJECT_MANAGER, DEVELOPER, UX_UI_DESIGNER, QA, DEVOPS]
+    ProjectMemberAddRequest:
+      type: object
+      required: [userId, role]
+      properties:
+        userId:
+          type: integer
+          format: int64
+        role:
+          $ref: '#/components/schemas/ProjectRole'
+    ProjectMemberRoleUpdateRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: '#/components/schemas/ProjectRole'
+    ProjectMemberResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        projectId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        role:
+          $ref: '#/components/schemas/ProjectRole'
+        joinedAt:
+          type: string
+          format: date-time
   responses: {}
   securitySchemes:
     bearerAuth:

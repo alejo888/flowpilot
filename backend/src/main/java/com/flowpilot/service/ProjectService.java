@@ -72,7 +72,8 @@ public class ProjectService {
         return projects.stream().map(ProjectService::toResponse).toList();
     }
 
-    public ProjectResponse findById(Long id) {
+    public ProjectResponse findById(Long id, Long userId) {
+        requireCanView(userId, id);
         return toResponse(getOrThrow(id));
     }
 
@@ -102,8 +103,8 @@ public class ProjectService {
         projectRepository.delete(project);
     }
 
-    public List<BoardColumnResponse> listBoardColumns(Long projectId) {
-        getOrThrow(projectId);
+    public List<BoardColumnResponse> listBoardColumns(Long projectId, Long userId) {
+        requireCanView(userId, projectId);
         return boardColumnRepository.findByProjectIdOrderByPositionAsc(projectId).stream()
                 .map(ProjectService::toColumnResponse)
                 .toList();
@@ -112,6 +113,17 @@ public class ProjectService {
     private void requireOwnerOrAdmin(Long userId, Long projectId) {
         if (!authorizationService.isOwnerOrAdmin(userId, projectId)) {
             throw new AccessDeniedException("Not the project owner or an administrator");
+        }
+    }
+
+    /**
+     * Closes the read-authorization gap flagged in the slice-3 verify report:
+     * admin, owner, or a live {@code ProjectMember} may read a single
+     * project's details/columns; everyone else gets 403.
+     */
+    private void requireCanView(Long userId, Long projectId) {
+        if (!authorizationService.canView(userId, projectId)) {
+            throw new AccessDeniedException("Not authorized to view this project");
         }
     }
 
