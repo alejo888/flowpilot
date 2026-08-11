@@ -21,24 +21,28 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * {@code UsernamePasswordAuthenticationFilter} and never hits the DB (see its
  * javadoc for the accepted deactivated-user tradeoff).
  *
- * CSRF stays disabled for the whole API: state-changing Bearer-authenticated
- * endpoints are not vulnerable to CSRF, and the cookie-authenticated
- * endpoints (refresh/logout) are documented in design decision D8 as needing
- * a double-submit token — deferred, tracked as a follow-up, not yet wired.
+ * Spring Security's built-in CSRF protection stays disabled for the whole
+ * API: state-changing Bearer-authenticated endpoints are not vulnerable to
+ * CSRF (a cross-site page cannot read the bearer token to forge it). The two
+ * cookie-authenticated endpoints (refresh/logout) instead get a custom
+ * double-submit check via {@link CsrfProtectionFilter} per design decision D8.
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter)
-            throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            CsrfProtectionFilter csrfProtectionFilter) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .anyRequest().authenticated())
+                .addFilterBefore(csrfProtectionFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -47,6 +51,11 @@ public class SecurityConfig {
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter(JwtService jwtService) {
         return new JwtAuthenticationFilter(jwtService);
+    }
+
+    @Bean
+    public CsrfProtectionFilter csrfProtectionFilter() {
+        return new CsrfProtectionFilter();
     }
 
     @Bean

@@ -36,4 +36,36 @@ class CookieServiceTest {
         assertThat(cookie.getValue()).isEmpty();
         assertThat(cookie.getMaxAge().isZero()).isTrue();
     }
+
+    @Test
+    void generateCsrfTokenReturnsNonBlankUniqueValues() {
+        String first = cookieService.generateCsrfToken();
+        String second = cookieService.generateCsrfToken();
+
+        assertThat(first).isNotBlank();
+        assertThat(second).isNotBlank();
+        assertThat(first).isNotEqualTo(second);
+    }
+
+    @Test
+    void buildCsrfCookieIsReadableByJavaScriptWithValueAndAttributes() {
+        ResponseCookie cookie = cookieService.buildCsrfCookie("raw-csrf-token-value");
+
+        assertThat(cookie.getName()).isEqualTo("XSRF-TOKEN");
+        assertThat(cookie.getValue()).isEqualTo("raw-csrf-token-value");
+        assertThat(cookie.isHttpOnly()).isFalse();
+        assertThat(cookie.isSecure()).isTrue();
+        assertThat(cookie.getSameSite()).isEqualTo("Lax");
+        assertThat(cookie.getPath()).isEqualTo("/");
+        assertThat(cookie.getMaxAge().toDays()).isEqualTo(7);
+    }
+
+    @Test
+    void buildClearCsrfCookieExpiresImmediatelyWithEmptyValue() {
+        ResponseCookie cookie = cookieService.buildClearCsrfCookie();
+
+        assertThat(cookie.getName()).isEqualTo("XSRF-TOKEN");
+        assertThat(cookie.getValue()).isEmpty();
+        assertThat(cookie.getMaxAge().isZero()).isTrue();
+    }
 }

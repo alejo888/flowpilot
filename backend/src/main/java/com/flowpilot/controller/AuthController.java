@@ -72,9 +72,10 @@ public class AuthController {
         String accessToken = jwtService.generateAccessToken(user);
         String rawRefreshToken = refreshTokenService.issue(user);
         ResponseCookie cookie = cookieService.buildRefreshCookie(rawRefreshToken);
+        ResponseCookie csrfCookie = cookieService.buildCsrfCookie(cookieService.generateCsrfToken());
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .header(HttpHeaders.SET_COOKIE, cookie.toString(), csrfCookie.toString())
                 .body(new AccessTokenResponse(accessToken, jwtService.getAccessTokenTtlSeconds()));
     }
 
@@ -88,9 +89,10 @@ public class AuthController {
         RefreshTokenService.RotationResult result = refreshTokenService.rotate(refreshToken);
         String accessToken = jwtService.generateAccessToken(result.user());
         ResponseCookie cookie = cookieService.buildRefreshCookie(result.rawToken());
+        ResponseCookie csrfCookie = cookieService.buildCsrfCookie(cookieService.generateCsrfToken());
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .header(HttpHeaders.SET_COOKIE, cookie.toString(), csrfCookie.toString())
                 .body(new AccessTokenResponse(accessToken, jwtService.getAccessTokenTtlSeconds()));
     }
 
@@ -102,8 +104,9 @@ public class AuthController {
         }
 
         ResponseCookie clearCookie = cookieService.buildClearCookie();
+        ResponseCookie clearCsrfCookie = cookieService.buildClearCsrfCookie();
         return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, clearCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, clearCookie.toString(), clearCsrfCookie.toString())
                 .build();
     }
 

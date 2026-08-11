@@ -1,5 +1,6 @@
 package com.flowpilot.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -106,7 +107,12 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsBytes(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("signed-access-token"))
-                .andExpect(jsonPath("$.expiresIn").value(900));
+                .andExpect(jsonPath("$.expiresIn").value(900))
+                .andExpect(result -> {
+                    var cookies = result.getResponse().getCookies();
+                    assertThat(java.util.Arrays.stream(cookies).map(jakarta.servlet.http.Cookie::getName))
+                            .contains("refreshToken", "XSRF-TOKEN");
+                });
     }
 
     @Test
@@ -141,7 +147,12 @@ class AuthControllerTest {
 
         mockMvc.perform(post("/api/auth/refresh").cookie(new jakarta.servlet.http.Cookie("refreshToken", "old-raw-token")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").value("new-access-token"));
+                .andExpect(jsonPath("$.accessToken").value("new-access-token"))
+                .andExpect(result -> {
+                    var cookies = result.getResponse().getCookies();
+                    assertThat(java.util.Arrays.stream(cookies).map(jakarta.servlet.http.Cookie::getName))
+                            .contains("refreshToken", "XSRF-TOKEN");
+                });
     }
 
     @Test

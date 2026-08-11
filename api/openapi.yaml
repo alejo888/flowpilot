@@ -47,9 +47,15 @@ paths:
               $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
-          description: Access token issued; refresh cookie set
+          description: >-
+            Access token issued; refresh cookie set along with a readable-by-JS
+            XSRF-TOKEN cookie (double-submit CSRF pattern, design decision D8).
+            The client must echo the XSRF-TOKEN cookie value back as the
+            X-XSRF-TOKEN header on subsequent /auth/refresh and /auth/logout
+            calls.
           headers:
             Set-Cookie:
+              description: Sets refreshToken (HttpOnly) and XSRF-TOKEN (readable) cookies
               schema:
                 type: string
           content:
@@ -66,11 +72,24 @@ paths:
     post:
       summary: Rotate refresh token and issue a new access token
       operationId: refresh
+      description: >-
+        Cookie-authenticated (no Bearer token). Requires the double-submit
+        CSRF header per design decision D8: the caller must send
+        X-XSRF-TOKEN with the same value as the XSRF-TOKEN cookie set on
+        login/refresh, or the request is rejected with 403.
+      parameters:
+        - name: X-XSRF-TOKEN
+          in: header
+          required: true
+          description: Must match the value of the XSRF-TOKEN cookie (double-submit CSRF check)
+          schema:
+            type: string
       responses:
         '200':
-          description: New access token issued; refresh cookie rotated
+          description: New access token issued; refresh cookie and XSRF-TOKEN cookie rotated
           headers:
             Set-Cookie:
+              description: Sets refreshToken (HttpOnly) and XSRF-TOKEN (readable) cookies
               schema:
                 type: string
           content:
@@ -83,13 +102,27 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Missing or mismatched X-XSRF-TOKEN header (CSRF check failed)
   /auth/logout:
     post:
       summary: Revoke the refresh token and clear the cookie
       operationId: logout
+      description: >-
+        Cookie-authenticated (no Bearer token). Requires the double-submit
+        CSRF header per design decision D8, same as /auth/refresh.
+      parameters:
+        - name: X-XSRF-TOKEN
+          in: header
+          required: true
+          description: Must match the value of the XSRF-TOKEN cookie (double-submit CSRF check)
+          schema:
+            type: string
       responses:
         '204':
-          description: Logged out
+          description: Logged out; refreshToken and XSRF-TOKEN cookies cleared
+        '403':
+          description: Missing or mismatched X-XSRF-TOKEN header (CSRF check failed)
   /auth/forgot-password:
     post:
       summary: Request a password reset (always 200, no account enumeration)
