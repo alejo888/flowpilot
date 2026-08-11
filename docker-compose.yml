@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: flowpilot
+      POSTGRES_USER: flowpilot
+      POSTGRES_PASSWORD: flowpilot
+    volumes:
+      - flowpilot-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowpilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_USERNAME: flowpilot
+      SPRING_DATASOURCE_PASSWORD: flowpilot
+      FLOWPILOT_JWT_SECRET: ${FLOWPILOT_JWT_SECRET:?set FLOWPILOT_JWT_SECRET in your .env}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  flowpilot-db-data:
