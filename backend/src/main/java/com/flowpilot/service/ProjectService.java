@@ -7,6 +7,7 @@ import com.flowpilot.dto.ProjectStatusUpdateRequest;
 import com.flowpilot.dto.ProjectUpdateRequest;
 import com.flowpilot.entity.BoardColumn;
 import com.flowpilot.entity.GlobalRole;
+import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.Project;
 import com.flowpilot.entity.User;
 import com.flowpilot.exception.ProjectNotFoundException;
@@ -20,9 +21,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Project CRUD + lifecycle (spec: project-management). Every write funnels
- * through {@link ProjectAuthorizationService#isOwnerOrAdmin} — the interim
- * owner rule (design decision, slices 3-6).
+ * Project CRUD + lifecycle (spec: project-management). Writes funnel through
+ * {@link ProjectAuthorizationService#hasPermission} — {@code
+ * update}/{@code updateStatus} require {@link Permission#PROJECT_EDIT_SETTINGS};
+ * {@code delete} requires {@link Permission#PROJECT_DELETE} (proposal's
+ * Permission Catalog table; slice 8a, matrix-backed, confirmed decision 5b).
  */
 @Service
 public class ProjectService {
@@ -79,7 +82,7 @@ public class ProjectService {
 
     @Transactional
     public ProjectResponse update(Long id, ProjectUpdateRequest request, Long userId) {
-        requireOwnerOrAdmin(userId, id);
+        requirePermission(userId, id, Permission.PROJECT_EDIT_SETTINGS);
         Project project = getOrThrow(id);
         project.setName(request.name());
         project.setDescription(request.description());
@@ -89,7 +92,7 @@ public class ProjectService {
 
     @Transactional
     public ProjectResponse updateStatus(Long id, ProjectStatusUpdateRequest request, Long userId) {
-        requireOwnerOrAdmin(userId, id);
+        requirePermission(userId, id, Permission.PROJECT_EDIT_SETTINGS);
         Project project = getOrThrow(id);
         project.setStatus(request.status());
         project.touch();
@@ -98,7 +101,7 @@ public class ProjectService {
 
     @Transactional
     public void delete(Long id, Long userId) {
-        requireOwnerOrAdmin(userId, id);
+        requirePermission(userId, id, Permission.PROJECT_DELETE);
         Project project = getOrThrow(id);
         projectRepository.delete(project);
     }
@@ -110,9 +113,9 @@ public class ProjectService {
                 .toList();
     }
 
-    private void requireOwnerOrAdmin(Long userId, Long projectId) {
-        if (!authorizationService.isOwnerOrAdmin(userId, projectId)) {
-            throw new AccessDeniedException("Not the project owner or an administrator");
+    private void requirePermission(Long userId, Long projectId, Permission permission) {
+        if (!authorizationService.hasPermission(userId, projectId, permission)) {
+            throw new AccessDeniedException("Missing permission " + permission + " on project " + projectId);
         }
     }
 

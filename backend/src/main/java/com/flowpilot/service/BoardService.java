@@ -3,6 +3,7 @@ package com.flowpilot.service;
 import com.flowpilot.dto.WorkItemMoveRequest;
 import com.flowpilot.dto.WorkItemResponse;
 import com.flowpilot.entity.BoardColumn;
+import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.exception.BoardColumnNotFoundException;
 import com.flowpilot.exception.CrossProjectColumnException;
@@ -21,9 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
  * gap-based position (1024 step) for the requested insertion index within
  * the target column. A normal move is a single UPDATE; the target column is
  * fully re-sequenced only when the computed gap would be {@code < 2}.
- * Authorization reuses {@link ProjectAuthorizationService#canManageWorkItems}
- * — the same gate as other WorkItem writes (any project member, not
- * owner/admin-only).
+ * Authorization funnels through {@link
+ * ProjectAuthorizationService#hasPermission} requiring {@link
+ * Permission#WORKITEM_MOVE} (proposal's Permission Catalog table; slice 8a,
+ * matrix-backed, confirmed decision 5b).
  */
 @Service
 public class BoardService {
@@ -49,8 +51,9 @@ public class BoardService {
         WorkItem item = workItemRepository.findById(itemId)
                 .orElseThrow(() -> new WorkItemNotFoundException(itemId));
 
-        if (!authorizationService.canManageWorkItems(requesterId, item.getProjectId())) {
-            throw new AccessDeniedException("Not authorized to move this work item");
+        if (!authorizationService.hasPermission(requesterId, item.getProjectId(), Permission.WORKITEM_MOVE)) {
+            throw new AccessDeniedException(
+                    "Missing permission " + Permission.WORKITEM_MOVE + " on project " + item.getProjectId());
         }
 
         BoardColumn targetColumn = boardColumnRepository.findById(request.columnId())

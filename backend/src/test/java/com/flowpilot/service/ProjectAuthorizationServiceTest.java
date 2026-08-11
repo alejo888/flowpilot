@@ -4,13 +4,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.flowpilot.entity.GlobalRole;
+import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.Project;
+import com.flowpilot.entity.ProjectMember;
+import com.flowpilot.entity.ProjectRole;
+import com.flowpilot.entity.RolePermission;
 import com.flowpilot.entity.User;
 import com.flowpilot.exception.ProjectNotFoundException;
 import com.flowpilot.repository.ProjectMemberRepository;
 import com.flowpilot.repository.ProjectRepository;
+import com.flowpilot.repository.RolePermissionRepository;
 import com.flowpilot.repository.UserRepository;
 import java.lang.reflect.Field;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,11 +24,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * Interim owner rule (design's {@code ProjectAuthorizationService} pseudocode,
- * steps 1-2 only): global admin bypass, then owner short-circuit. Step 3
- * (ProjectMember lookup) and step 4 (matrix cache) do not exist until slices
- * 4 and 8a; every other case denies for now (spec: project-management,
- * "Edit without permission" scenario).
+ * Matrix-backed authorization (spec: role-permissions; design's {@code
+ * ProjectAuthorizationService} pseudocode, all 4 steps). {@link
+ * ProjectAuthorizationService#hasPermission} replaces the interim
+ * owner-or-admin rule: 1) global admin bypass, 2) owner short-circuit
+ * (self-lockout guard, decision 5c), 3) live {@code ProjectMember} lookup —
+ * no membership denies, 4) {@code role_permissions} matrix cache lookup.
+ * {@link ProjectAuthorizationService#canView} is unaffected — reads stay
+ * membership-based, not permission-gated.
  */
 @ExtendWith(MockitoExtension.class)
 class ProjectAuthorizationServiceTest {
@@ -36,59 +45,99 @@ class ProjectAuthorizationServiceTest {
     @Mock
     private ProjectMemberRepository projectMemberRepository;
 
+    @Mock
+    private RolePermissionRepository rolePermissionRepository;
+
     private ProjectAuthorizationService authorizationService;
 
-    private void setUp() {
-        authorizationService =
-                new ProjectAuthorizationService(userRepository, projectRepository, projectMemberRepository);
+    private void setUp(List<RolePermission> seedGrants) {
+        when(rolePermissionRepository.findAll()).thenReturn(seedGrants);
+        authorizationService = new ProjectAuthorizationService(
+                userRepository, projectRepository, projectMemberRepository, rolePermissionRepository);
+        authorizationService.reloadCache();
     }
 
     @Test
-    void ownerCanEditOwnProject() throws Exception {
-        setUp();
+    void globalAdminBypassesMatrixEntirely() throws Exception {
+        // Matrix denies everything for DEVELOPER, but the caller is a global admin.
+        setUp(List.of(rolePermission(ProjectRole.DEVELOPER, Permission.WORKITEM_CREATE, false)));
+        User admin = user(3L, GlobalRole.ADMINISTRADOR);
+        when(userRepository.findById(3L)).thenReturn(Optional.of(admin));
+
+        boolean allowed = authorizationService.hasPermission(3L, 10L, Permission.WORKITEM_CREATE);
+
+        assertThat(allowed).isTrue();
+    }
+
+    @Test
+    void ownerShortCircuitsEvenWithZeroGrantsInMatrix() throws Exception {
+        // Owner short-circuit (decision 5c): a project can never become
+        // unmanageable by mis-editing the grid, even if the owner's own
+        // membership role (if any) has zero grants.
+        setUp(List.of(rolePermission(ProjectRole.DEVELOPER, Permission.PROJECT_DELETE, false)));
         User owner = user(1L, GlobalRole.MIEMBRO_EQUIPO);
         Project project = project(10L, 1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
         when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
 
-        boolean allowed = authorizationService.isOwnerOrAdmin(1L, 10L);
+        boolean allowed = authorizationService.hasPermission(1L, 10L, Permission.PROJECT_DELETE);
 
         assertThat(allowed).isTrue();
     }
 
     @Test
-    void nonOwnerNonAdminCannotEdit() throws Exception {
-        setUp();
-        User other = user(2L, GlobalRole.MIEMBRO_EQUIPO);
+    void memberWithGrantedPermissionIsAllowed() throws Exception {
+        setUp(List.of(rolePermission(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, true)));
+        User member = user(4L, GlobalRole.MIEMBRO_EQUIPO);
         Project project = project(10L, 1L);
-        when(userRepository.findById(2L)).thenReturn(Optional.of(other));
+        when(userRepository.findById(4L)).thenReturn(Optional.of(member));
         when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+        when(projectMemberRepository.findByProjectIdAndUserId(10L, 4L))
+                .thenReturn(Optional.of(new ProjectMember(10L, 4L, ProjectRole.PROJECT_MANAGER)));
 
-        boolean allowed = authorizationService.isOwnerOrAdmin(2L, 10L);
+        boolean allowed = authorizationService.hasPermission(4L, 10L, Permission.MEMBER_ADD);
+
+        assertThat(allowed).isTrue();
+    }
+
+    @Test
+    void memberWithoutGrantedPermissionIsDenied() throws Exception {
+        setUp(List.of(rolePermission(ProjectRole.DEVELOPER, Permission.MEMBER_ADD, false)));
+        User member = user(4L, GlobalRole.MIEMBRO_EQUIPO);
+        Project project = project(10L, 1L);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(member));
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+        when(projectMemberRepository.findByProjectIdAndUserId(10L, 4L))
+                .thenReturn(Optional.of(new ProjectMember(10L, 4L, ProjectRole.DEVELOPER)));
+
+        boolean allowed = authorizationService.hasPermission(4L, 10L, Permission.MEMBER_ADD);
 
         assertThat(allowed).isFalse();
     }
 
     @Test
-    void globalAdminBypassesOwnerCheck() throws Exception {
-        setUp();
-        User admin = user(3L, GlobalRole.ADMINISTRADOR);
-        when(userRepository.findById(3L)).thenReturn(Optional.of(admin));
+    void nonMemberNonOwnerNonAdminIsDenied() throws Exception {
+        setUp(List.of(rolePermission(ProjectRole.PROJECT_MANAGER, Permission.WORKITEM_CREATE, true)));
+        User outsider = user(5L, GlobalRole.MIEMBRO_EQUIPO);
+        Project project = project(10L, 1L);
+        when(userRepository.findById(5L)).thenReturn(Optional.of(outsider));
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+        when(projectMemberRepository.findByProjectIdAndUserId(10L, 5L)).thenReturn(Optional.empty());
 
-        boolean allowed = authorizationService.isOwnerOrAdmin(3L, 10L);
+        boolean allowed = authorizationService.hasPermission(5L, 10L, Permission.WORKITEM_CREATE);
 
-        assertThat(allowed).isTrue();
+        assertThat(allowed).isFalse();
     }
 
     @Test
     void throwsProjectNotFoundWhenProjectMissing() throws Exception {
-        setUp();
+        setUp(List.of());
         User member = user(2L, GlobalRole.MIEMBRO_EQUIPO);
         when(userRepository.findById(2L)).thenReturn(Optional.of(member));
         when(projectRepository.findById(99L)).thenReturn(Optional.empty());
 
         try {
-            authorizationService.isOwnerOrAdmin(2L, 99L);
+            authorizationService.hasPermission(2L, 99L, Permission.WORKITEM_CREATE);
             throw new AssertionError("expected ProjectNotFoundException");
         } catch (ProjectNotFoundException expected) {
             assertThat(expected.getMessage()).contains("99");
@@ -96,8 +145,28 @@ class ProjectAuthorizationServiceTest {
     }
 
     @Test
+    void reloadCachePicksUpNewGrantsWithoutRestart() throws Exception {
+        // Simulates the 8b admin write path: an initial all-deny load, then a
+        // reload after a matrix write, without recreating the service.
+        setUp(List.of(rolePermission(ProjectRole.DEVELOPER, Permission.MEMBER_ADD, false)));
+        User member = user(4L, GlobalRole.MIEMBRO_EQUIPO);
+        Project project = project(10L, 1L);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(member));
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+        when(projectMemberRepository.findByProjectIdAndUserId(10L, 4L))
+                .thenReturn(Optional.of(new ProjectMember(10L, 4L, ProjectRole.DEVELOPER)));
+        assertThat(authorizationService.hasPermission(4L, 10L, Permission.MEMBER_ADD)).isFalse();
+
+        when(rolePermissionRepository.findAll())
+                .thenReturn(List.of(rolePermission(ProjectRole.DEVELOPER, Permission.MEMBER_ADD, true)));
+        authorizationService.reloadCache();
+
+        assertThat(authorizationService.hasPermission(4L, 10L, Permission.MEMBER_ADD)).isTrue();
+    }
+
+    @Test
     void ownerCanView() throws Exception {
-        setUp();
+        setUp(List.of());
         User owner = user(1L, GlobalRole.MIEMBRO_EQUIPO);
         Project project = project(10L, 1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
@@ -108,7 +177,7 @@ class ProjectAuthorizationServiceTest {
 
     @Test
     void adminCanViewWithoutBeingAMember() throws Exception {
-        setUp();
+        setUp(List.of());
         User admin = user(3L, GlobalRole.ADMINISTRADOR);
         when(userRepository.findById(3L)).thenReturn(Optional.of(admin));
 
@@ -117,7 +186,7 @@ class ProjectAuthorizationServiceTest {
 
     @Test
     void projectMemberCanView() throws Exception {
-        setUp();
+        setUp(List.of());
         User member = user(4L, GlobalRole.MIEMBRO_EQUIPO);
         Project project = project(10L, 1L);
         when(userRepository.findById(4L)).thenReturn(Optional.of(member));
@@ -129,7 +198,7 @@ class ProjectAuthorizationServiceTest {
 
     @Test
     void nonMemberNonOwnerNonAdminCannotView() throws Exception {
-        setUp();
+        setUp(List.of());
         User outsider = user(5L, GlobalRole.MIEMBRO_EQUIPO);
         Project project = project(10L, 1L);
         when(userRepository.findById(5L)).thenReturn(Optional.of(outsider));
@@ -139,48 +208,8 @@ class ProjectAuthorizationServiceTest {
         assertThat(authorizationService.canView(5L, 10L)).isFalse();
     }
 
-    @Test
-    void ownerCanManageWorkItems() throws Exception {
-        setUp();
-        User owner = user(1L, GlobalRole.MIEMBRO_EQUIPO);
-        Project project = project(10L, 1L);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
-        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
-
-        assertThat(authorizationService.canManageWorkItems(1L, 10L)).isTrue();
-    }
-
-    @Test
-    void adminCanManageWorkItemsWithoutBeingAMember() throws Exception {
-        setUp();
-        User admin = user(3L, GlobalRole.ADMINISTRADOR);
-        when(userRepository.findById(3L)).thenReturn(Optional.of(admin));
-
-        assertThat(authorizationService.canManageWorkItems(3L, 10L)).isTrue();
-    }
-
-    @Test
-    void plainProjectMemberCanManageWorkItems() throws Exception {
-        setUp();
-        User member = user(4L, GlobalRole.MIEMBRO_EQUIPO);
-        Project project = project(10L, 1L);
-        when(userRepository.findById(4L)).thenReturn(Optional.of(member));
-        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
-        when(projectMemberRepository.existsByProjectIdAndUserId(10L, 4L)).thenReturn(true);
-
-        assertThat(authorizationService.canManageWorkItems(4L, 10L)).isTrue();
-    }
-
-    @Test
-    void nonMemberNonOwnerNonAdminCannotManageWorkItems() throws Exception {
-        setUp();
-        User outsider = user(5L, GlobalRole.MIEMBRO_EQUIPO);
-        Project project = project(10L, 1L);
-        when(userRepository.findById(5L)).thenReturn(Optional.of(outsider));
-        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
-        when(projectMemberRepository.existsByProjectIdAndUserId(10L, 5L)).thenReturn(false);
-
-        assertThat(authorizationService.canManageWorkItems(5L, 10L)).isFalse();
+    private RolePermission rolePermission(ProjectRole role, Permission permission, boolean granted) {
+        return new RolePermission(role, permission, granted);
     }
 
     private User user(Long id, GlobalRole role) throws Exception {

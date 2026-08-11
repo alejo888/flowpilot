@@ -3,6 +3,7 @@ package com.flowpilot.service;
 import com.flowpilot.dto.ProjectMemberAddRequest;
 import com.flowpilot.dto.ProjectMemberResponse;
 import com.flowpilot.dto.ProjectMemberRoleUpdateRequest;
+import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.ProjectMember;
 import com.flowpilot.exception.DuplicateMemberException;
 import com.flowpilot.exception.ProjectMemberNotFoundException;
@@ -13,11 +14,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Member add/remove/role-change (spec: project-membership). Writes (add,
- * remove, role change) are gated by {@code isOwnerOrAdmin} — the same interim
- * owner-or-admin rule already used for {@code ProjectService} update/delete
- * (confirmed decision 5b). Listing is gated by {@code canView} (admin, owner,
- * or an existing member may see the roster).
+ * Member add/remove/role-change (spec: project-membership). Writes funnel
+ * through {@link ProjectAuthorizationService#hasPermission}: {@code
+ * addMember} requires {@link Permission#MEMBER_ADD}, {@code removeMember}
+ * requires {@link Permission#MEMBER_REMOVE}, {@code changeRole} requires
+ * {@link Permission#MEMBER_CHANGE_ROLE} (proposal's Permission Catalog
+ * table; slice 8a, matrix-backed, confirmed decision 5b). Listing is gated
+ * by {@code canView} (admin, owner, or an existing member may see the
+ * roster) — unaffected, reads stay membership-based.
  */
 @Service
 public class ProjectMemberService {
@@ -33,7 +37,7 @@ public class ProjectMemberService {
 
     @Transactional
     public ProjectMemberResponse addMember(Long projectId, ProjectMemberAddRequest request, Long requesterId) {
-        requireOwnerOrAdmin(requesterId, projectId);
+        requirePermission(requesterId, projectId, Permission.MEMBER_ADD);
         if (projectMemberRepository.existsByProjectIdAndUserId(projectId, request.userId())) {
             throw new DuplicateMemberException(projectId, request.userId());
         }
@@ -44,7 +48,7 @@ public class ProjectMemberService {
 
     @Transactional
     public void removeMember(Long projectId, Long userId, Long requesterId) {
-        requireOwnerOrAdmin(requesterId, projectId);
+        requirePermission(requesterId, projectId, Permission.MEMBER_REMOVE);
         ProjectMember member = getOrThrow(projectId, userId);
         projectMemberRepository.delete(member);
     }
@@ -52,7 +56,7 @@ public class ProjectMemberService {
     @Transactional
     public ProjectMemberResponse changeRole(
             Long projectId, Long userId, ProjectMemberRoleUpdateRequest request, Long requesterId) {
-        requireOwnerOrAdmin(requesterId, projectId);
+        requirePermission(requesterId, projectId, Permission.MEMBER_CHANGE_ROLE);
         ProjectMember member = getOrThrow(projectId, userId);
         member.setRole(request.role());
         return toResponse(member);
@@ -67,9 +71,9 @@ public class ProjectMemberService {
                 .toList();
     }
 
-    private void requireOwnerOrAdmin(Long requesterId, Long projectId) {
-        if (!authorizationService.isOwnerOrAdmin(requesterId, projectId)) {
-            throw new AccessDeniedException("Not the project owner or an administrator");
+    private void requirePermission(Long requesterId, Long projectId, Permission permission) {
+        if (!authorizationService.hasPermission(requesterId, projectId, permission)) {
+            throw new AccessDeniedException("Missing permission " + permission + " on project " + projectId);
         }
     }
 
