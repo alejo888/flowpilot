@@ -13,10 +13,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowpilot.dto.WorkItemCreateRequest;
+import com.flowpilot.dto.WorkItemMoveRequest;
 import com.flowpilot.dto.WorkItemResponse;
 import com.flowpilot.dto.WorkItemUpdateRequest;
+import com.flowpilot.exception.CrossProjectColumnException;
 import com.flowpilot.exception.GlobalExceptionHandler;
 import com.flowpilot.exception.WorkItemNotFoundException;
+import com.flowpilot.service.BoardService;
 import com.flowpilot.service.WorkItemService;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -31,9 +34,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 /**
- * WorkItem CRUD endpoints (spec: work-items). Verifies the 201/200/204 happy
- * paths and, per spec's "Edit/delete without permission" scenario, that
- * unauthorized PUT/DELETE return 403.
+ * WorkItem CRUD + move endpoints (spec: work-items, kanban-board). Verifies
+ * the 201/200/204 happy paths and, per spec's "Edit/delete without
+ * permission" scenario, that unauthorized PUT/DELETE return 403. The move
+ * endpoint additionally verifies the "Cross-project column" scenario (400).
  */
 @ExtendWith(MockitoExtension.class)
 class WorkItemControllerTest {
@@ -41,12 +45,15 @@ class WorkItemControllerTest {
     @Mock
     private WorkItemService workItemService;
 
+    @Mock
+    private BoardService boardService;
+
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @BeforeEach
     void setUp() {
-        WorkItemController controller = new WorkItemController(workItemService);
+        WorkItemController controller = new WorkItemController(workItemService, boardService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -152,6 +159,48 @@ class WorkItemControllerTest {
                 .when(workItemService).delete(500L, 2L);
 
         mockMvc.perform(delete("/api/work-items/500").principal(authenticatedAs(2L)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void moveReturns200() throws Exception {
+        WorkItemResponse response = workItemResponse(500L, 10L, 300L, "Moved", 2048);
+        when(boardService.move(org.mockito.ArgumentMatchers.eq(500L), any(WorkItemMoveRequest.class),
+                org.mockito.ArgumentMatchers.eq(1L)))
+                .thenReturn(response);
+
+        mockMvc.perform(put("/api/work-items/500/move")
+                        .principal(authenticatedAs(1L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(new WorkItemMoveRequest(300L, 1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.columnId").value(300))
+                .andExpect(jsonPath("$.position").value(2048));
+    }
+
+    @Test
+    void moveToColumnFromAnotherProjectReturns400() throws Exception {
+        when(boardService.move(org.mockito.ArgumentMatchers.eq(500L), any(WorkItemMoveRequest.class),
+                org.mockito.ArgumentMatchers.eq(1L)))
+                .thenThrow(new CrossProjectColumnException(300L, 10L));
+
+        mockMvc.perform(put("/api/work-items/500/move")
+                        .principal(authenticatedAs(1L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(new WorkItemMoveRequest(300L, 0))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void moveByUnauthorizedUserReturns403() throws Exception {
+        when(boardService.move(org.mockito.ArgumentMatchers.eq(500L), any(WorkItemMoveRequest.class),
+                org.mockito.ArgumentMatchers.eq(2L)))
+                .thenThrow(new AccessDeniedException("Not authorized to move this work item"));
+
+        mockMvc.perform(put("/api/work-items/500/move")
+                        .principal(authenticatedAs(2L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(new WorkItemMoveRequest(300L, 0))))
                 .andExpect(status().isForbidden());
     }
 
