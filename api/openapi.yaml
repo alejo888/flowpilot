@@ -4,9 +4,9 @@ info:
   version: 0.1.0
   description: >
     Contract-first REST API for FlowPilot. Paths and schemas are added slice
-    by slice. PR1 adds Auth. Hand-authored here is the source of truth;
-    springdoc-openapi runs in CI only as a drift check against the running
-    application.
+    by slice. PR1 adds Auth, PR2 adds the read-only user directory.
+    Hand-authored here is the source of truth; springdoc-openapi runs in CI
+    only as a drift check against the running application.
 servers:
   - url: /api
 paths:
@@ -155,6 +155,63 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /users:
+    get:
+      summary: List users (read-only directory, for member selection)
+      operationId: listUsers
+      description: >-
+        Requires a valid Bearer access token — no special global role or
+        project permission (interim rule until the slice 8 permission matrix
+        exists). Returns both active and inactive users.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserSummaryResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /users/{id}:
+    get:
+      summary: Get a single user by id
+      operationId: getUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSummaryResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No user with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 components:
   schemas:
     RegisterRequest:
@@ -215,6 +272,20 @@ components:
           type: string
         instance:
           type: string
+    UserSummaryResponse:
+      type: object
+      description: >-
+        Lightweight user-directory projection. Deliberately excludes
+        passwordHash, role, active, and any other sensitive/internal field.
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        email:
+          type: string
+          format: email
   responses: {}
   securitySchemes:
     bearerAuth:
