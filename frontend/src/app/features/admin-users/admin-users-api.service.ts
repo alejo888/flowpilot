@@ -7,9 +7,8 @@ import { AdminUser, UserRoleUpdateRequest, UserStatusUpdateRequest } from './adm
 /**
  * Thin HTTP client for admin-only user management (spec:
  * user-administration). Uses relative `/api/...` paths per design D8
- * (same-origin reverse proxy in Docker; `proxy.conf.json` for local
- * `ng serve`, not yet wired — known gap outside this slice's scope, same as
- * `features/board`).
+ * (same-origin reverse proxy in Docker; `proxy.conf.json` proxies `/api` to
+ * `localhost:8080` for local `ng serve`).
  */
 @Injectable({ providedIn: 'root' })
 export class AdminUsersApiService {

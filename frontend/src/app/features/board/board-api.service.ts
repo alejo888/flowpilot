@@ -7,8 +7,8 @@ import { BoardColumn, WorkItem, WorkItemMoveRequest } from './board.model';
 /**
  * Thin HTTP client for the kanban board (spec: kanban-board). Uses relative
  * `/api/...` paths per design D8 (same-origin reverse proxy in Docker;
- * `proxy.conf.json` for local `ng serve`, not yet wired — known gap outside
- * this slice's scope).
+ * `proxy.conf.json` proxies `/api` to `localhost:8080` for local
+ * `ng serve`).
  */
 @Injectable({ providedIn: 'root' })
 export class BoardApiService {
