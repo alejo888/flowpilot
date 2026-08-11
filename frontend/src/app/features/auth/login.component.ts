@@ -1,16 +1,17 @@
 import { Component, effect, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { AuthStore } from '../../core/auth/auth.store';
+import { sanitizeReturnUrl } from '../../core/auth/return-url';
 
 /**
- * Login form (spec: frontend-auth-session). Delegates to {@link AuthStore.login}
- * and navigates away from `/login` once the store reports `isAuthenticated()`.
- * `router.navigate(['/'])` is the accepted redirect target per design's Open
- * Question — no route is registered at `''` yet, so the landing page is
- * currently blank until a future route-guard/home slice (expected, accepted
- * gap, not a bug in this component). UI copy is Spanish per the existing
- * `admin-users.component.ts` convention; code/comments stay in English.
+ * Login form (spec: frontend-auth-session; return-URL preservation). Delegates
+ * to {@link AuthStore.login} and navigates away from `/login` once the store
+ * reports `isAuthenticated()`. If a `returnUrl` query param is present and
+ * passes {@link sanitizeReturnUrl}'s open-redirect allow-list (design D4), it
+ * navigates there; otherwise it falls back to `''` (design D4/Home route).
+ * UI copy is Spanish per the existing `admin-users.component.ts` convention;
+ * code/comments stay in English.
  */
 @Component({
   selector: 'app-login',
@@ -50,6 +51,7 @@ import { AuthStore } from '../../core/auth/auth.store';
 export class LoginComponent {
   private readonly store = inject(AuthStore);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   readonly email = signal('');
   readonly password = signal('');
@@ -60,7 +62,9 @@ export class LoginComponent {
   constructor() {
     effect(() => {
       if (this.store.isAuthenticated()) {
-        this.router.navigate(['/']);
+        const requestedReturnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+        const target = sanitizeReturnUrl(requestedReturnUrl) ?? '';
+        this.router.navigateByUrl(target);
       }
     });
 
