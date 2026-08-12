@@ -105,6 +105,18 @@ describe('ProjectsComponent', () => {
     expect(compiled.querySelector('[data-testid="project-row-1"] [data-testid="project-status"]')?.textContent).toContain('PLANIFICACION');
   });
 
+  it('renders a sibling members link next to the board link for each project', async () => {
+    storeStub.projects.set([project(1, 'Alpha')]);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const membersLink = compiled.querySelector(
+      '[data-testid="project-row-1"] [data-testid="project-members-link"]',
+    ) as HTMLAnchorElement;
+    expect(membersLink).toBeTruthy();
+    expect(membersLink.getAttribute('href')).toBe('/projects/1/members');
+  });
+
   it('displays the store error when the list fails to load', async () => {
     storeStub.error.set('No se pudieron cargar los proyectos');
     await setup();
