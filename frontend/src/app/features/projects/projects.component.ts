@@ -60,6 +60,9 @@ import { ProjectsStore } from './projects.store';
               <a [routerLink]="['/projects', project.id, 'board']" data-testid="project-board-link">{{
                 project.name
               }}</a>
+              <a [routerLink]="['/projects', project.id, 'members']" data-testid="project-members-link"
+                >Miembros</a
+              >
               <span data-testid="project-description">{{ project.description }}</span>
               <span data-testid="project-status">{{ project.status }}</span>
             </li>
