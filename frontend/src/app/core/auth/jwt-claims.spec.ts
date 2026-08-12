@@ -1,4 +1,4 @@
-import { decodeRole } from './jwt-claims';
+import { decodeRole, decodeUserId } from './jwt-claims';
 
 /** Builds a syntactically valid JWT string from a header/payload pair. */
 function makeToken(payload: unknown, header: unknown = { alg: 'HS256', typ: 'JWT' }): string {
@@ -61,5 +61,33 @@ describe('decodeRole', () => {
     const token = makeToken({ sub: 'josé@flowpilot.local', role: 'ADMINISTRADOR' });
 
     expect(decodeRole(token)).toBe('ADMINISTRADOR');
+  });
+});
+
+describe('decodeUserId', () => {
+  it('returns the numeric user id from a valid token payload', () => {
+    const token = makeToken({ sub: '42', role: 'ADMINISTRADOR' });
+
+    expect(decodeUserId(token)).toBe(42);
+  });
+
+  it('returns null when the sub claim is missing', () => {
+    const token = makeToken({ role: 'ADMINISTRADOR' });
+
+    expect(decodeUserId(token)).toBeNull();
+  });
+
+  it('returns null when the sub claim is not numeric', () => {
+    const token = makeToken({ sub: 'user@flowpilot.local', role: 'ADMINISTRADOR' });
+
+    expect(decodeUserId(token)).toBeNull();
+  });
+
+  it('returns null when the token is malformed', () => {
+    expect(decodeUserId('only-one-segment')).toBeNull();
+  });
+
+  it('returns null when the token is null', () => {
+    expect(decodeUserId(null)).toBeNull();
   });
 });

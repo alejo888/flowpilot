@@ -1,19 +1,19 @@
 import { Component, OnInit, computed, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
+import { AuthStore } from '../../../core/auth/auth.store';
 import { PROJECT_ROLE_OPTIONS, ProjectMember, ProjectRole } from './project-member.model';
 import { ProjectMembersStore } from './project-members.store';
-import { UserSummary } from './user-summary.model';
 
 /**
  * Project member roster view (spec: project-members-ui; design D7, §4).
- * PR1 was read-only. PR2 adds: name/email resolution for existing roster
- * rows (falling back to the `Usuario #{userId}` placeholder while the
- * directory has not resolved yet) and an add-member form with a
- * client-side text filter over the fetched user directory (design D3),
- * excluding users already on the roster, plus client-side required-field
- * validation (design D4) and a reset-on-success effect keyed on
- * `store.lastAdded()` (mirroring `ProjectsComponent`'s reset effect).
+ * PR1 was read-only. PR2 added name/email resolution and the add-member
+ * form. PR3 adds: a per-row role select (`store.changeRole`, only fired
+ * when the value actually differs), a one-click remove for other members'
+ * rows, and a two-step self-removal confirmation (design D6, mirroring
+ * `AdminPermissionsComponent`'s inline `conflict-dialog` pattern — no
+ * modal/dialog component exists in this codebase). `isSelf` compares
+ * `member.userId` against `AuthStore.currentUserId` (design D5).
  */
 @Component({
   selector: 'app-project-members',
@@ -75,16 +75,62 @@ import { UserSummary } from './user-summary.model';
             <li [attr.data-testid]="'member-row-' + member.id">
               <span data-testid="member-user">{{ memberLabel(member) }}</span>
               <span data-testid="member-role">{{ roleLabel(member.role) }}</span>
+              <select
+                data-testid="member-role-select"
+                [disabled]="mutatingUserId() === member.userId"
+                (change)="onRoleChangeForMember(member, $event)"
+              >
+                @for (option of roleOptions; track option.value) {
+                  <option [value]="option.value" [selected]="option.value === member.role">
+                    {{ option.label }}
+                  </option>
+                }
+              </select>
               <span data-testid="member-joined-at">{{ member.joinedAt }}</span>
+              @if (isSelf(member)) {
+                <button
+                  type="button"
+                  data-testid="member-remove-self"
+                  [disabled]="mutatingUserId() === member.userId"
+                  (click)="onRemove(member)"
+                >
+                  Quitarme del proyecto
+                </button>
+              } @else {
+                <button
+                  type="button"
+                  data-testid="member-remove"
+                  [disabled]="mutatingUserId() === member.userId"
+                  (click)="onRemove(member)"
+                >
+                  Quitar
+                </button>
+              }
             </li>
           }
         </ul>
+      }
+
+      @if (confirmingSelfRemoval()) {
+        <div data-testid="self-remove-dialog" class="self-remove-dialog">
+          <p>
+            Vas a quitarte a vos mismo de este proyecto. Perderás el acceso salvo que seas el dueño
+            o un administrador.
+          </p>
+          <button type="button" data-testid="self-remove-confirm" (click)="onConfirmSelfRemoval()">
+            Sí, salir del proyecto
+          </button>
+          <button type="button" data-testid="self-remove-cancel" (click)="onCancelSelfRemoval()">
+            Cancelar
+          </button>
+        </div>
       }
     </div>
   `,
 })
 export class ProjectMembersComponent implements OnInit {
   private readonly store = inject(ProjectMembersStore);
+  private readonly auth = inject(AuthStore);
 
   readonly projectId = input.required<number>();
 
@@ -92,6 +138,7 @@ export class ProjectMembersComponent implements OnInit {
   readonly users = this.store.users;
   readonly loading = this.store.loading;
   readonly adding = this.store.adding;
+  readonly mutatingUserId = this.store.mutatingUserId;
   readonly error = this.store.error;
 
   readonly roleOptions = PROJECT_ROLE_OPTIONS;
@@ -100,6 +147,7 @@ export class ProjectMembersComponent implements OnInit {
   readonly selectedUserId = signal<number | null>(null);
   readonly selectedRole = signal<ProjectRole | null>(null);
   readonly addFormError = signal<string | null>(null);
+  readonly confirmingSelfRemoval = signal(false);
 
   readonly selectableUsers = computed(() => {
     const taken = this.store.memberUserIds();
@@ -135,6 +183,38 @@ export class ProjectMembersComponent implements OnInit {
 
   roleLabel(role: ProjectRole): string {
     return PROJECT_ROLE_OPTIONS.find((option) => option.value === role)?.label ?? role;
+  }
+
+  isSelf(member: ProjectMember): boolean {
+    return member.userId === this.auth.currentUserId();
+  }
+
+  onRoleChangeForMember(member: ProjectMember, event: Event): void {
+    const value = (event.target as HTMLSelectElement).value as ProjectRole;
+    if (value === member.role) {
+      return;
+    }
+    this.store.changeRole(this.projectId(), member.userId, value);
+  }
+
+  onRemove(member: ProjectMember): void {
+    if (this.isSelf(member)) {
+      this.confirmingSelfRemoval.set(true);
+      return;
+    }
+    this.store.removeMember(this.projectId(), member.userId);
+  }
+
+  onConfirmSelfRemoval(): void {
+    this.confirmingSelfRemoval.set(false);
+    const currentUserId = this.auth.currentUserId();
+    if (currentUserId !== null) {
+      this.store.removeMember(this.projectId(), currentUserId);
+    }
+  }
+
+  onCancelSelfRemoval(): void {
+    this.confirmingSelfRemoval.set(false);
   }
 
   onUserChange(event: Event): void {

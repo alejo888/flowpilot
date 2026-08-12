@@ -25,6 +25,8 @@ describe('ProjectMembersStore', () => {
   let apiSpy: {
     listMembers: ReturnType<typeof vi.fn>;
     addMember: ReturnType<typeof vi.fn>;
+    changeRole: ReturnType<typeof vi.fn>;
+    removeMember: ReturnType<typeof vi.fn>;
   };
   let usersApiSpy: {
     listUsers: ReturnType<typeof vi.fn>;
@@ -35,6 +37,8 @@ describe('ProjectMembersStore', () => {
     apiSpy = {
       listMembers: vi.fn(),
       addMember: vi.fn(),
+      changeRole: vi.fn(),
+      removeMember: vi.fn(),
     };
     usersApiSpy = {
       listUsers: vi.fn(),
@@ -141,5 +145,71 @@ describe('ProjectMembersStore', () => {
     store.addMember(10, 9, 'DEVELOPER');
 
     expect(store.adding()).toBe(true);
+  });
+
+  it('replaces the matching row in place on a successful role change', () => {
+    apiSpy.listMembers.mockReturnValue(of([member(1, 7), member(2, 8)]));
+    store.loadMembers(10);
+    const updated = { ...member(1, 7), role: 'QA' as const };
+    apiSpy.changeRole.mockReturnValue(of(updated));
+
+    store.changeRole(10, 7, 'QA');
+
+    expect(apiSpy.changeRole).toHaveBeenCalledWith(10, 7, 'QA');
+    expect(store.members()).toHaveLength(2);
+    expect(store.members()[0]).toEqual(updated);
+    expect(store.members()[1].role).toBe('DEVELOPER');
+    expect(store.mutatingUserId()).toBeNull();
+  });
+
+  it('removes the matching row on a successful removal', () => {
+    apiSpy.listMembers.mockReturnValue(of([member(1, 7), member(2, 8)]));
+    store.loadMembers(10);
+    apiSpy.removeMember.mockReturnValue(of(undefined));
+
+    store.removeMember(10, 7);
+
+    expect(apiSpy.removeMember).toHaveBeenCalledWith(10, 7);
+    expect(store.members()).toEqual([member(2, 8)]);
+    expect(store.mutatingUserId()).toBeNull();
+  });
+
+  it('sets the error from the ProblemDetail on a 404 remove-already-gone response and leaves the stale row', () => {
+    apiSpy.listMembers.mockReturnValue(of([member(1, 7)]));
+    store.loadMembers(10);
+    apiSpy.removeMember.mockReturnValue(
+      throwError(() => ({ error: { detail: 'El miembro ya no existe' } })),
+    );
+
+    store.removeMember(10, 7);
+
+    expect(store.error()).toBe('El miembro ya no existe');
+    expect(store.members()).toEqual([member(1, 7)]);
+    expect(store.mutatingUserId()).toBeNull();
+  });
+
+  it('sets mutatingUserId to the target during a mutation and clears it on success and error', () => {
+    apiSpy.listMembers.mockReturnValue(of([member(1, 7)]));
+    store.loadMembers(10);
+    apiSpy.changeRole.mockReturnValue({
+      subscribe: () => {
+        /* never resolves — proves the flag flips before any response arrives */
+      },
+    });
+
+    store.changeRole(10, 7, 'QA');
+
+    expect(store.mutatingUserId()).toBe(7);
+  });
+
+  it('leaves membersSignal unchanged on a 403 during either mutation (no optimistic mutation retained)', () => {
+    apiSpy.listMembers.mockReturnValue(of([member(1, 7)]));
+    store.loadMembers(10);
+    apiSpy.changeRole.mockReturnValue(throwError(() => ({ error: { detail: 'No autorizado' } })));
+
+    store.changeRole(10, 7, 'QA');
+
+    expect(store.error()).toBe('No autorizado');
+    expect(store.members()).toEqual([member(1, 7)]);
   });
 });

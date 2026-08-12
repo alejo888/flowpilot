@@ -173,6 +173,18 @@ describe('AuthStore', () => {
     expect(store.isAdmin()).toBe(false);
   });
 
+  it('sets currentUserId from the decoded sub claim on successful login', () => {
+    const response: AccessTokenResponse = {
+      accessToken: makeToken({ sub: '42', role: 'ADMINISTRADOR' }),
+      expiresIn: 900,
+    };
+    apiSpy.login.mockReturnValue(of(response));
+
+    store.login('admin@flowpilot.local', 'secret');
+
+    expect(store.currentUserId()).toBe(42);
+  });
+
   it('shares a single in-flight refresh call across two concurrent subscribers', () => {
     const response: AccessTokenResponse = { accessToken: 'token-4', expiresIn: 900 };
     apiSpy.refresh.mockReturnValue(of(response));

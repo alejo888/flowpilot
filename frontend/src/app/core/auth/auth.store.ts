@@ -3,7 +3,7 @@ import { Observable, catchError, finalize, map, of, shareReplay } from 'rxjs';
 
 import { AuthApiService } from './auth-api.service';
 import { AccessTokenResponse, GlobalRole } from './auth.model';
-import { decodeRole } from './jwt-claims';
+import { decodeRole, decodeUserId } from './jwt-claims';
 
 interface ProblemDetailLike {
   error?: { detail?: string };
@@ -32,6 +32,7 @@ export class AuthStore {
   readonly isAuthenticated = computed(() => this.accessTokenSignal() !== null);
   readonly role = this.roleSignal.asReadonly();
   readonly isAdmin = computed(() => this.roleSignal() === 'ADMINISTRADOR');
+  readonly currentUserId = computed(() => decodeUserId(this.accessTokenSignal()));
 
   login(email: string, password: string): void {
     this.errorSignal.set(null);
