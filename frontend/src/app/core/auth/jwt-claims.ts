@@ -30,6 +30,35 @@ export function decodeRole(token: string | null): GlobalRole | null {
     : null;
 }
 
+/**
+ * Decodes the numeric user id from the JWT `sub` claim (design D5). Fail-closed:
+ * returns `null` unless `sub` is a string of digits that parses to a finite
+ * number — matching {@link decodeRole}'s documented contract.
+ */
+export function decodeUserId(token: string | null): number | null {
+  if (!token) {
+    return null;
+  }
+
+  const segments = token.split('.');
+  if (segments.length !== 3) {
+    return null;
+  }
+
+  const payload = decodePayload(segments[1]);
+  if (payload === null) {
+    return null;
+  }
+
+  const sub = (payload as { sub?: unknown }).sub;
+  if (typeof sub !== 'string' || !/^\d+$/.test(sub)) {
+    return null;
+  }
+
+  const userId = Number(sub);
+  return Number.isFinite(userId) ? userId : null;
+}
+
 function decodePayload(base64url: string): unknown {
   try {
     const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');

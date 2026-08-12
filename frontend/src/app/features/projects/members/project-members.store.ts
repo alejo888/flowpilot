@@ -27,6 +27,7 @@ export class ProjectMembersStore {
   private readonly loadingSignal = signal<boolean>(false);
   private readonly addingSignal = signal<boolean>(false);
   private readonly lastAddedSignal = signal<ProjectMember | null>(null);
+  private readonly mutatingUserIdSignal = signal<number | null>(null);
   private readonly errorSignal = signal<string | null>(null);
 
   readonly members = this.membersSignal.asReadonly();
@@ -34,6 +35,8 @@ export class ProjectMembersStore {
   readonly loading = this.loadingSignal.asReadonly();
   readonly adding = this.addingSignal.asReadonly();
   readonly lastAdded = this.lastAddedSignal.asReadonly();
+  /** userId of the row currently being mutated (role change or removal); design D2 — per-row, not a single global boolean. */
+  readonly mutatingUserId = this.mutatingUserIdSignal.asReadonly();
   readonly error = this.errorSignal.asReadonly();
 
   /** userIds already on the roster — the picker excludes them (design D2/D3). */
@@ -76,6 +79,36 @@ export class ProjectMembersStore {
       error: (err: unknown) => {
         this.errorSignal.set(errorMessage(err, 'No se pudo agregar el miembro'));
         this.addingSignal.set(false);
+      },
+    });
+  }
+
+  changeRole(projectId: number, userId: number, role: ProjectRole): void {
+    this.errorSignal.set(null);
+    this.mutatingUserIdSignal.set(userId);
+    this.api.changeRole(projectId, userId, role).subscribe({
+      next: (updated) => {
+        this.membersSignal.set(this.membersSignal().map((m) => (m.userId === userId ? updated : m)));
+        this.mutatingUserIdSignal.set(null);
+      },
+      error: (err: unknown) => {
+        this.errorSignal.set(errorMessage(err, 'No se pudo cambiar el rol'));
+        this.mutatingUserIdSignal.set(null);
+      },
+    });
+  }
+
+  removeMember(projectId: number, userId: number): void {
+    this.errorSignal.set(null);
+    this.mutatingUserIdSignal.set(userId);
+    this.api.removeMember(projectId, userId).subscribe({
+      next: () => {
+        this.membersSignal.set(this.membersSignal().filter((m) => m.userId !== userId));
+        this.mutatingUserIdSignal.set(null);
+      },
+      error: (err: unknown) => {
+        this.errorSignal.set(errorMessage(err, 'No se pudo quitar el miembro'));
+        this.mutatingUserIdSignal.set(null);
       },
     });
   }

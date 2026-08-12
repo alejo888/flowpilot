@@ -57,4 +57,30 @@ describe('ProjectMembersApiService', () => {
 
     expect(result).toEqual(created);
   });
+
+  it('sends a change-role request', () => {
+    const updated = { ...member(1, 7), role: 'QA' as const };
+    let result: ProjectMember | undefined;
+
+    service.changeRole(10, 7, 'QA').subscribe((response) => (result = response));
+
+    const req = httpMock.expectOne('/api/projects/10/members/7');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ role: 'QA' });
+    req.flush(updated);
+
+    expect(result).toEqual(updated);
+  });
+
+  it('sends a remove-member request', () => {
+    let completed = false;
+
+    service.removeMember(10, 7).subscribe(() => (completed = true));
+
+    const req = httpMock.expectOne('/api/projects/10/members/7');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(completed).toBe(true);
+  });
 });

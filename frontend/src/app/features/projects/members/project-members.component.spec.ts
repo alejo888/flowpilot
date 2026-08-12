@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
+import { AuthStore } from '../../../core/auth/auth.store';
 import { ProjectMember } from './project-member.model';
 import { ProjectMembersComponent } from './project-members.component';
 import { ProjectMembersStore } from './project-members.store';
@@ -31,15 +32,23 @@ describe('ProjectMembersComponent', () => {
     lastAdded: ReturnType<typeof signal<ProjectMember | null>>;
     error: ReturnType<typeof signal<string | null>>;
     memberUserIds: ReturnType<typeof signal<Set<number>>>;
+    mutatingUserId: ReturnType<typeof signal<number | null>>;
     loadMembers: ReturnType<typeof vi.fn>;
     loadUsers: ReturnType<typeof vi.fn>;
     addMember: ReturnType<typeof vi.fn>;
+    changeRole: ReturnType<typeof vi.fn>;
+    removeMember: ReturnType<typeof vi.fn>;
   };
+  let authStoreStub: { currentUserId: ReturnType<typeof signal<number | null>> };
 
   async function setup(): Promise<void> {
     await TestBed.configureTestingModule({
       imports: [ProjectMembersComponent],
-      providers: [provideRouter([]), { provide: ProjectMembersStore, useValue: storeStub }],
+      providers: [
+        provideRouter([]),
+        { provide: ProjectMembersStore, useValue: storeStub },
+        { provide: AuthStore, useValue: authStoreStub },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ProjectMembersComponent);
@@ -56,10 +65,14 @@ describe('ProjectMembersComponent', () => {
       lastAdded: signal(null),
       error: signal(null),
       memberUserIds: signal(new Set<number>()),
+      mutatingUserId: signal(null),
       loadMembers: vi.fn(),
       loadUsers: vi.fn(),
       addMember: vi.fn(),
+      changeRole: vi.fn(),
+      removeMember: vi.fn(),
     };
+    authStoreStub = { currentUserId: signal(99) };
   });
 
   it('loads the roster and the user directory for the given project on init', async () => {
@@ -217,5 +230,103 @@ describe('ProjectMembersComponent', () => {
 
     const filterInputAfter = compiled.querySelector('[data-testid="member-add-filter"]') as HTMLInputElement;
     expect(filterInputAfter.value).toBe('');
+  });
+
+  it('calls store.changeRole when a row role select changes to a different value', async () => {
+    storeStub.members.set([member(1, 7)]);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const roleSelect = compiled.querySelector(
+      '[data-testid="member-row-1"] [data-testid="member-role-select"]',
+    ) as HTMLSelectElement;
+    roleSelect.value = 'QA';
+    roleSelect.dispatchEvent(new Event('change'));
+
+    expect(storeStub.changeRole).toHaveBeenCalledWith(10, 7, 'QA');
+  });
+
+  it('does not call store.changeRole when the role select fires with the same current value', async () => {
+    storeStub.members.set([member(1, 7)]);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const roleSelect = compiled.querySelector(
+      '[data-testid="member-row-1"] [data-testid="member-role-select"]',
+    ) as HTMLSelectElement;
+    roleSelect.value = 'DEVELOPER';
+    roleSelect.dispatchEvent(new Event('change'));
+
+    expect(storeStub.changeRole).not.toHaveBeenCalled();
+  });
+
+  it('calls store.removeMember directly for a non-self row', async () => {
+    storeStub.members.set([member(1, 7)]);
+    authStoreStub.currentUserId.set(99);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const removeButton = compiled.querySelector(
+      '[data-testid="member-row-1"] [data-testid="member-remove"]',
+    ) as HTMLButtonElement;
+    expect(removeButton).toBeTruthy();
+    removeButton.click();
+
+    expect(storeStub.removeMember).toHaveBeenCalledWith(10, 7);
+  });
+
+  it('does not call store.removeMember on the initial self-remove click, only opens confirmation', async () => {
+    storeStub.members.set([member(1, 99)]);
+    authStoreStub.currentUserId.set(99);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const selfRemoveButton = compiled.querySelector(
+      '[data-testid="member-row-1"] [data-testid="member-remove-self"]',
+    ) as HTMLButtonElement;
+    expect(selfRemoveButton).toBeTruthy();
+    selfRemoveButton.click();
+    fixture.detectChanges();
+
+    expect(storeStub.removeMember).not.toHaveBeenCalled();
+    expect(compiled.querySelector('[data-testid="self-remove-confirm"]')).toBeTruthy();
+  });
+
+  it('calls store.removeMember with the current user id after confirming self-removal', async () => {
+    storeStub.members.set([member(1, 99)]);
+    authStoreStub.currentUserId.set(99);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const selfRemoveButton = compiled.querySelector(
+      '[data-testid="member-row-1"] [data-testid="member-remove-self"]',
+    ) as HTMLButtonElement;
+    selfRemoveButton.click();
+    fixture.detectChanges();
+
+    const confirmButton = compiled.querySelector('[data-testid="self-remove-confirm"]') as HTMLButtonElement;
+    confirmButton.click();
+
+    expect(storeStub.removeMember).toHaveBeenCalledWith(10, 99);
+  });
+
+  it('makes no API call and closes the confirmation when self-removal is canceled', async () => {
+    storeStub.members.set([member(1, 99)]);
+    authStoreStub.currentUserId.set(99);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const selfRemoveButton = compiled.querySelector(
+      '[data-testid="member-row-1"] [data-testid="member-remove-self"]',
+    ) as HTMLButtonElement;
+    selfRemoveButton.click();
+    fixture.detectChanges();
+
+    const cancelButton = compiled.querySelector('[data-testid="self-remove-cancel"]') as HTMLButtonElement;
+    cancelButton.click();
+    fixture.detectChanges();
+
+    expect(storeStub.removeMember).not.toHaveBeenCalled();
+    expect(compiled.querySelector('[data-testid="self-remove-confirm"]')).toBeFalsy();
   });
 });
