@@ -43,4 +43,18 @@ describe('ProjectMembersApiService', () => {
 
     expect(result).toEqual(members);
   });
+
+  it('sends an add-member request', () => {
+    const created = member(3, 9);
+    let result: ProjectMember | undefined;
+
+    service.addMember(10, { userId: 9, role: 'DEVELOPER' }).subscribe((response) => (result = response));
+
+    const req = httpMock.expectOne('/api/projects/10/members');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ userId: 9, role: 'DEVELOPER' });
+    req.flush(created);
+
+    expect(result).toEqual(created);
+  });
 });
