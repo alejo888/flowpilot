@@ -31,8 +31,8 @@ jobs:
         # only, not this known generation limitation.
         run: |
           jq 'del(.paths."/api/auth/refresh".post.responses."403".content)' \
-            backend/target/openapi-generated.json > backend/target/openapi-generated.normalized.json
-          mv backend/target/openapi-generated.normalized.json backend/target/openapi-generated.json
+            target/openapi-generated.json > target/openapi-generated.normalized.json
+          mv target/openapi-generated.normalized.json target/openapi-generated.json
       - name: Check api/openapi.yaml matches the live-generated spec
         uses: oasdiff/oasdiff-action/diff@v0
         with:
