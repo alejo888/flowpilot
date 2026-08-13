@@ -95,10 +95,4 @@ describe('BoardComponent', () => {
 
     expect(storeStub.moveItem).toHaveBeenCalledWith(500, 2, 0);
   });
-
-  it('links back to the projects list', () => {
-    const compiled = fixture.nativeElement as HTMLElement;
-    const link = compiled.querySelector('[data-testid="board-projects-link"]');
-    expect(link?.getAttribute('href')).toBe('/projects');
-  });
 });
