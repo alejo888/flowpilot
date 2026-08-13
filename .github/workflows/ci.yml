@@ -20,6 +20,25 @@ jobs:
           cache: maven
       - name: Run backend tests
         run: ./mvnw -B test
+      - name: Normalize known springdoc generation quirks before drift check
+        # /api/auth/refresh's 403 (CSRF check failure) is raised by
+        # CsrfProtectionFilter via response.sendError() at the servlet-filter
+        # level, before the request ever reaches AuthController — springdoc
+        # can't see that, so it reflects the method's own success return type
+        # (AccessTokenResponse) onto the 403 response too. api/openapi.yaml
+        # correctly documents this 403 as bodyless; strip springdoc's
+        # incorrect inferred content here so the diff reflects real drift
+        # only, not this known generation limitation.
+        run: |
+          jq 'del(.paths."/api/auth/refresh".post.responses."403".content)' \
+            backend/target/openapi-generated.json > backend/target/openapi-generated.normalized.json
+          mv backend/target/openapi-generated.normalized.json backend/target/openapi-generated.json
+      - name: Check api/openapi.yaml matches the live-generated spec
+        uses: oasdiff/oasdiff-action/diff@v0
+        with:
+          base: api/openapi.yaml
+          revision: backend/target/openapi-generated.json
+          fail-on-diff: true
 
   frontend:
     runs-on: ubuntu-latest
