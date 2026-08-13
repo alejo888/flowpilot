@@ -1,8 +1,41 @@
-<main class="app-shell">
-  <header class="app-shell__header">
-    <h1>{{ title() }}</h1>
-    <p>Gestión de proyectos y tareas.</p>
-  </header>
+@if (authStore.isAuthenticated()) {
+  <nav class="app-nav" data-testid="app-nav">
+    <a routerLink="/" class="app-nav__brand">FlowPilot</a>
+    <div class="app-nav__links">
+      <a
+        routerLink="/projects"
+        routerLinkActive="app-nav__link--active"
+        class="app-nav__link"
+        data-testid="nav-projects"
+        >Proyectos</a
+      >
+      @if (authStore.isAdmin()) {
+        <a
+          routerLink="/admin/users"
+          routerLinkActive="app-nav__link--active"
+          class="app-nav__link"
+          data-testid="nav-admin-users"
+          >Usuarios</a
+        >
+        <a
+          routerLink="/admin/permissions"
+          routerLinkActive="app-nav__link--active"
+          class="app-nav__link"
+          data-testid="nav-admin-permissions"
+          >Permisos</a
+        >
+      }
+    </div>
+    <fp-button variant="secondary" testId="logout-button" (click)="onLogout()">Cerrar sesión</fp-button>
+  </nav>
+} @else {
+  <nav class="app-nav app-nav--minimal" data-testid="app-nav">
+    <a routerLink="/" class="app-nav__brand">FlowPilot</a>
+  </nav>
+}
 
-  <router-outlet />
+<main class="app-content">
+  <div class="app-content__container">
+    <router-outlet />
+  </div>
 </main>

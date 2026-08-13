@@ -1,0 +1,81 @@
+// Root app shell: host lays out nav + content as a full-height column so
+// feature pages that rely on min-height: 100% (e.g. login) resolve against a
+// definite height. Body already resets margin/sets the fp-bg background
+// (styles.scss) — nothing to duplicate here.
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--fp-space-6);
+  padding: var(--fp-space-3) var(--fp-space-6);
+  background: var(--fp-surface);
+  border-bottom: 1px solid var(--fp-border);
+  box-shadow: var(--fp-shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.app-nav--minimal {
+  justify-content: flex-start;
+}
+
+.app-nav__brand {
+  font-family: var(--fp-font-display);
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-size: 1.375rem;
+  color: var(--fp-text);
+  text-decoration: none;
+}
+
+.app-nav__links {
+  display: flex;
+  align-items: center;
+  gap: var(--fp-space-4);
+  flex: 1;
+}
+
+.app-nav__link {
+  font-family: var(--fp-font-body);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--fp-text-muted);
+  text-decoration: none;
+  padding-bottom: var(--fp-space-1);
+  border-bottom: 2px solid transparent;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.app-nav__link:hover {
+  color: var(--fp-text);
+}
+
+.app-nav__link--active {
+  color: var(--fp-accent);
+  border-bottom-color: var(--fp-accent);
+}
+
+.app-content {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+// Feature root elements already carry their own padding (var(--fp-space-8),
+// see e.g. projects.component.ts/home.component.ts), so the container here
+// uses a smaller value to avoid visibly doubling the inset — it only needs
+// to guarantee a minimum gutter against the viewport edge and cap line
+// length via max-width.
+.app-content__container {
+  width: 100%;
+  max-width: 1200px;
+  padding: 0 var(--fp-space-4);
+}

@@ -1,6 +1,9 @@
+import { registerLocaleData } from '@angular/common';
 import { provideHttpClient, withInterceptors, withNoXsrfProtection } from '@angular/common/http';
+import localeEs from '@angular/common/locales/es';
 import {
   ApplicationConfig,
+  LOCALE_ID,
   inject,
   provideAppInitializer,
   provideBrowserGlobalErrorListeners
@@ -11,8 +14,11 @@ import { routes } from './app.routes';
 import { AuthStore } from './core/auth/auth.store';
 import { jwtInterceptor } from './core/api/jwt.interceptor';
 
+registerLocaleData(localeEs);
+
 export const appConfig: ApplicationConfig = {
   providers: [
+    { provide: LOCALE_ID, useValue: 'es' },
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes, withComponentInputBinding()),
     // withNoXsrfProtection(): Angular's built-in XSRF interceptor shares the
