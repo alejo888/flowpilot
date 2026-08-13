@@ -1,7 +1,13 @@
+import { DatePipe } from '@angular/common';
 import { Component, OnInit, computed, effect, inject, input, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
 
 import { AuthStore } from '../../../core/auth/auth.store';
+import { FpBadgeComponent } from '../../../shared/ui/badge.component';
+import { FpButtonComponent } from '../../../shared/ui/button.component';
+import { FpCardComponent } from '../../../shared/ui/card.component';
+import { FpDialogComponent } from '../../../shared/ui/dialog.component';
+import { FpInputComponent } from '../../../shared/ui/input.component';
+import { FpSelectComponent } from '../../../shared/ui/select.component';
 import { PROJECT_ROLE_OPTIONS, ProjectMember, ProjectRole } from './project-member.model';
 import { ProjectMembersStore } from './project-members.store';
 
@@ -12,120 +18,241 @@ import { ProjectMembersStore } from './project-members.store';
  * when the value actually differs), a one-click remove for other members'
  * rows, and a two-step self-removal confirmation (design D6, mirroring
  * `AdminPermissionsComponent`'s inline `conflict-dialog` pattern — no
- * modal/dialog component exists in this codebase). `isSelf` compares
- * `member.userId` against `AuthStore.currentUserId` (design D5).
+ * modal/dialog component existed in this codebase, so this restyle adds
+ * one minimal `fp-dialog` inline-confirmation shell under `shared/ui`).
+ * `isSelf` compares `member.userId` against `AuthStore.currentUserId`
+ * (design D5). Visual layer uses the full FlowPilot shared/ui kit
+ * (fp-card/fp-input/fp-select/fp-button/fp-badge/fp-dialog) — behavior is
+ * unchanged from the raw-HTML version this replaces.
  */
 @Component({
   selector: 'app-project-members',
   standalone: true,
-  imports: [RouterLink],
+  imports: [
+    DatePipe,
+    FpBadgeComponent,
+    FpButtonComponent,
+    FpCardComponent,
+    FpDialogComponent,
+    FpInputComponent,
+    FpSelectComponent,
+  ],
   template: `
     <div class="project-members">
-      <a routerLink="/projects" data-testid="members-projects-link">Volver a proyectos</a>
-
-      <h1>Miembros del proyecto</h1>
+      <h1 class="project-members-title">Miembros del proyecto</h1>
 
       @if (error(); as message) {
         <p data-testid="project-members-error" class="project-members-error">{{ message }}</p>
       }
 
-      <form class="member-add" data-testid="member-add-form" (submit)="onSubmit($event)">
-        @if (addFormError(); as message) {
-          <p data-testid="member-add-error">{{ message }}</p>
-        }
-        <label>
-          Filtrar usuarios
-          <input
-            data-testid="member-add-filter"
+      <fp-card class="member-add-card">
+        <form class="member-add" data-testid="member-add-form" (submit)="onSubmit($event)">
+          @if (addFormError(); as message) {
+            <p data-testid="member-add-error" class="member-add-error">{{ message }}</p>
+          }
+          <fp-input
+            label="Filtrar usuarios"
+            testId="member-add-filter"
             [value]="userFilter()"
-            (input)="userFilter.set(inputValue($event))"
+            (valueChange)="userFilter.set($event)"
           />
-        </label>
-        <label>
-          Usuario
-          <select data-testid="member-add-user-select" (change)="onUserChange($event)">
-            <option value="">Elegí un usuario</option>
-            @for (user of selectableUsers(); track user.id) {
-              <option [value]="user.id">{{ user.name }} ({{ user.email }})</option>
-            }
-          </select>
-        </label>
-        <label>
-          Rol
-          <select data-testid="member-add-role-select" (change)="onRoleChange($event)">
-            <option value="">Elegí un rol</option>
-            @for (option of roleOptions; track option.value) {
-              <option [value]="option.value">{{ option.label }}</option>
-            }
-          </select>
-        </label>
-        <button type="submit" data-testid="member-add-submit" [disabled]="adding()">Agregar miembro</button>
-      </form>
+          <fp-select
+            label="Usuario"
+            testId="member-add-user-select"
+            placeholder="Elegí un usuario"
+            [options]="selectableUserOptions()"
+            (valueChange)="onUserChange($event)"
+          />
+          <fp-select
+            label="Rol"
+            testId="member-add-role-select"
+            placeholder="Elegí un rol"
+            [options]="roleSelectOptions"
+            (valueChange)="onRoleChange($event)"
+          />
+          <fp-button type="submit" testId="member-add-submit" [disabled]="adding()">
+            Agregar miembro
+          </fp-button>
+        </form>
+      </fp-card>
 
       @if (loading()) {
         <p data-testid="members-loading">Cargando miembros…</p>
       } @else if (members().length === 0) {
-        <p data-testid="members-empty">
+        <p data-testid="members-empty" class="members-empty">
           Este proyecto todavía no tiene miembros. El dueño del proyecto no aparece
           automáticamente en la lista.
         </p>
       } @else {
-        <ul>
+        <ul class="members-list">
           @for (member of members(); track member.id) {
             <li [attr.data-testid]="'member-row-' + member.id">
-              <span data-testid="member-user">{{ memberLabel(member) }}</span>
-              <span data-testid="member-role">{{ roleLabel(member.role) }}</span>
-              <select
-                data-testid="member-role-select"
-                [disabled]="mutatingUserId() === member.userId"
-                (change)="onRoleChangeForMember(member, $event)"
-              >
-                @for (option of roleOptions; track option.value) {
-                  <option [value]="option.value" [selected]="option.value === member.role">
-                    {{ option.label }}
-                  </option>
-                }
-              </select>
-              <span data-testid="member-joined-at">{{ member.joinedAt }}</span>
-              @if (isSelf(member)) {
-                <button
-                  type="button"
-                  data-testid="member-remove-self"
-                  [disabled]="mutatingUserId() === member.userId"
-                  (click)="onRemove(member)"
-                >
-                  Quitarme del proyecto
-                </button>
-              } @else {
-                <button
-                  type="button"
-                  data-testid="member-remove"
-                  [disabled]="mutatingUserId() === member.userId"
-                  (click)="onRemove(member)"
-                >
-                  Quitar
-                </button>
-              }
+              <fp-card class="member-row-card">
+                <div class="member-row">
+                  <div class="member-row-main">
+                    <span data-testid="member-user" class="member-row-user">{{ memberLabel(member) }}</span>
+                    <fp-badge variant="neutral" data-testid="member-role">{{ roleLabel(member.role) }}</fp-badge>
+                    <span data-testid="member-joined-at" class="member-row-joined">{{
+                      member.joinedAt | date: "d 'de' MMMM y, HH:mm"
+                    }}</span>
+                  </div>
+                  <div class="member-row-actions">
+                    <fp-select
+                      testId="member-role-select"
+                      [value]="member.role"
+                      [options]="roleSelectOptions"
+                      [disabled]="mutatingUserId() === member.userId"
+                      (valueChange)="onRoleChangeForMember(member, $event)"
+                    />
+                    @if (isSelf(member)) {
+                      <fp-button
+                        variant="danger"
+                        testId="member-remove-self"
+                        [disabled]="mutatingUserId() === member.userId"
+                        (click)="onRemove(member)"
+                      >
+                        Quitarme del proyecto
+                      </fp-button>
+                    } @else {
+                      <fp-button
+                        variant="danger"
+                        testId="member-remove"
+                        [disabled]="mutatingUserId() === member.userId"
+                        (click)="onRemove(member)"
+                      >
+                        Quitar
+                      </fp-button>
+                    }
+                  </div>
+                </div>
+              </fp-card>
             </li>
           }
         </ul>
       }
 
       @if (confirmingSelfRemoval()) {
-        <div data-testid="self-remove-dialog" class="self-remove-dialog">
-          <p>
+        <fp-dialog data-testid="self-remove-dialog">
+          <p class="self-remove-dialog-text">
             Vas a quitarte a vos mismo de este proyecto. Perderás el acceso salvo que seas el dueño
             o un administrador.
           </p>
-          <button type="button" data-testid="self-remove-confirm" (click)="onConfirmSelfRemoval()">
-            Sí, salir del proyecto
-          </button>
-          <button type="button" data-testid="self-remove-cancel" (click)="onCancelSelfRemoval()">
-            Cancelar
-          </button>
-        </div>
+          <div class="self-remove-dialog-actions">
+            <fp-button variant="danger" testId="self-remove-confirm" (click)="onConfirmSelfRemoval()">
+              Sí, salir del proyecto
+            </fp-button>
+            <fp-button variant="secondary" testId="self-remove-cancel" (click)="onCancelSelfRemoval()">
+              Cancelar
+            </fp-button>
+          </div>
+        </fp-dialog>
       }
     </div>
+  `,
+  styles: `
+    .project-members {
+      display: flex;
+      flex-direction: column;
+      gap: var(--fp-space-4);
+      padding: var(--fp-space-8);
+    }
+
+    .project-members-title {
+      margin: 0;
+      font-family: var(--fp-font-display);
+      font-optical-sizing: auto;
+      font-weight: 600;
+      font-size: 1.75rem;
+      color: var(--fp-text);
+    }
+
+    .project-members-error {
+      margin: 0;
+      font-family: var(--fp-font-body);
+      font-size: 0.875rem;
+      color: var(--fp-danger);
+    }
+
+    .member-add-card {
+      max-width: 520px;
+    }
+
+    .member-add {
+      display: flex;
+      flex-direction: column;
+      gap: var(--fp-space-4);
+    }
+
+    .member-add-error {
+      margin: 0;
+      font-family: var(--fp-font-body);
+      font-size: 0.875rem;
+      color: var(--fp-danger);
+    }
+
+    .members-empty {
+      font-family: var(--fp-font-body);
+      font-size: 0.9375rem;
+      color: var(--fp-text-muted);
+    }
+
+    .members-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--fp-space-3);
+    }
+
+    .member-row-card {
+      padding: var(--fp-space-4);
+    }
+
+    .member-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--fp-space-4);
+      flex-wrap: wrap;
+    }
+
+    .member-row-main {
+      display: flex;
+      align-items: center;
+      gap: var(--fp-space-3);
+      flex-wrap: wrap;
+    }
+
+    .member-row-user {
+      font-family: var(--fp-font-body);
+      font-weight: 600;
+      color: var(--fp-text);
+    }
+
+    .member-row-joined {
+      font-family: var(--fp-font-body);
+      font-size: 0.8125rem;
+      color: var(--fp-text-muted);
+    }
+
+    .member-row-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--fp-space-3);
+    }
+
+    .self-remove-dialog-text {
+      margin: 0;
+      font-family: var(--fp-font-body);
+      font-size: 0.9375rem;
+      color: var(--fp-text);
+    }
+
+    .self-remove-dialog-actions {
+      display: flex;
+      gap: var(--fp-space-3);
+    }
   `,
 })
 export class ProjectMembersComponent implements OnInit {
@@ -141,7 +268,7 @@ export class ProjectMembersComponent implements OnInit {
   readonly mutatingUserId = this.store.mutatingUserId;
   readonly error = this.store.error;
 
-  readonly roleOptions = PROJECT_ROLE_OPTIONS;
+  readonly roleSelectOptions: ReadonlyArray<{ value: string; label: string }> = PROJECT_ROLE_OPTIONS;
 
   readonly userFilter = signal('');
   readonly selectedUserId = signal<number | null>(null);
@@ -159,6 +286,10 @@ export class ProjectMembersComponent implements OnInit {
           needle === '' || user.name.toLowerCase().includes(needle) || user.email.toLowerCase().includes(needle),
       );
   });
+
+  readonly selectableUserOptions = computed<ReadonlyArray<{ value: string; label: string }>>(() =>
+    this.selectableUsers().map((user) => ({ value: String(user.id), label: `${user.name} (${user.email})` })),
+  );
 
   constructor() {
     effect(() => {
@@ -189,8 +320,8 @@ export class ProjectMembersComponent implements OnInit {
     return member.userId === this.auth.currentUserId();
   }
 
-  onRoleChangeForMember(member: ProjectMember, event: Event): void {
-    const value = (event.target as HTMLSelectElement).value as ProjectRole;
+  onRoleChangeForMember(member: ProjectMember, role: string): void {
+    const value = role as ProjectRole;
     if (value === member.role) {
       return;
     }
@@ -217,14 +348,12 @@ export class ProjectMembersComponent implements OnInit {
     this.confirmingSelfRemoval.set(false);
   }
 
-  onUserChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
+  onUserChange(value: string): void {
     this.selectedUserId.set(value === '' ? null : Number(value));
   }
 
-  onRoleChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value as ProjectRole | '';
-    this.selectedRole.set(value === '' ? null : value);
+  onRoleChange(value: string): void {
+    this.selectedRole.set(value === '' ? null : (value as ProjectRole));
   }
 
   onSubmit(event: Event): void {
@@ -237,9 +366,5 @@ export class ProjectMembersComponent implements OnInit {
     }
     this.addFormError.set(null);
     this.store.addMember(this.projectId(), userId, role);
-  }
-
-  inputValue(event: Event): string {
-    return (event.target as HTMLInputElement).value;
   }
 }

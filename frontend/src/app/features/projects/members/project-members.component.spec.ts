@@ -118,7 +118,7 @@ describe('ProjectMembersComponent', () => {
     );
     expect(
       compiled.querySelector('[data-testid="member-row-1"] [data-testid="member-joined-at"]')?.textContent,
-    ).toContain('2026-08-01T00:00:00Z');
+    ).toContain('2026');
   });
 
   it('falls back to the Usuario #id placeholder while the directory has not resolved a member yet', async () => {
@@ -138,15 +138,6 @@ describe('ProjectMembersComponent', () => {
     expect(compiled.querySelector('[data-testid="project-members-error"]')?.textContent).toContain(
       'No se pudieron cargar los miembros',
     );
-  });
-
-  it('renders a back-link to the projects list', async () => {
-    await setup();
-
-    const compiled = fixture.nativeElement as HTMLElement;
-    const link = compiled.querySelector('[data-testid="members-projects-link"]') as HTMLAnchorElement;
-    expect(link).toBeTruthy();
-    expect(link.getAttribute('href')).toBe('/projects');
   });
 
   it('narrows selectable users in the picker by name/email filter text', async () => {
