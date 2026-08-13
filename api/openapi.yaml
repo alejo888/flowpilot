@@ -7,11 +7,13 @@ info:
     by slice. PR1 adds Auth, PR2 adds the read-only user directory, PR3 adds
     Projects + BoardColumns, PR4 adds project Members, PR5 adds WorkItems.
     Hand-authored here is the source of truth; springdoc-openapi runs in CI
-    only as a drift check against the running application.
-servers:
-  - url: /api
+    only as a drift check against the running application (see
+    OpenApiSpecExportTest + the oasdiff step in ci.yml). Paths below are
+    absolute (include the /api prefix baked into every @RequestMapping) —
+    there is no servers/context-path indirection, since the live
+    springdoc-generated document has none either.
 paths:
-  /auth/register:
+  /api/auth/register:
     post:
       summary: Self-service registration
       operationId: register
@@ -36,7 +38,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /auth/login:
+  /api/auth/login:
     post:
       summary: Login and issue tokens
       operationId: login
@@ -69,7 +71,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /auth/refresh:
+  /api/auth/refresh:
     post:
       summary: Rotate refresh token and issue a new access token
       operationId: refresh
@@ -105,7 +107,7 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
         '403':
           description: Missing or mismatched X-XSRF-TOKEN header (CSRF check failed)
-  /auth/logout:
+  /api/auth/logout:
     post:
       summary: Revoke the refresh token and clear the cookie
       operationId: logout
@@ -124,7 +126,7 @@ paths:
           description: Logged out; refreshToken and XSRF-TOKEN cookies cleared
         '403':
           description: Missing or mismatched X-XSRF-TOKEN header (CSRF check failed)
-  /auth/forgot-password:
+  /api/auth/forgot-password:
     post:
       summary: Request a password reset (always 200, no account enumeration)
       operationId: forgotPassword
@@ -137,7 +139,7 @@ paths:
       responses:
         '200':
           description: Always returned, regardless of whether the account exists
-  /auth/reset-password:
+  /api/auth/reset-password:
     post:
       summary: Reset password using a valid reset token
       operationId: resetPassword
@@ -156,7 +158,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /users:
+  /api/users:
     get:
       summary: List users (read-only directory, for member selection)
       operationId: listUsers
@@ -181,7 +183,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /users/{id}:
+  /api/users/{id}:
     get:
       summary: Get a single user by id
       operationId: getUser
@@ -213,7 +215,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /admin/users:
+  /api/admin/users:
     get:
       summary: List all users with full admin projection (role, active) — admin-only
       operationId: listAdminUsers
@@ -240,7 +242,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /admin/users/{id}/status:
+  /api/admin/users/{id}/status:
     patch:
       summary: Activate or deactivate a user — admin-only
       operationId: setUserStatus
@@ -295,7 +297,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /admin/users/{id}/role:
+  /api/admin/users/{id}/role:
     put:
       summary: Change a user's global role — admin-only
       operationId: setUserRole
@@ -350,7 +352,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /admin/role-permissions:
+  /api/admin/role-permissions:
     get:
       summary: Get the full 6x9 role/permission matrix — admin-only
       operationId: getRolePermissions
@@ -424,7 +426,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /projects:
+  /api/projects:
     get:
       summary: List projects visible to the caller
       operationId: listProjects
@@ -478,7 +480,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /projects/{id}:
+  /api/projects/{id}:
     get:
       summary: Get a project by id
       operationId: getProject
@@ -570,7 +572,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /projects/{id}/status:
+  /api/projects/{id}/status:
     patch:
       summary: Transition a project's lifecycle status
       operationId: updateProjectStatus
@@ -603,7 +605,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /projects/{id}/board-columns:
+  /api/projects/{id}/board-columns:
     get:
       summary: List a project's Kanban columns, ordered by position
       operationId: listBoardColumns
@@ -636,7 +638,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /projects/{id}/members:
+  /api/projects/{projectId}/members:
     get:
       summary: List a project's members
       operationId: listProjectMembers
@@ -646,7 +648,7 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/NestedProjectId'
       responses:
         '200':
           description: Members
@@ -672,7 +674,7 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/NestedProjectId'
       requestBody:
         required: true
         content:
@@ -698,7 +700,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /projects/{id}/members/{userId}:
+  /api/projects/{projectId}/members/{userId}:
     put:
       summary: Change a member's role in place
       operationId: changeProjectMemberRole
@@ -708,7 +710,7 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/NestedProjectId'
         - $ref: '#/components/parameters/MemberUserId'
       requestBody:
         required: true
@@ -744,7 +746,7 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/NestedProjectId'
         - $ref: '#/components/parameters/MemberUserId'
       responses:
         '204':
@@ -761,7 +763,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /projects/{id}/work-items:
+  /api/projects/{projectId}/work-items:
     get:
       summary: List a project's work items
       operationId: listWorkItems
@@ -770,7 +772,7 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/NestedProjectId'
       responses:
         '200':
           description: Work items, ordered by column then within-column position
@@ -799,7 +801,7 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/NestedProjectId'
       requestBody:
         required: true
         content:
@@ -825,7 +827,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /work-items/{id}:
+  /api/work-items/{id}:
     get:
       summary: Get a work item by id
       operationId: getWorkItem
@@ -914,7 +916,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
-  /work-items/{id}/move:
+  /api/work-items/{id}/move:
     put:
       summary: Move a work item to a column and/or position
       operationId: moveWorkItem
@@ -968,6 +970,18 @@ components:
       name: id
       in: path
       required: true
+      schema:
+        type: integer
+        format: int64
+    NestedProjectId:
+      name: projectId
+      in: path
+      required: true
+      description: >-
+        Same conceptual project id as ProjectId, but named projectId here
+        because that's the literal @RequestMapping path-variable name on
+        ProjectMemberController/WorkItemController's nested-under-project
+        routes (unlike ProjectController's own routes, which use {id}).
       schema:
         type: integer
         format: int64
@@ -1156,7 +1170,7 @@ components:
         [PRODUCT_OWNER, PROJECT_MANAGER, DEVELOPER, UX_UI_DESIGNER, QA, DEVOPS]
     Permission:
       type: string
-      description: Fixed, code-level catalog of project-scoped permissions (spec: role-permissions).
+      description: "Fixed, code-level catalog of project-scoped permissions (spec: role-permissions)."
       enum:
         - PROJECT_EDIT_SETTINGS
         - PROJECT_DELETE

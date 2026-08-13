@@ -19,6 +19,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  *
  * {@code /api/auth/**} is public (registration/login/refresh/logout/reset all
  * start unauthenticated); everything else requires a valid Bearer JWT.
+ * {@code /v3/api-docs/**} (springdoc's live-generated OpenAPI document) is
+ * also public — it carries no sensitive data and must stay reachable by the
+ * CI drift check ({@code OpenApiSpecExportTest}) without a bearer token.
  * {@link JwtAuthenticationFilter} runs before
  * {@code UsernamePasswordAuthenticationFilter} and never hits the DB (see its
  * javadoc for the accepted deactivated-user tradeoff).
@@ -51,6 +54,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(csrfProtectionFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
