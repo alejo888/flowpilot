@@ -3,6 +3,9 @@ import { ActivatedRoute, Router } from '@angular/router';
 
 import { AuthStore } from '../../core/auth/auth.store';
 import { sanitizeReturnUrl } from '../../core/auth/return-url';
+import { FpButtonComponent } from '../../shared/ui/button.component';
+import { FpCardComponent } from '../../shared/ui/card.component';
+import { FpInputComponent } from '../../shared/ui/input.component';
 
 /**
  * Login form (spec: frontend-auth-session; return-URL preservation). Delegates
@@ -11,41 +14,81 @@ import { sanitizeReturnUrl } from '../../core/auth/return-url';
  * passes {@link sanitizeReturnUrl}'s open-redirect allow-list (design D4), it
  * navigates there; otherwise it falls back to `''` (design D4/Home route).
  * UI copy is Spanish per the existing `admin-users.component.ts` convention;
- * code/comments stay in English.
+ * code/comments stay in English. Visual layer uses the FlowPilot shared/ui
+ * kit (fp-card/fp-input/fp-button) — behavior is unchanged from the raw-HTML
+ * version this replaces.
  */
 @Component({
   selector: 'app-login',
   standalone: true,
+  imports: [FpButtonComponent, FpCardComponent, FpInputComponent],
   template: `
-    <form class="login-form" (submit)="onSubmit($event)">
-      <h1>Iniciar sesión</h1>
-      @if (error(); as message) {
-        <p data-testid="login-error" class="login-error">{{ message }}</p>
-      }
-      <label>
-        Email
-        <input
-          type="email"
-          data-testid="login-email"
-          [value]="email()"
-          (input)="email.set(inputValue($event))"
-          required
-        />
-      </label>
-      <label>
-        Contraseña
-        <input
-          type="password"
-          data-testid="login-password"
-          [value]="password()"
-          (input)="password.set(inputValue($event))"
-          required
-        />
-      </label>
-      <button type="submit" data-testid="login-submit" [disabled]="submitting()">
-        Ingresar
-      </button>
-    </form>
+    <div class="login-page">
+      <fp-card class="login-card">
+        <form class="login-form" (submit)="onSubmit($event)">
+          <h1 class="login-title">Iniciar sesión</h1>
+          @if (error(); as message) {
+            <p data-testid="login-error" class="login-error">{{ message }}</p>
+          }
+          <fp-input
+            label="Email"
+            type="email"
+            testId="login-email"
+            [value]="email()"
+            [required]="true"
+            (valueChange)="email.set($event)"
+          />
+          <fp-input
+            label="Contraseña"
+            type="password"
+            testId="login-password"
+            [value]="password()"
+            [required]="true"
+            (valueChange)="password.set($event)"
+          />
+          <fp-button type="submit" testId="login-submit" [disabled]="submitting()">
+            Ingresar
+          </fp-button>
+        </form>
+      </fp-card>
+    </div>
+  `,
+  styles: `
+    .login-page {
+      min-height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--fp-space-8);
+      background: var(--fp-bg);
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 360px;
+    }
+
+    .login-form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--fp-space-4);
+    }
+
+    .login-title {
+      margin: 0;
+      font-family: var(--fp-font-display);
+      font-optical-sizing: auto;
+      font-weight: 600;
+      font-size: 1.75rem;
+      color: var(--fp-text);
+    }
+
+    .login-error {
+      margin: 0;
+      font-family: var(--fp-font-body);
+      font-size: 0.875rem;
+      color: var(--fp-danger);
+    }
   `,
 })
 export class LoginComponent {
@@ -79,9 +122,5 @@ export class LoginComponent {
     event.preventDefault();
     this.submitting.set(true);
     this.store.login(this.email(), this.password());
-  }
-
-  inputValue(event: Event): string {
-    return (event.target as HTMLInputElement).value;
   }
 }
