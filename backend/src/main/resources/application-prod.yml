@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: ${FLOWPILOT_DATASOURCE_URL}
+    username: ${FLOWPILOT_DATASOURCE_USERNAME}
+    password: ${FLOWPILOT_DATASOURCE_PASSWORD}
+
+logging:
+  level:
+    root: INFO
+    com.flowpilot: INFO
+
+flowpilot:
+  jwt:
+    secret: ${FLOWPILOT_JWT_SECRET}
