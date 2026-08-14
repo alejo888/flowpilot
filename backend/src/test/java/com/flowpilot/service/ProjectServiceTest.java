@@ -20,11 +20,14 @@ import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.Project;
 import com.flowpilot.entity.ProjectStatus;
 import com.flowpilot.entity.User;
+import com.flowpilot.exception.DuplicateProjectCodeException;
+import com.flowpilot.exception.InvalidProjectDatesException;
 import com.flowpilot.exception.ProjectNotFoundException;
 import com.flowpilot.repository.BoardColumnRepository;
 import com.flowpilot.repository.ProjectRepository;
 import com.flowpilot.repository.UserRepository;
 import java.lang.reflect.Field;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,7 +66,8 @@ class ProjectServiceTest {
         Project saved = project(10L, 1L);
         when(projectRepository.save(any(Project.class))).thenReturn(saved);
 
-        ProjectResponse response = projectService.create(new ProjectCreateRequest("Apollo", "desc"), 1L);
+        ProjectResponse response = projectService.create(
+                new ProjectCreateRequest("Apollo", "desc", null, null, null, null, null), 1L);
 
         assertThat(response.id()).isEqualTo(10L);
         assertThat(response.ownerId()).isEqualTo(1L);
@@ -80,10 +84,135 @@ class ProjectServiceTest {
     }
 
     @Test
+    void createWithAllFiveNewFieldsNullSucceeds() throws Exception {
+        when(projectRepository.save(any(Project.class))).thenAnswer(invocation -> {
+            Project p = invocation.getArgument(0);
+            setId(p, 10L);
+            return p;
+        });
+
+        ProjectResponse response = projectService.create(
+                new ProjectCreateRequest("Apollo", "desc", null, null, null, null, null), 1L);
+
+        assertThat(response.code()).isNull();
+        assertThat(response.startDate()).isNull();
+        assertThat(response.estimatedEndDate()).isNull();
+        assertThat(response.technologies()).isNull();
+        assertThat(response.repositoryUrl()).isNull();
+    }
+
+    @Test
+    void createWithAllFiveNewFieldsPopulatedPersistsThem() throws Exception {
+        when(projectRepository.existsByCodeIgnoreCase("ABC")).thenReturn(false);
+        when(projectRepository.save(any(Project.class))).thenAnswer(invocation -> {
+            Project p = invocation.getArgument(0);
+            setId(p, 11L);
+            return p;
+        });
+
+        ProjectResponse response = projectService.create(
+                new ProjectCreateRequest("Apollo", "desc", "ABC",
+                        LocalDate.of(2026, 1, 1), LocalDate.of(2026, 6, 1),
+                        "Angular, Spring Boot, Postgres", "https://github.com/org/repo"),
+                1L);
+
+        assertThat(response.code()).isEqualTo("ABC");
+        assertThat(response.startDate()).isEqualTo(LocalDate.of(2026, 1, 1));
+        assertThat(response.estimatedEndDate()).isEqualTo(LocalDate.of(2026, 6, 1));
+        assertThat(response.technologies()).isEqualTo("Angular, Spring Boot, Postgres");
+        assertThat(response.repositoryUrl()).isEqualTo("https://github.com/org/repo");
+    }
+
+    @Test
+    void createWithBlankOptionalStringsPersistsThemAsNull() throws Exception {
+        when(projectRepository.save(any(Project.class))).thenAnswer(invocation -> {
+            Project p = invocation.getArgument(0);
+            setId(p, 12L);
+            return p;
+        });
+
+        ProjectResponse response = projectService.create(
+                new ProjectCreateRequest("Apollo", "desc", "   ", null, null, "   ", "   "), 1L);
+
+        assertThat(response.code()).isNull();
+        assertThat(response.technologies()).isNull();
+        assertThat(response.repositoryUrl()).isNull();
+    }
+
+    @Test
+    void createWithStartDateAfterEstimatedEndDateThrowsInvalidProjectDatesException() {
+        assertThatThrownBy(() -> projectService.create(
+                new ProjectCreateRequest("Apollo", "desc", null,
+                        LocalDate.of(2026, 6, 1), LocalDate.of(2026, 1, 1), null, null),
+                1L))
+                .isInstanceOf(InvalidProjectDatesException.class);
+
+        verify(projectRepository, org.mockito.Mockito.never()).save(any(Project.class));
+    }
+
+    @Test
+    void createWithOnlyStartDateSucceedsWithoutDateOrderCheck() throws Exception {
+        when(projectRepository.save(any(Project.class))).thenAnswer(invocation -> {
+            Project p = invocation.getArgument(0);
+            setId(p, 13L);
+            return p;
+        });
+
+        ProjectResponse response = projectService.create(
+                new ProjectCreateRequest("Apollo", "desc", null, LocalDate.of(2026, 1, 1), null, null, null), 1L);
+
+        assertThat(response.startDate()).isEqualTo(LocalDate.of(2026, 1, 1));
+        assertThat(response.estimatedEndDate()).isNull();
+    }
+
+    @Test
+    void createWithDuplicateCodeCaseInsensitiveThrowsDuplicateProjectCodeException() {
+        when(projectRepository.existsByCodeIgnoreCase("abc")).thenReturn(true);
+
+        assertThatThrownBy(() -> projectService.create(
+                new ProjectCreateRequest("Apollo", "desc", "abc", null, null, null, null), 1L))
+                .isInstanceOf(DuplicateProjectCodeException.class);
+
+        verify(projectRepository, org.mockito.Mockito.never()).save(any(Project.class));
+    }
+
+    @Test
+    void updateKeepsOwnCodeViaExistsByCodeIgnoreCaseAndIdNot() throws Exception {
+        Project existing = project(10L, 1L);
+        when(authorizationService.hasPermission(1L, 10L, Permission.PROJECT_EDIT_SETTINGS)).thenReturn(true);
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(projectRepository.existsByCodeIgnoreCaseAndIdNot("ABC", 10L)).thenReturn(false);
+
+        ProjectResponse response = projectService.update(
+                10L, new ProjectUpdateRequest("Apollo", "desc", "ABC", null, null, null, null), 1L);
+
+        assertThat(response.code()).isEqualTo("ABC");
+    }
+
+    @Test
+    void updateWithDuplicateCodeOnAnotherProjectThrowsDuplicateProjectCodeException() throws Exception {
+        Project existing = project(10L, 1L);
+        when(authorizationService.hasPermission(1L, 10L, Permission.PROJECT_EDIT_SETTINGS)).thenReturn(true);
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(projectRepository.existsByCodeIgnoreCaseAndIdNot("ABC", 10L)).thenReturn(true);
+
+        assertThatThrownBy(() -> projectService.update(
+                10L, new ProjectUpdateRequest("Apollo", "desc", "ABC", null, null, null, null), 1L))
+                .isInstanceOf(DuplicateProjectCodeException.class);
+    }
+
+    private void setId(Project project, Long id) throws Exception {
+        Field field = Project.class.getDeclaredField("id");
+        field.setAccessible(true);
+        field.set(project, id);
+    }
+
+    @Test
     void updateWithoutPermissionThrows403() throws Exception {
         when(authorizationService.hasPermission(2L, 10L, Permission.PROJECT_EDIT_SETTINGS)).thenReturn(false);
 
-        assertThatThrownBy(() -> projectService.update(10L, new ProjectUpdateRequest("New", "desc"), 2L))
+        assertThatThrownBy(() -> projectService.update(
+                        10L, new ProjectUpdateRequest("New", "desc", null, null, null, null, null), 2L))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
@@ -93,7 +222,8 @@ class ProjectServiceTest {
         when(authorizationService.hasPermission(1L, 10L, Permission.PROJECT_EDIT_SETTINGS)).thenReturn(true);
         when(projectRepository.findById(10L)).thenReturn(Optional.of(existing));
 
-        ProjectResponse response = projectService.update(10L, new ProjectUpdateRequest("Renamed", "new desc"), 1L);
+        ProjectResponse response = projectService.update(
+                10L, new ProjectUpdateRequest("Renamed", "new desc", null, null, null, null, null), 1L);
 
         assertThat(response.name()).isEqualTo("Renamed");
         assertThat(response.description()).isEqualTo("new desc");

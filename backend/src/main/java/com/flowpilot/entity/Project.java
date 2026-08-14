@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 /**
@@ -41,6 +42,21 @@ public class Project {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    @Column
+    private String code;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "estimated_end_date")
+    private LocalDate estimatedEndDate;
+
+    @Column
+    private String technologies;
+
+    @Column(name = "repository_url")
+    private String repositoryUrl;
 
     protected Project() {
         // JPA
@@ -98,5 +114,45 @@ public class Project {
 
     public void touch() {
         this.updatedAt = OffsetDateTime.now();
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public void setCode(String code) {
+        this.code = code;
+    }
+
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
+    }
+
+    public LocalDate getEstimatedEndDate() {
+        return estimatedEndDate;
+    }
+
+    public void setEstimatedEndDate(LocalDate estimatedEndDate) {
+        this.estimatedEndDate = estimatedEndDate;
+    }
+
+    public String getTechnologies() {
+        return technologies;
+    }
+
+    public void setTechnologies(String technologies) {
+        this.technologies = technologies;
+    }
+
+    public String getRepositoryUrl() {
+        return repositoryUrl;
+    }
+
+    public void setRepositoryUrl(String repositoryUrl) {
+        this.repositoryUrl = repositoryUrl;
     }
 }

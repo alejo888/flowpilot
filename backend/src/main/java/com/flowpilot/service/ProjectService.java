@@ -10,11 +10,14 @@ import com.flowpilot.entity.GlobalRole;
 import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.Project;
 import com.flowpilot.entity.User;
+import com.flowpilot.exception.DuplicateProjectCodeException;
+import com.flowpilot.exception.InvalidProjectDatesException;
 import com.flowpilot.exception.ProjectNotFoundException;
 import com.flowpilot.exception.UserNotFoundException;
 import com.flowpilot.repository.BoardColumnRepository;
 import com.flowpilot.repository.ProjectRepository;
 import com.flowpilot.repository.UserRepository;
+import java.time.LocalDate;
 import java.util.List;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -53,7 +56,14 @@ public class ProjectService {
 
     @Transactional
     public ProjectResponse create(ProjectCreateRequest request, Long ownerId) {
+        String code = trimToNull(request.code());
+        validateDates(request.startDate(), request.estimatedEndDate());
+        requireUniqueCode(code, null);
+
         Project project = new Project(request.name(), request.description(), ownerId);
+        applyRichFields(project, code, request.startDate(), request.estimatedEndDate(),
+                request.technologies(), request.repositoryUrl());
+
         project = projectRepository.save(project);
         seedDefaultColumns(project.getId());
         return toResponse(project);
@@ -84,8 +94,15 @@ public class ProjectService {
     public ProjectResponse update(Long id, ProjectUpdateRequest request, Long userId) {
         requirePermission(userId, id, Permission.PROJECT_EDIT_SETTINGS);
         Project project = getOrThrow(id);
+
+        String code = trimToNull(request.code());
+        validateDates(request.startDate(), request.estimatedEndDate());
+        requireUniqueCode(code, id);
+
         project.setName(request.name());
         project.setDescription(request.description());
+        applyRichFields(project, code, request.startDate(), request.estimatedEndDate(),
+                request.technologies(), request.repositoryUrl());
         project.touch();
         return toResponse(project);
     }
@@ -130,6 +147,64 @@ public class ProjectService {
         }
     }
 
+    /**
+     * Collapses a blank/whitespace-only optional string to {@code null}
+     * (design A5) so it never occupies the partial unique index on {@code
+     * lower(code)} and stays a clean no-op for {@code technologies}/{@code
+     * repositoryUrl}.
+     */
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /**
+     * Cross-field date rule (spec: "Optional Planned Start and Estimated End
+     * Dates"; design A2): only checked when both dates are present.
+     */
+    private static void validateDates(LocalDate startDate, LocalDate estimatedEndDate) {
+        if (startDate != null && estimatedEndDate != null && startDate.isAfter(estimatedEndDate)) {
+            throw new InvalidProjectDatesException();
+        }
+    }
+
+    /**
+     * Service-side pre-check ahead of the partial unique index backstop
+     * (design A1). {@code excludeProjectId} is {@code null} on create; on
+     * update it lets a project keep its own code (design A6).
+     */
+    private void requireUniqueCode(String code, Long excludeProjectId) {
+        if (code == null) {
+            return;
+        }
+        boolean duplicate = excludeProjectId == null
+                ? projectRepository.existsByCodeIgnoreCase(code)
+                : projectRepository.existsByCodeIgnoreCaseAndIdNot(code, excludeProjectId);
+        if (duplicate) {
+            throw new DuplicateProjectCodeException(code);
+        }
+    }
+
+    /**
+     * Shared by {@link #create} and {@link #update} (task 2.7 refactor):
+     * applies the five rich fields to an entity, normalizing the two
+     * free-text ones via {@link #trimToNull}. {@code code} is passed
+     * pre-normalized so it can be validated once by the caller before this
+     * point.
+     */
+    private static void applyRichFields(
+            Project project, String code, LocalDate startDate, LocalDate estimatedEndDate,
+            String technologies, String repositoryUrl) {
+        project.setCode(code);
+        project.setStartDate(startDate);
+        project.setEstimatedEndDate(estimatedEndDate);
+        project.setTechnologies(trimToNull(technologies));
+        project.setRepositoryUrl(trimToNull(repositoryUrl));
+    }
+
     private Project getOrThrow(Long id) {
         return projectRepository.findById(id)
                 .orElseThrow(() -> new ProjectNotFoundException(id));
@@ -143,7 +218,12 @@ public class ProjectService {
                 project.getStatus(),
                 project.getOwnerId(),
                 project.getCreatedAt(),
-                project.getUpdatedAt());
+                project.getUpdatedAt(),
+                project.getCode(),
+                project.getStartDate(),
+                project.getEstimatedEndDate(),
+                project.getTechnologies(),
+                project.getRepositoryUrl());
     }
 
     private static BoardColumnResponse toColumnResponse(BoardColumn column) {

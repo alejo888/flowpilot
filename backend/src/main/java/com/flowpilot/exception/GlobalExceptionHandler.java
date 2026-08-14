@@ -3,6 +3,7 @@ package com.flowpilot.exception;
 import jakarta.validation.ConstraintViolationException;
 import java.util.HashMap;
 import java.util.Map;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.access.AccessDeniedException;
@@ -77,6 +78,28 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CrossProjectColumnException.class)
     public ProblemDetail handleCrossProjectColumn(CrossProjectColumnException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(DuplicateProjectCodeException.class)
+    public ProblemDetail handleDuplicateProjectCode(DuplicateProjectCodeException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidProjectDatesException.class)
+    public ProblemDetail handleInvalidProjectDates(InvalidProjectDatesException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    /**
+     * Race-condition backstop for the partial unique index on {@code
+     * lower(code)} (design A1): the service-side pre-check in {@code
+     * ProjectService.requireUniqueCode} closes almost every window, but a
+     * concurrent insert/update between the check and the save could still
+     * violate the index. Turns that into 409, never a raw 500.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "A conflicting record already exists");
     }
 
     @ExceptionHandler(RolePermissionConcurrencyException.class)
