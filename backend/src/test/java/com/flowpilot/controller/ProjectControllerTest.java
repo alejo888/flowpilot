@@ -19,9 +19,12 @@ import com.flowpilot.dto.ProjectResponse;
 import com.flowpilot.dto.ProjectStatusUpdateRequest;
 import com.flowpilot.dto.ProjectUpdateRequest;
 import com.flowpilot.entity.ProjectStatus;
+import com.flowpilot.exception.DuplicateProjectCodeException;
 import com.flowpilot.exception.GlobalExceptionHandler;
+import com.flowpilot.exception.InvalidProjectDatesException;
 import com.flowpilot.exception.ProjectNotFoundException;
 import com.flowpilot.service.ProjectService;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -64,6 +67,66 @@ class ProjectControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.ownerId").value(42));
+    }
+
+    @Test
+    void createProjectWithFullPayloadReturns201WithFields() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        ProjectResponse response = new ProjectResponse(
+                1L, "Apollo", "desc", ProjectStatus.PLANIFICACION, 42L, now, now,
+                "ABC", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 6, 1),
+                "Angular, Spring Boot, Postgres", "https://github.com/org/repo");
+        when(projectService.create(any(ProjectCreateRequest.class), eq(42L))).thenReturn(response);
+
+        mockMvc.perform(post("/api/projects")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(new ProjectCreateRequest(
+                                "Apollo", "desc", "ABC", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 6, 1),
+                                "Angular, Spring Boot, Postgres", "https://github.com/org/repo"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.code").value("ABC"))
+                .andExpect(jsonPath("$.startDate").value("2026-01-01"))
+                .andExpect(jsonPath("$.estimatedEndDate").value("2026-06-01"))
+                .andExpect(jsonPath("$.technologies").value("Angular, Spring Boot, Postgres"))
+                .andExpect(jsonPath("$.repositoryUrl").value("https://github.com/org/repo"));
+    }
+
+    @Test
+    void createProjectWithMalformedRepositoryUrlReturns400() throws Exception {
+        mockMvc.perform(post("/api/projects")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(new ProjectCreateRequest(
+                                "Apollo", "desc", null, null, null, null, "not-a-url"))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createProjectWithDateOrderViolationReturns400() throws Exception {
+        when(projectService.create(any(ProjectCreateRequest.class), eq(42L)))
+                .thenThrow(new InvalidProjectDatesException());
+
+        mockMvc.perform(post("/api/projects")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(new ProjectCreateRequest(
+                                "Apollo", "desc", null,
+                                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 1, 1), null, null))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createProjectWithDuplicateCodeReturns409() throws Exception {
+        when(projectService.create(any(ProjectCreateRequest.class), eq(42L)))
+                .thenThrow(new DuplicateProjectCodeException("ABC"));
+
+        mockMvc.perform(post("/api/projects")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(new ProjectCreateRequest(
+                                "Apollo", "desc", "ABC", null, null, null, null))))
+                .andExpect(status().isConflict());
     }
 
     @Test
