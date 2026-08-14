@@ -59,7 +59,8 @@ class ProjectControllerTest {
         mockMvc.perform(post("/api/projects")
                         .principal(authenticatedAs(42L))
                         .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(new ProjectCreateRequest("Apollo", "desc"))))
+                        .content(objectMapper.writeValueAsString(
+                                new ProjectCreateRequest("Apollo", "desc", null, null, null, null, null))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.ownerId").value(42));
@@ -73,7 +74,8 @@ class ProjectControllerTest {
         mockMvc.perform(put("/api/projects/1")
                         .principal(authenticatedAs(99L))
                         .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(new ProjectUpdateRequest("New", "desc"))))
+                        .content(objectMapper.writeValueAsString(
+                                new ProjectUpdateRequest("New", "desc", null, null, null, null, null))))
                 .andExpect(status().isForbidden());
     }
 
@@ -142,7 +144,7 @@ class ProjectControllerTest {
 
     private ProjectResponse projectResponse(Long id, String name, Long ownerId, ProjectStatus status) {
         OffsetDateTime now = OffsetDateTime.now();
-        return new ProjectResponse(id, name, "desc", status, ownerId, now, now);
+        return new ProjectResponse(id, name, "desc", status, ownerId, now, now, null, null, null, null, null);
     }
 
     /**
