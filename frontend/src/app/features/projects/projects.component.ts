@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, OnInit, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
@@ -20,7 +21,14 @@ import { ProjectsStore } from './projects.store';
 @Component({
   selector: 'app-projects',
   standalone: true,
-  imports: [RouterLink, FpBadgeComponent, FpButtonComponent, FpCardComponent, FpInputComponent],
+  imports: [
+    DatePipe,
+    RouterLink,
+    FpBadgeComponent,
+    FpButtonComponent,
+    FpCardComponent,
+    FpInputComponent,
+  ],
   template: `
     <div class="projects">
       <h1 class="projects-title">Proyectos</h1>
@@ -46,6 +54,39 @@ import { ProjectsStore } from './projects.store';
             testId="project-create-description"
             [value]="description()"
             (valueChange)="description.set($event)"
+          />
+          <fp-input
+            label="Código"
+            testId="project-create-code"
+            [value]="code()"
+            (valueChange)="code.set($event)"
+          />
+          <fp-input
+            label="Fecha de inicio"
+            type="date"
+            testId="project-create-start-date"
+            [value]="startDate()"
+            (valueChange)="startDate.set($event)"
+          />
+          <fp-input
+            label="Fecha estimada de fin"
+            type="date"
+            testId="project-create-estimated-end-date"
+            [value]="estimatedEndDate()"
+            (valueChange)="estimatedEndDate.set($event)"
+          />
+          <fp-input
+            label="Tecnologías"
+            testId="project-create-technologies"
+            [value]="technologies()"
+            (valueChange)="technologies.set($event)"
+          />
+          <fp-input
+            label="URL del repositorio"
+            type="url"
+            testId="project-create-repository-url"
+            [value]="repositoryUrl()"
+            (valueChange)="repositoryUrl.set($event)"
           />
           <fp-button type="submit" testId="project-create-submit" [disabled]="creating()">
             Crear proyecto
@@ -73,6 +114,35 @@ import { ProjectsStore } from './projects.store';
                     <span data-testid="project-description" class="project-row-description">{{
                       project.description
                     }}</span>
+                    @if (project.code) {
+                      <span data-testid="project-code" class="project-row-code">{{ project.code }}</span>
+                    }
+                    @if (project.startDate || project.estimatedEndDate) {
+                      <span data-testid="project-dates" class="project-row-dates">
+                        @if (project.startDate) {
+                          {{ project.startDate | date: 'd MMM y' }}
+                        }
+                        &ndash;
+                        @if (project.estimatedEndDate) {
+                          {{ project.estimatedEndDate | date: 'd MMM y' }}
+                        }
+                      </span>
+                    }
+                    @if (project.technologies) {
+                      <span data-testid="project-technologies" class="project-row-technologies">{{
+                        project.technologies
+                      }}</span>
+                    }
+                    @if (project.repositoryUrl) {
+                      <a
+                        [href]="project.repositoryUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-testid="project-repository-link"
+                        class="project-row-link"
+                        >Repositorio</a
+                      >
+                    }
                   </div>
                   <div class="project-row-meta">
                     <fp-badge variant="neutral" data-testid="project-status">{{ project.status }}</fp-badge>
@@ -193,6 +263,20 @@ import { ProjectsStore } from './projects.store';
     .project-row-link:hover {
       color: var(--fp-accent-hover);
     }
+
+    .project-row-code {
+      font-family: var(--fp-font-body);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--fp-text-muted);
+    }
+
+    .project-row-dates,
+    .project-row-technologies {
+      font-family: var(--fp-font-body);
+      font-size: 0.8125rem;
+      color: var(--fp-text-muted);
+    }
   `,
 })
 export class ProjectsComponent implements OnInit {
@@ -205,6 +289,11 @@ export class ProjectsComponent implements OnInit {
 
   readonly name = signal('');
   readonly description = signal('');
+  readonly code = signal('');
+  readonly startDate = signal('');
+  readonly estimatedEndDate = signal('');
+  readonly technologies = signal('');
+  readonly repositoryUrl = signal('');
   readonly formError = signal<string | null>(null);
 
   constructor() {
@@ -212,6 +301,11 @@ export class ProjectsComponent implements OnInit {
       if (this.store.lastCreated() !== null) {
         this.name.set('');
         this.description.set('');
+        this.code.set('');
+        this.startDate.set('');
+        this.estimatedEndDate.set('');
+        this.technologies.set('');
+        this.repositoryUrl.set('');
         this.formError.set(null);
       }
     });
@@ -229,7 +323,19 @@ export class ProjectsComponent implements OnInit {
       return;
     }
     this.formError.set(null);
-    const trimmedDescription = this.description().trim();
-    this.store.createProject(trimmedName, trimmedDescription === '' ? null : trimmedDescription);
+    this.store.createProject({
+      name: trimmedName,
+      description: blankToNull(this.description()),
+      code: blankToNull(this.code()),
+      startDate: blankToNull(this.startDate()),
+      estimatedEndDate: blankToNull(this.estimatedEndDate()),
+      technologies: blankToNull(this.technologies()),
+      repositoryUrl: blankToNull(this.repositoryUrl()),
+    });
   }
+}
+
+function blankToNull(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
 }
