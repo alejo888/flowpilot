@@ -15,6 +15,11 @@ function project(id: number, name = `Project ${id}`): Project {
     ownerId: 7,
     createdAt: '2026-08-01T00:00:00Z',
     updatedAt: '2026-08-01T00:00:00Z',
+    code: null,
+    startDate: null,
+    estimatedEndDate: null,
+    technologies: null,
+    repositoryUrl: null,
   };
 }
 
@@ -147,7 +152,15 @@ describe('ProjectsComponent', () => {
     setInput('project-create-description', '  Detalle  ');
     submitForm();
 
-    expect(storeStub.createProject).toHaveBeenCalledWith('Nuevo proyecto', 'Detalle');
+    expect(storeStub.createProject).toHaveBeenCalledWith({
+      name: 'Nuevo proyecto',
+      description: 'Detalle',
+      code: null,
+      startDate: null,
+      estimatedEndDate: null,
+      technologies: null,
+      repositoryUrl: null,
+    });
   });
 
   it('sends a null description when the description field is left blank', async () => {
@@ -156,7 +169,68 @@ describe('ProjectsComponent', () => {
     setInput('project-create-name', 'Nuevo proyecto');
     submitForm();
 
-    expect(storeStub.createProject).toHaveBeenCalledWith('Nuevo proyecto', null);
+    expect(storeStub.createProject).toHaveBeenCalledWith({
+      name: 'Nuevo proyecto',
+      description: null,
+      code: null,
+      startDate: null,
+      estimatedEndDate: null,
+      technologies: null,
+      repositoryUrl: null,
+    });
+  });
+
+  it('sends the five optional rich fields when populated, and null when left blank', async () => {
+    await setup();
+
+    setInput('project-create-name', 'Proyecto rico');
+    setInput('project-create-code', '  PRJ1  ');
+    setInput('project-create-start-date', '2026-01-01');
+    setInput('project-create-estimated-end-date', '2026-06-01');
+    setInput('project-create-technologies', '  Angular, Spring Boot  ');
+    setInput('project-create-repository-url', '  https://github.com/org/repo  ');
+    submitForm();
+
+    expect(storeStub.createProject).toHaveBeenCalledWith({
+      name: 'Proyecto rico',
+      description: null,
+      code: 'PRJ1',
+      startDate: '2026-01-01',
+      estimatedEndDate: '2026-06-01',
+      technologies: 'Angular, Spring Boot',
+      repositoryUrl: 'https://github.com/org/repo',
+    });
+  });
+
+  it('renders code, dates, technologies, and repository link in the list row when present', async () => {
+    const rich = project(1, 'Alpha');
+    rich.code = 'PRJ1';
+    rich.startDate = '2026-01-01';
+    rich.estimatedEndDate = '2026-06-01';
+    rich.technologies = 'Angular, Spring Boot';
+    rich.repositoryUrl = 'https://github.com/org/repo';
+    storeStub.projects.set([rich]);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const row = compiled.querySelector('[data-testid="project-row-1"]') as HTMLElement;
+    expect(row.querySelector('[data-testid="project-code"]')?.textContent).toContain('PRJ1');
+    expect(row.querySelector('[data-testid="project-technologies"]')?.textContent).toContain(
+      'Angular, Spring Boot',
+    );
+    const repoLink = row.querySelector('[data-testid="project-repository-link"]') as HTMLAnchorElement;
+    expect(repoLink.getAttribute('href')).toBe('https://github.com/org/repo');
+  });
+
+  it('renders the list row without errors and without rich-field markup when all five fields are null', async () => {
+    storeStub.projects.set([project(1, 'Alpha')]);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const row = compiled.querySelector('[data-testid="project-row-1"]') as HTMLElement;
+    expect(row.querySelector('[data-testid="project-code"]')).toBeFalsy();
+    expect(row.querySelector('[data-testid="project-technologies"]')).toBeFalsy();
+    expect(row.querySelector('[data-testid="project-repository-link"]')).toBeFalsy();
   });
 
   it('renders the store error from a failed creation at project-create submission scope', async () => {

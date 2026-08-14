@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 
-import { Project } from './project.model';
+import { Project, ProjectCreateRequest } from './project.model';
 import { ProjectsApiService } from './projects-api.service';
 
 /**
@@ -43,11 +43,11 @@ export class ProjectsStore {
     });
   }
 
-  createProject(name: string, description: string | null): void {
+  createProject(request: ProjectCreateRequest): void {
     this.errorSignal.set(null);
     this.lastCreatedSignal.set(null);
     this.creatingSignal.set(true);
-    this.api.createProject({ name, description }).subscribe({
+    this.api.createProject(request).subscribe({
       next: (created) => {
         this.projectsSignal.set([...this.projectsSignal(), created]);
         this.lastCreatedSignal.set(created);

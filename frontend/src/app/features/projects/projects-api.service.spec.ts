@@ -31,6 +31,11 @@ describe('ProjectsApiService', () => {
         ownerId: 7,
         createdAt: '2026-08-01T00:00:00Z',
         updatedAt: '2026-08-01T00:00:00Z',
+        code: null,
+        startDate: null,
+        estimatedEndDate: null,
+        technologies: null,
+        repositoryUrl: null,
       },
       {
         id: 2,
@@ -40,6 +45,11 @@ describe('ProjectsApiService', () => {
         ownerId: 7,
         createdAt: '2026-08-02T00:00:00Z',
         updatedAt: '2026-08-02T00:00:00Z',
+        code: 'PRJ2',
+        startDate: '2026-01-01',
+        estimatedEndDate: '2026-06-01',
+        technologies: 'Angular, Spring Boot',
+        repositoryUrl: 'https://github.com/org/repo',
       },
     ];
     let result: Project[] | undefined;
@@ -54,7 +64,15 @@ describe('ProjectsApiService', () => {
   });
 
   it('creates a project', () => {
-    const request: ProjectCreateRequest = { name: 'Proyecto Nuevo', description: 'Detalle' };
+    const request: ProjectCreateRequest = {
+      name: 'Proyecto Nuevo',
+      description: 'Detalle',
+      code: 'PRJ3',
+      startDate: '2026-02-01',
+      estimatedEndDate: '2026-08-01',
+      technologies: 'Angular, Spring Boot',
+      repositoryUrl: 'https://github.com/org/repo3',
+    };
     const created: Project = {
       id: 3,
       name: 'Proyecto Nuevo',
@@ -63,6 +81,11 @@ describe('ProjectsApiService', () => {
       ownerId: 7,
       createdAt: '2026-08-03T00:00:00Z',
       updatedAt: '2026-08-03T00:00:00Z',
+      code: 'PRJ3',
+      startDate: '2026-02-01',
+      estimatedEndDate: '2026-08-01',
+      technologies: 'Angular, Spring Boot',
+      repositoryUrl: 'https://github.com/org/repo3',
     };
     let result: Project | undefined;
 
