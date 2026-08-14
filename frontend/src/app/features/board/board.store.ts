@@ -68,8 +68,18 @@ export class BoardStore {
       },
       error: (err: unknown) => {
         this.itemsSignal.set(previousItems);
-        this.errorSignal.set(err instanceof Error ? err.message : 'Failed to move work item');
+        this.errorSignal.set(errorMessage(err, 'Failed to move work item'));
       },
     });
   }
+}
+
+/**
+ * `HttpErrorResponse` implements `Error` but does not extend it, so
+ * `err instanceof Error` is always false for real HTTP failures — reads the
+ * RFC 7807 `detail` field the backend actually sends instead (design
+ * pattern from `AuthStore`/`AdminUsersStore`).
+ */
+function errorMessage(err: unknown, fallback: string): string {
+  return (err as { error?: { detail?: string } })?.error?.detail ?? fallback;
 }

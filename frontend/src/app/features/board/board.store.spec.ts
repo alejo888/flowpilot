@@ -76,7 +76,9 @@ describe('BoardStore', () => {
   it('rolls back the optimistic move when the server rejects it', () => {
     apiSpy.getBoardColumns.mockReturnValue(of([column(1, 'Por hacer', 1024), column(2, 'En progreso', 2048)]));
     apiSpy.getWorkItems.mockReturnValue(of([item(500, 1, 1024, 'Task')]));
-    apiSpy.moveWorkItem.mockReturnValue(throwError(() => new Error('cross-project column')));
+    apiSpy.moveWorkItem.mockReturnValue(
+      throwError(() => ({ error: { detail: 'cross-project column' } })),
+    );
     store.load(10);
 
     store.moveItem(500, 2, 0);
@@ -84,5 +86,16 @@ describe('BoardStore', () => {
     expect(store.itemsByColumn()[1]?.map((i) => i.id)).toEqual([500]);
     expect(store.itemsByColumn()[2] ?? []).toEqual([]);
     expect(store.error()).toBe('cross-project column');
+  });
+
+  it('falls back to a generic message when the server error has no detail', () => {
+    apiSpy.getBoardColumns.mockReturnValue(of([column(1, 'Por hacer', 1024), column(2, 'En progreso', 2048)]));
+    apiSpy.getWorkItems.mockReturnValue(of([item(500, 1, 1024, 'Task')]));
+    apiSpy.moveWorkItem.mockReturnValue(throwError(() => ({})));
+    store.load(10);
+
+    store.moveItem(500, 2, 0);
+
+    expect(store.error()).toBe('Failed to move work item');
   });
 });
