@@ -1,9 +1,22 @@
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
-import { Project } from './project.model';
+import { Project, ProjectCreateRequest } from './project.model';
 import { ProjectsApiService } from './projects-api.service';
 import { ProjectsStore } from './projects.store';
+
+function createRequest(overrides: Partial<ProjectCreateRequest> = {}): ProjectCreateRequest {
+  return {
+    name: 'Nuevo',
+    description: null,
+    code: null,
+    startDate: null,
+    estimatedEndDate: null,
+    technologies: null,
+    repositoryUrl: null,
+    ...overrides,
+  };
+}
 
 function project(id: number, name = `Project ${id}`): Project {
   return {
@@ -14,6 +27,11 @@ function project(id: number, name = `Project ${id}`): Project {
     ownerId: 7,
     createdAt: '2026-08-01T00:00:00Z',
     updatedAt: '2026-08-01T00:00:00Z',
+    code: null,
+    startDate: null,
+    estimatedEndDate: null,
+    technologies: null,
+    repositoryUrl: null,
   };
 }
 
@@ -94,7 +112,7 @@ describe('ProjectsStore', () => {
       },
     });
 
-    store.createProject('Nuevo', null);
+    store.createProject(createRequest());
 
     expect(store.creating()).toBe(true);
   });
@@ -105,7 +123,7 @@ describe('ProjectsStore', () => {
     const created = project(9, 'Recién creado');
     apiSpy.createProject.mockReturnValue(of(created));
 
-    store.createProject('Recién creado', 'Description 9');
+    store.createProject(createRequest({ name: 'Recién creado', description: 'Description 9' }));
 
     expect(apiSpy.listProjects).toHaveBeenCalledTimes(1);
     expect(store.projects()).toEqual([project(1), created]);
@@ -113,12 +131,52 @@ describe('ProjectsStore', () => {
     expect(store.creating()).toBe(false);
   });
 
-  it('sends the trimmed name and description to the API', () => {
+  it('sends the create request object to the API unchanged', () => {
     apiSpy.createProject.mockReturnValue(of(project(9)));
 
-    store.createProject('Nuevo', 'Detalle');
+    store.createProject({
+      name: 'Nuevo',
+      description: 'Detalle',
+      code: null,
+      startDate: null,
+      estimatedEndDate: null,
+      technologies: null,
+      repositoryUrl: null,
+    });
 
-    expect(apiSpy.createProject).toHaveBeenCalledWith({ name: 'Nuevo', description: 'Detalle' });
+    expect(apiSpy.createProject).toHaveBeenCalledWith({
+      name: 'Nuevo',
+      description: 'Detalle',
+      code: null,
+      startDate: null,
+      estimatedEndDate: null,
+      technologies: null,
+      repositoryUrl: null,
+    });
+  });
+
+  it('sends all five optional rich fields to the API when populated', () => {
+    apiSpy.createProject.mockReturnValue(of(project(10)));
+
+    store.createProject({
+      name: 'Proyecto rico',
+      description: null,
+      code: 'PRJ10',
+      startDate: '2026-01-01',
+      estimatedEndDate: '2026-06-01',
+      technologies: 'Angular, Spring Boot',
+      repositoryUrl: 'https://github.com/org/repo10',
+    });
+
+    expect(apiSpy.createProject).toHaveBeenCalledWith({
+      name: 'Proyecto rico',
+      description: null,
+      code: 'PRJ10',
+      startDate: '2026-01-01',
+      estimatedEndDate: '2026-06-01',
+      technologies: 'Angular, Spring Boot',
+      repositoryUrl: 'https://github.com/org/repo10',
+    });
   });
 
   it('sets an error and clears creating on failure, leaving the list untouched', () => {
@@ -128,7 +186,7 @@ describe('ProjectsStore', () => {
       throwError(() => ({ error: { detail: 'El nombre no puede estar vacío' } })),
     );
 
-    store.createProject('', null);
+    store.createProject(createRequest({ name: '' }));
 
     expect(store.error()).toBe('El nombre no puede estar vacío');
     expect(store.projects()).toEqual([project(1)]);
@@ -139,7 +197,7 @@ describe('ProjectsStore', () => {
   it('falls back to a default create error message when the ProblemDetail has no detail field', () => {
     apiSpy.createProject.mockReturnValue(throwError(() => ({})));
 
-    store.createProject('Nuevo', null);
+    store.createProject(createRequest());
 
     expect(store.error()).toBe('No se pudo crear el proyecto');
   });
