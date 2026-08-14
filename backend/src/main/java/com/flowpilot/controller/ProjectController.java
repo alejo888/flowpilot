@@ -61,7 +61,13 @@ public class ProjectController {
     @Operation(summary = "Create a project")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Project created, 4 BoardColumns seeded"),
+        @ApiResponse(responseCode = "400", description = "Validation failed, or start date is after estimated end date",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
         @ApiResponse(responseCode = "401", description = "Missing or invalid access token",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "409", description = "Code already belongs to another project",
                 content = @Content(mediaType = "application/problem+json",
                         schema = @Schema(implementation = ProblemDetail.class)))
     })
@@ -89,10 +95,16 @@ public class ProjectController {
     @Operation(summary = "Update a project's name/description")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Project updated"),
+        @ApiResponse(responseCode = "400", description = "Validation failed, or start date is after estimated end date",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
         @ApiResponse(responseCode = "403", description = "Caller is not the owner or an administrator",
                 content = @Content(mediaType = "application/problem+json",
                         schema = @Schema(implementation = ProblemDetail.class))),
         @ApiResponse(responseCode = "404", description = "No project with that id",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "409", description = "Code already belongs to another project",
                 content = @Content(mediaType = "application/problem+json",
                         schema = @Schema(implementation = ProblemDetail.class)))
     })

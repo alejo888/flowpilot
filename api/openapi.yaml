@@ -474,8 +474,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          description: Validation failed, or start date is after estimated end date
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '401':
           description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: Code already belongs to another project
           content:
             application/problem+json:
               schema:
@@ -534,6 +546,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          description: Validation failed, or start date is after estimated end date
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '403':
           description: Caller is not the owner or an administrator
           content:
@@ -542,6 +560,12 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: No project with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: Code already belongs to another project
           content:
             application/problem+json:
               schema:
@@ -1116,6 +1140,23 @@ components:
           type: string
         description:
           type: string
+        code:
+          type: string
+          maxLength: 50
+          pattern: '^[A-Za-z0-9_-]*$'
+        startDate:
+          type: string
+          format: date
+        estimatedEndDate:
+          type: string
+          format: date
+        technologies:
+          type: string
+          maxLength: 1000
+        repositoryUrl:
+          type: string
+          maxLength: 500
+          pattern: '^$|^https?://\S+$'
     ProjectUpdateRequest:
       type: object
       required: [name]
@@ -1124,6 +1165,23 @@ components:
           type: string
         description:
           type: string
+        code:
+          type: string
+          maxLength: 50
+          pattern: '^[A-Za-z0-9_-]*$'
+        startDate:
+          type: string
+          format: date
+        estimatedEndDate:
+          type: string
+          format: date
+        technologies:
+          type: string
+          maxLength: 1000
+        repositoryUrl:
+          type: string
+          maxLength: 500
+          pattern: '^$|^https?://\S+$'
     ProjectStatusUpdateRequest:
       type: object
       required: [status]
@@ -1151,6 +1209,23 @@ components:
         updatedAt:
           type: string
           format: date-time
+        code:
+          type: string
+          nullable: true
+        startDate:
+          type: string
+          format: date
+          nullable: true
+        estimatedEndDate:
+          type: string
+          format: date
+          nullable: true
+        technologies:
+          type: string
+          nullable: true
+        repositoryUrl:
+          type: string
+          nullable: true
     BoardColumnResponse:
       type: object
       properties:

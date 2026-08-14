@@ -3,6 +3,7 @@ package com.flowpilot.exception;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.access.AccessDeniedException;
@@ -100,5 +101,29 @@ class GlobalExceptionHandlerTest {
 
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
         assertThat(detail.getDetail()).contains("Administrador");
+    }
+
+    @Test
+    void duplicateProjectCodeMapsTo409() {
+        ProblemDetail detail = handler.handleDuplicateProjectCode(new DuplicateProjectCodeException("ABC"));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(detail.getDetail()).contains("ABC");
+    }
+
+    @Test
+    void invalidProjectDatesMapsTo400() {
+        ProblemDetail detail = handler.handleInvalidProjectDates(new InvalidProjectDatesException());
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(detail.getDetail()).contains("Start date");
+    }
+
+    @Test
+    void dataIntegrityViolationMapsTo409() {
+        ProblemDetail detail = handler.handleDataIntegrityViolation(
+                new DataIntegrityViolationException("duplicate key value violates unique constraint"));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
     }
 }
