@@ -1,5 +1,7 @@
 # FlowPilot — Gestor de Proyectos con Inteligencia Artificial
 
+> **Nota de estado:** este documento describe la visión completa del producto. El MVP implementado actualmente cubre autenticación/sesiones, administración de usuarios y permisos, proyectos, miembros, tablero Kanban básico y contrato OpenAPI. Aún están pendientes la UI de registro/recuperación de contraseña, edición completa de proyectos y work items en frontend, backlog, sprints, métricas, actividad/comentarios, perfil/cambio de contraseña, funcionalidades de IA y pulido de demo/despliegue. Para el estado operativo actual, ver `README.md`.
+
 ## 1. Descripción general
 
 **FlowPilot** es una plataforma de gestión ágil de proyectos con funcionalidades de inteligencia artificial orientadas a facilitar la planificación, organización y seguimiento del trabajo de equipos de desarrollo.
