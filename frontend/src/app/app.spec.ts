@@ -68,6 +68,59 @@ describe('App', () => {
     expect(compiled.querySelector('[data-testid="nav-admin-permissions"]')).not.toBeNull();
   });
 
+  it('nav menu starts closed with the toggle collapsed', () => {
+    authStoreStub.isAuthenticated.set(true);
+    createFixture();
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    const toggle = compiled.querySelector('[data-testid="nav-toggle"]');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(compiled.querySelector('[data-testid="nav-menu"]')?.classList.contains('app-nav__menu--open')).toBe(
+      false,
+    );
+  });
+
+  it('opens and closes the nav menu when the toggle is clicked', () => {
+    authStoreStub.isAuthenticated.set(true);
+    createFixture();
+    const compiled = fixture.nativeElement as HTMLElement;
+    const toggle = compiled.querySelector('[data-testid="nav-toggle"]') as HTMLButtonElement;
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(compiled.querySelector('[data-testid="nav-menu"]')?.classList.contains('app-nav__menu--open')).toBe(
+      true,
+    );
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(compiled.querySelector('[data-testid="nav-menu"]')?.classList.contains('app-nav__menu--open')).toBe(
+      false,
+    );
+  });
+
+  it('closes the nav menu after a section link is clicked', async () => {
+    authStoreStub.isAuthenticated.set(true);
+    createFixture();
+    const compiled = fixture.nativeElement as HTMLElement;
+    const toggle = compiled.querySelector('[data-testid="nav-toggle"]') as HTMLButtonElement;
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+
+    (compiled.querySelector('[data-testid="nav-projects"]') as HTMLElement).click();
+    fixture.detectChanges();
+    // routerLink triggers a real (routeless, thus rejected) navigation;
+    // let it settle inside the test instead of after teardown, or it
+    // surfaces as an unhandled rejection (NG0205) once the fixture is gone.
+    await fixture.whenStable().catch(() => undefined);
+
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('logs out and navigates to /login when the logout button is clicked', () => {
     authStoreStub.isAuthenticated.set(true);
     createFixture();
