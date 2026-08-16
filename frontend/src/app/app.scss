@@ -10,8 +10,9 @@
 
 .app-nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--fp-space-6);
+  gap: var(--fp-space-2) var(--fp-space-6);
   padding: var(--fp-space-3) var(--fp-space-6);
   background: var(--fp-surface);
   border-bottom: 1px solid var(--fp-border);
@@ -36,8 +37,9 @@
 
 .app-nav__links {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--fp-space-4);
+  gap: var(--fp-space-2) var(--fp-space-4);
   flex: 1;
 }
 
@@ -76,6 +78,6 @@
 // length via max-width.
 .app-content__container {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1600px;
   padding: 0 var(--fp-space-4);
 }

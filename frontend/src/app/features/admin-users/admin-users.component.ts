@@ -93,8 +93,13 @@ import { AdminUsersStore } from './admin-users.store';
       color: var(--fp-danger);
     }
 
+    .admin-users-card {
+      overflow-x: auto;
+    }
+
     .admin-users-table {
       width: 100%;
+      min-width: 640px;
       border-collapse: collapse;
       font-family: var(--fp-font-body);
       color: var(--fp-text);
