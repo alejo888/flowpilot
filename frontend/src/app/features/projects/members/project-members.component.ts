@@ -228,6 +228,7 @@ import { ProjectMembersStore } from './project-members.store';
       font-family: var(--fp-font-body);
       font-weight: 600;
       color: var(--fp-text);
+      overflow-wrap: break-word;
     }
 
     .member-row-joined {

@@ -2,9 +2,9 @@ import { request } from '@playwright/test';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
+import { loginAsAdmin } from './admin-session';
+
 const BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost';
-const ADMIN_EMAIL = 'admin@flowpilot.local';
-const ADMIN_PASSWORD = 'ChangeMe123!';
 const AUTH_DIR = path.join(__dirname, '.auth');
 const PROJECT_FILE = path.join(AUTH_DIR, 'project.json');
 
@@ -16,11 +16,8 @@ export default async function globalTeardown(): Promise<void> {
   const { id } = JSON.parse(readFileSync(PROJECT_FILE, 'utf-8')) as { id: number };
 
   const api = await request.newContext({ baseURL: BASE_URL });
-  const loginResponse = await api.post('/api/auth/login', {
-    data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
-  });
-  if (loginResponse.ok()) {
-    const { accessToken } = (await loginResponse.json()) as { accessToken: string };
+  const accessToken = await loginAsAdmin(api).catch(() => null);
+  if (accessToken) {
     await api.delete(`/api/projects/${id}`, { headers: { Authorization: `Bearer ${accessToken}` } });
   }
   await api.dispose();
