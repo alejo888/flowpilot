@@ -208,6 +208,48 @@ describe('BoardComponent', () => {
     expect(compiled.querySelector('[data-testid="board-error"]')?.textContent).toContain('cross-project column');
   });
 
+  it('renders one tab per column with the first column active by default', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const tabs = Array.from(compiled.querySelectorAll('[data-testid="column-tab"]'));
+
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Por hacer', 'En progreso']);
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+    expect(tabs[1].getAttribute('aria-selected')).toBe('false');
+  });
+
+  it('switches the active column tab on click', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const tabs = Array.from(compiled.querySelectorAll('[data-testid="column-tab"]')) as HTMLButtonElement[];
+
+    tabs[1].click();
+    fixture.detectChanges();
+
+    expect(tabs[0].getAttribute('aria-selected')).toBe('false');
+    expect(tabs[1].getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('marks non-active columns for mobile hiding, keeping desktop layout untouched', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const sections = Array.from(compiled.querySelectorAll('.board-column'));
+
+    expect(sections[0].classList.contains('board-column--inactive-mobile')).toBe(false);
+    expect(sections[1].classList.contains('board-column--inactive-mobile')).toBe(true);
+  });
+
+  it('moves the open task to another column via the detail panel select', () => {
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const select = compiled.querySelector('[data-testid="move-to-column-select"]') as HTMLSelectElement;
+    expect(select.value).toBe('1');
+
+    select.value = '2';
+    select.dispatchEvent(new Event('change'));
+
+    expect(storeStub.moveItem).toHaveBeenCalledWith(500, 2, 0);
+  });
+
   it('calls store.moveItem with the target column and index on drop', () => {
     const dropEvent = {
       previousContainer: { data: 1, id: 'column-1' },

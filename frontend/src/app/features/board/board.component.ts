@@ -68,9 +68,28 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
       }
 
       <div class="board-layout" data-testid="board-layout">
+        <div class="board-column-tabs" role="tablist" aria-label="Columnas del tablero">
+          @for (column of columns(); track column.id) {
+            <button
+              type="button"
+              class="board-column-tab"
+              data-testid="column-tab"
+              role="tab"
+              [attr.aria-selected]="column.id === activeColumnId()"
+              [class.board-column-tab--active]="column.id === activeColumnId()"
+              (click)="activeColumnId.set(column.id)"
+            >
+              {{ column.name }}
+            </button>
+          }
+        </div>
+
         <div class="board-columns">
           @for (column of columns(); track column.id) {
-            <section class="board-column">
+            <section
+              class="board-column"
+              [class.board-column--inactive-mobile]="column.id !== activeColumnId()"
+            >
               <h3 data-testid="column-name" class="board-column-name">{{ column.name }}</h3>
               <div
                 class="board-column-list"
@@ -104,6 +123,18 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
               </div>
               <button class="icon-button" type="button" aria-label="Cerrar detalle" (click)="closeDetail()">×</button>
             </div>
+
+            <label class="move-to-column">
+              Columna
+              <select
+                data-testid="move-to-column-select"
+                (change)="onMoveToColumn(item.id, $any($event.target).value)"
+              >
+                @for (column of columns(); track column.id) {
+                  <option [value]="column.id" [selected]="column.id === item.columnId">{{ column.name }}</option>
+                }
+              </select>
+            </label>
 
             <form (ngSubmit)="submitUpdate(item.id)">
               <div class="form-grid stacked">
@@ -187,6 +218,34 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
       grid-template-columns: minmax(0, 1fr);
       gap: var(--fp-space-4);
       align-items: flex-start;
+    }
+
+    // Hidden on desktop — swiping a half-cut column into view isn't a great
+    // mobile pattern. Below the breakpoint this becomes the only way to
+    // switch which column is visible (see .board-column--inactive-mobile).
+    .board-column-tabs {
+      display: none;
+      gap: var(--fp-space-2);
+      overflow-x: auto;
+    }
+
+    .board-column-tab {
+      flex: none;
+      border: 1px solid var(--fp-border);
+      border-radius: var(--fp-radius-sm);
+      background: var(--fp-surface);
+      padding: var(--fp-space-2) var(--fp-space-3);
+      font-family: var(--fp-font-body);
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--fp-text-muted);
+      cursor: pointer;
+    }
+
+    .board-column-tab--active {
+      border-color: var(--fp-accent);
+      background: var(--fp-accent);
+      color: var(--fp-accent-contrast);
     }
 
     .board-columns {
@@ -328,6 +387,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
     }
 
     input,
+    select,
     textarea {
       width: 100%;
       box-sizing: border-box;
@@ -398,6 +458,28 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
         width: 100vw;
       }
     }
+
+    // Swiping a column half into view isn't a great mobile pattern — below
+    // this width, show the active column full-width with a tab strip to
+    // switch instead of the desktop horizontal-scroll row.
+    @media (max-width: 640px) {
+      .board-column-tabs {
+        display: flex;
+      }
+
+      .board-columns {
+        overflow-x: visible;
+        background: none;
+      }
+
+      .board-column--inactive-mobile {
+        display: none;
+      }
+
+      .board-column {
+        width: 100%;
+      }
+    }
   `,
 })
 export class BoardComponent {
@@ -413,6 +495,9 @@ export class BoardComponent {
   readonly itemsByColumn = computed(() => this.store.itemsByColumn());
   readonly showCreateForm = signal(false);
 
+  /** Which column the mobile single-column view shows; desktop ignores this. */
+  readonly activeColumnId = signal<number | null>(null);
+
   createForm = emptyForm();
   editForm = emptyForm();
 
@@ -425,6 +510,14 @@ export class BoardComponent {
       const item = this.selectedItem();
       if (item) {
         this.editForm = formFromItem(item);
+      }
+    });
+
+    effect(() => {
+      const columns = this.columns();
+      const stillExists = columns.some((column) => column.id === this.activeColumnId());
+      if (!stillExists) {
+        this.activeColumnId.set(columns[0]?.id ?? null);
       }
     });
   }
@@ -479,6 +572,10 @@ export class BoardComponent {
     const movedItem = event.item.data;
     const targetColumnId = event.container.data;
     this.store.moveItem(movedItem.id, targetColumnId, event.currentIndex);
+  }
+
+  onMoveToColumn(itemId: number, columnId: string): void {
+    this.store.moveItem(itemId, Number(columnId), 0);
   }
 }
 
