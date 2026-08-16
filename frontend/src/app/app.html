@@ -1,32 +1,47 @@
 @if (authStore.isAuthenticated()) {
   <nav class="app-nav" data-testid="app-nav">
     <a routerLink="/" class="app-nav__brand">FlowPilot</a>
-    <div class="app-nav__links">
-      <a
-        routerLink="/projects"
-        routerLinkActive="app-nav__link--active"
-        class="app-nav__link"
-        data-testid="nav-projects"
-        >Proyectos</a
-      >
-      @if (authStore.isAdmin()) {
+    <button
+      type="button"
+      class="app-nav__toggle"
+      data-testid="nav-toggle"
+      [attr.aria-expanded]="navOpen()"
+      aria-label="Abrir menú"
+      (click)="toggleNav()"
+    >
+      ☰
+    </button>
+    <div class="app-nav__menu" [class.app-nav__menu--open]="navOpen()" data-testid="nav-menu">
+      <div class="app-nav__links">
         <a
-          routerLink="/admin/users"
+          routerLink="/projects"
           routerLinkActive="app-nav__link--active"
           class="app-nav__link"
-          data-testid="nav-admin-users"
-          >Usuarios</a
+          data-testid="nav-projects"
+          (click)="closeNav()"
+          >Proyectos</a
         >
-        <a
-          routerLink="/admin/permissions"
-          routerLinkActive="app-nav__link--active"
-          class="app-nav__link"
-          data-testid="nav-admin-permissions"
-          >Permisos</a
-        >
-      }
+        @if (authStore.isAdmin()) {
+          <a
+            routerLink="/admin/users"
+            routerLinkActive="app-nav__link--active"
+            class="app-nav__link"
+            data-testid="nav-admin-users"
+            (click)="closeNav()"
+            >Usuarios</a
+          >
+          <a
+            routerLink="/admin/permissions"
+            routerLinkActive="app-nav__link--active"
+            class="app-nav__link"
+            data-testid="nav-admin-permissions"
+            (click)="closeNav()"
+            >Permisos</a
+          >
+        }
+      </div>
+      <fp-button variant="secondary" testId="logout-button" (click)="onLogout()">Cerrar sesión</fp-button>
     </div>
-    <fp-button variant="secondary" testId="logout-button" (click)="onLogout()">Cerrar sesión</fp-button>
   </nav>
 } @else {
   <nav class="app-nav app-nav--minimal" data-testid="app-nav">

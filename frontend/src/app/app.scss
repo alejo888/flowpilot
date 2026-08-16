@@ -65,6 +65,61 @@
   border-bottom-color: var(--fp-accent);
 }
 
+.app-nav__toggle {
+  display: none;
+  margin-left: auto;
+  border: 1px solid var(--fp-border);
+  border-radius: var(--fp-radius-sm);
+  background: transparent;
+  padding: var(--fp-space-1) var(--fp-space-3);
+  font-size: 1.125rem;
+  line-height: 1.4;
+  color: var(--fp-text);
+  cursor: pointer;
+}
+
+.app-nav__menu {
+  display: flex;
+  align-items: center;
+  gap: var(--fp-space-2) var(--fp-space-6);
+  flex: 1;
+}
+
+// Below this width the links + logout button no longer fit comfortably on
+// one row (see the e2e responsive suite) — collapse them behind the toggle
+// instead of wrapping onto extra rows.
+$nav-collapse-breakpoint: 640px;
+
+@media (max-width: $nav-collapse-breakpoint) {
+  .app-nav__toggle {
+    display: inline-block;
+  }
+
+  .app-nav__menu {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--fp-space-3);
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--fp-surface);
+    border-bottom: 1px solid var(--fp-border);
+    box-shadow: var(--fp-shadow-md);
+    padding: var(--fp-space-4) var(--fp-space-6);
+  }
+
+  .app-nav__menu--open {
+    display: flex;
+  }
+
+  .app-nav__links {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 .app-content {
   flex: 1;
   display: flex;
