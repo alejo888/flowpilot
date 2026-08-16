@@ -105,20 +105,24 @@ describe('ProjectsComponent', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const names = Array.from(compiled.querySelectorAll('[data-testid="project-row-1"], [data-testid="project-row-2"]'));
     expect(names).toHaveLength(2);
-    expect(compiled.querySelector('[data-testid="project-row-1"] [data-testid="project-board-link"]')?.textContent).toContain('Alpha');
+    expect(compiled.querySelector('[data-testid="project-row-1"] [data-testid="project-detail-link"]')?.textContent).toContain('Alpha');
     expect(compiled.querySelector('[data-testid="project-row-1"] [data-testid="project-description"]')?.textContent).toContain('Description 1');
     expect(compiled.querySelector('[data-testid="project-row-1"] [data-testid="project-status"]')?.textContent).toContain('PLANIFICACION');
   });
 
-  it('renders a sibling members link next to the board link for each project', async () => {
+  it('renders a detail link for each project while preserving board and members links', async () => {
     storeStub.projects.set([project(1, 'Alpha')]);
     await setup();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    const membersLink = compiled.querySelector(
-      '[data-testid="project-row-1"] [data-testid="project-members-link"]',
-    ) as HTMLAnchorElement;
-    expect(membersLink).toBeTruthy();
+    const row = compiled.querySelector('[data-testid="project-row-1"]') as HTMLElement;
+    const detailLink = row.querySelector('[data-testid="project-detail-link"]') as HTMLAnchorElement;
+    const boardLinks = row.querySelectorAll('[data-testid="project-board-link"]');
+    const membersLink = row.querySelector('[data-testid="project-members-link"]') as HTMLAnchorElement;
+    expect(detailLink).toBeTruthy();
+    expect(detailLink.getAttribute('href')).toBe('/projects/1');
+    expect(boardLinks).toHaveLength(1);
+    expect(boardLinks[0].getAttribute('href')).toBe('/projects/1/board');
     expect(membersLink.getAttribute('href')).toBe('/projects/1/members');
   });
 

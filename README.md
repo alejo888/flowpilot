@@ -17,7 +17,7 @@ FlowPilot is a portfolio-oriented agile project management MVP. The current buil
 4. Review the implemented flows:
    - Admin users: list users, activate/deactivate, change global roles.
    - Role permissions: update the project role-permission matrix.
-   - Projects: list/create projects.
+   - Projects: list, create, open details, edit, change status, and delete projects with accessible confirmation.
    - Project members: add/remove members and change project roles.
    - Kanban board: view columns/cards and drag existing cards between/within columns.
 
@@ -29,12 +29,14 @@ Backend is also exposed at `http://localhost:8080`; the frontend nginx container
 |------|-----------------|-------------------|
 | Auth/session | Backend register, login, refresh-token rotation, logout, forgot/reset password. Frontend login, refresh-cookie hydration, JWT interceptor, route guards, admin guard. | Frontend register, forgot password, and reset password screens. |
 | Users/admin | Authenticated backend user list/detail. Admin user list, activate/deactivate, role changes, and last-active-admin protection with frontend screens. | Profile and change-password UI. |
-| Projects | Backend list/create/get/update/status/delete with rich fields and default board columns. Frontend list/create. | Frontend project detail, edit, status change, and delete. |
+| Projects | Backend list/create/get/update/status/delete with rich fields and default board columns. Frontend supports list/create/detail navigation, edit, status change, and delete with accessible confirmation. | — |
 | Project members | Backend and frontend list/add/change role/remove, including self-removal confirmation. | Portfolio polish around empty states/demo data. |
 | Work items/Kanban | Backend work-item CRUD and move. Frontend board lists existing cards and supports drag/drop moves. | Frontend work-item create/edit/delete/detail. |
 | Permissions | Backend and frontend admin role-permission matrix with optimistic concurrency and authorization cache reload. | Broader audit/activity history. |
 | API contract/CI | `api/openapi.yaml` covers implemented path families. CI exports live Springdoc spec and runs non-blocking `oasdiff`. | Clean up known OpenAPI drift before making the drift gate blocking. |
 | Product vision | Agile project management foundation is underway. | Backlog, sprints, dashboard/metrics, comments/activity feed, AI-assisted planning, screenshots, deployment polish. |
+
+Frontend validation: 240 tests pass. The production build passes with a pre-existing `board.component.ts` stylesheet budget warning.
 
 ## Repository layout
 
@@ -80,7 +82,7 @@ npm run build
 
 ## Portfolio-readiness backlog
 
-- Add frontend screens for registration, password recovery/reset, project detail/edit/status/delete, and work-item create/edit/delete/detail.
+- Add frontend screens for registration, password recovery/reset, and work-item create/edit/delete/detail.
 - Add product modules that are still vision-only: backlog, sprints, dashboard/metrics, comments/activity feed, profile/change-password, and AI-assisted planning.
 - Add demo seed data, screenshots/GIFs, a short feature tour, and deployment notes.
 - Resolve OpenAPI schema/DTO drift and make the drift check blocking in CI.

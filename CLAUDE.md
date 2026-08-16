@@ -14,7 +14,7 @@ Implemented and covered by backend/frontend tests at a high level:
 - Auth/session frontend: login screen, refresh-cookie hydration, JWT interceptor, route guards, admin guard.
 - User directory backend: authenticated user list and user detail.
 - Admin users: admin-only user list, activation/deactivation, global role changes, last-active-admin guard; frontend screen is wired.
-- Projects: backend list/create/get/update/status/delete with rich fields and default board columns; frontend currently supports list/create and links to board/members.
+- Projects: backend list/create/get/update/status/delete with rich fields and default board columns; frontend supports list/create/detail navigation, edit, status change, and delete with accessible confirmation, plus links to board/members.
 - Project members: backend and frontend list/add/change role/remove, including self-removal confirmation.
 - Work items / Kanban: backend CRUD plus move between/within columns; frontend board lists cards, supports drag/drop move, and create/edit/delete via an overlay detail panel.
 - Role-permission matrix: backend dense role/permission seed, admin read/update, optimistic concurrency, authorization cache reload; frontend matrix screen is wired.
@@ -23,11 +23,12 @@ Implemented and covered by backend/frontend tests at a high level:
 Pending or partial for portfolio readiness:
 
 - Frontend UI for registration, forgot password, and reset password.
-- Frontend UI for project edit/status/delete/detail.
 - Backlog, sprints, dashboard/metrics, comments/activity feed, profile/change-password, and AI-assisted planning features.
 - Demo polish: seeded/demo data, screenshots/GIFs, portfolio-friendly feature tour, and deployment notes.
 - OpenAPI drift cleanup before making contract drift checks blocking in CI.
 - E2E responsive-overflow coverage (`frontend/e2e/`) only guards horizontal-overflow regressions on the routes/viewport it checks — not a general accessibility or cross-browser suite.
+
+Frontend validation: 240 tests pass. The production build passes with a pre-existing `board.component.ts` stylesheet budget warning.
 
 ## Commands
 

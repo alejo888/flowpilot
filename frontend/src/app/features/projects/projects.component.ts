@@ -106,8 +106,8 @@ import { ProjectsStore } from './projects.store';
                 <div class="project-row">
                   <div class="project-row-main">
                     <a
-                      [routerLink]="['/projects', project.id, 'board']"
-                      data-testid="project-board-link"
+                      [routerLink]="['/projects', project.id]"
+                      data-testid="project-detail-link"
                       class="project-row-name"
                       >{{ project.name }}</a
                     >
@@ -146,6 +146,12 @@ import { ProjectsStore } from './projects.store';
                   </div>
                   <div class="project-row-meta">
                     <fp-badge variant="neutral" data-testid="project-status">{{ project.status }}</fp-badge>
+                    <a
+                      [routerLink]="['/projects', project.id, 'board']"
+                      data-testid="project-board-link"
+                      class="project-row-link"
+                      >Tablero</a
+                    >
                     <a
                       [routerLink]="['/projects', project.id, 'members']"
                       data-testid="project-members-link"

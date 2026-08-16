@@ -21,6 +21,12 @@ describe('routes', () => {
     expect(projectsRoute.canActivate).toEqual([authGuard]);
   });
 
+  it('registers and guards the project detail route with authGuard only', () => {
+    const detailRoute = findRoute('projects/:projectId');
+    expect(detailRoute.canActivate).toEqual([authGuard]);
+    expect(detailRoute.loadComponent).toBeTypeOf('function');
+  });
+
   it('guards the board route with authGuard only', () => {
     const boardRoute = findRoute('projects/:projectId/board');
     expect(boardRoute.canActivate).toEqual([authGuard]);

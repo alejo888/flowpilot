@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 
 import { ProjectsApiService } from './projects-api.service';
-import { Project, ProjectCreateRequest } from './project.model';
+import { Project, ProjectCreateRequest, ProjectStatusRequest, ProjectUpdateRequest } from './project.model';
 
 describe('ProjectsApiService', () => {
   let service: ProjectsApiService;
@@ -61,6 +61,54 @@ describe('ProjectsApiService', () => {
     req.flush(projects);
 
     expect(result).toEqual(projects);
+  });
+
+  it('gets a project by id', () => {
+    let result: Project | undefined;
+
+    service.getProject(12).subscribe((response) => (result = response));
+
+    const req = httpMock.expectOne('/api/projects/12');
+    expect(req.request.method).toBe('GET');
+    req.flush({ id: 12 } as Project);
+
+    expect(result?.id).toBe(12);
+  });
+
+  it('updates a project with the full request body', () => {
+    const request: ProjectUpdateRequest = {
+      name: 'Actualizado', description: 'Detalle', code: 'PRJ12', startDate: '2026-01-01',
+      estimatedEndDate: '2026-06-01', technologies: 'Angular', repositoryUrl: null,
+    };
+
+    service.updateProject(12, request).subscribe();
+
+    const req = httpMock.expectOne('/api/projects/12');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual(request);
+    req.flush({ id: 12 } as Project);
+  });
+
+  it('updates project status with a PATCH body', () => {
+    const request: ProjectStatusRequest = { status: 'ACTIVO' };
+
+    service.updateProjectStatus(12, request).subscribe();
+
+    const req = httpMock.expectOne('/api/projects/12/status');
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual(request);
+    req.flush({ id: 12 } as Project);
+  });
+
+  it('deletes a project', () => {
+    let completed = false;
+    service.deleteProject(12).subscribe(() => (completed = true));
+
+    const req = httpMock.expectOne('/api/projects/12');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+
+    expect(completed).toBe(true);
   });
 
   it('creates a project', () => {

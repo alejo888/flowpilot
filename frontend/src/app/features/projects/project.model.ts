@@ -29,3 +29,9 @@ export interface ProjectCreateRequest {
   technologies: string | null;
   repositoryUrl: string | null;
 }
+
+export type ProjectUpdateRequest = ProjectCreateRequest;
+
+export interface ProjectStatusRequest {
+  status: ProjectStatus;
+}

@@ -39,6 +39,10 @@ describe('ProjectsStore', () => {
   let apiSpy: {
     listProjects: ReturnType<typeof vi.fn>;
     createProject: ReturnType<typeof vi.fn>;
+    getProject: ReturnType<typeof vi.fn>;
+    updateProject: ReturnType<typeof vi.fn>;
+    updateProjectStatus: ReturnType<typeof vi.fn>;
+    deleteProject: ReturnType<typeof vi.fn>;
   };
   let store: ProjectsStore;
 
@@ -46,6 +50,10 @@ describe('ProjectsStore', () => {
     apiSpy = {
       listProjects: vi.fn(),
       createProject: vi.fn(),
+      getProject: vi.fn(),
+      updateProject: vi.fn(),
+      updateProjectStatus: vi.fn(),
+      deleteProject: vi.fn(),
     };
     TestBed.configureTestingModule({
       providers: [ProjectsStore, { provide: ProjectsApiService, useValue: apiSpy }],
@@ -200,5 +208,62 @@ describe('ProjectsStore', () => {
     store.createProject(createRequest());
 
     expect(store.error()).toBe('No se pudo crear el proyecto');
+  });
+
+  it('loads and selects a project detail', () => {
+    const selected = project(4, 'Detalle');
+    apiSpy.getProject.mockReturnValue(of(selected));
+
+    store.loadProject(4);
+
+    expect(apiSpy.getProject).toHaveBeenCalledWith(4);
+    expect(store.selectedProject()).toEqual(selected);
+    expect(store.detailLoading()).toBe(false);
+  });
+
+  it('updates the selected project and replaces it in the list', () => {
+    const existing = project(4);
+    const updated = project(4, 'Renombrado');
+    apiSpy.listProjects.mockReturnValue(of([existing]));
+    store.loadProjects();
+    apiSpy.updateProject.mockReturnValue(of(updated));
+
+    store.updateProject(4, createRequest({ name: 'Renombrado' }));
+
+    expect(apiSpy.updateProject).toHaveBeenCalledWith(4, createRequest({ name: 'Renombrado' }));
+    expect(store.selectedProject()).toEqual(updated);
+    expect(store.projects()).toEqual([updated]);
+    expect(store.saving()).toBe(false);
+  });
+
+  it('sends status updates and removes a deleted project', () => {
+    const existing = project(4);
+    apiSpy.listProjects.mockReturnValue(of([existing, project(5)]));
+    store.loadProjects();
+    const active = { ...existing, status: 'ACTIVO' as const };
+    apiSpy.updateProjectStatus.mockReturnValue(of(active));
+    apiSpy.deleteProject.mockReturnValue(of(void 0));
+
+    store.updateProjectStatus(4, 'ACTIVO');
+    store.deleteProject(4);
+
+    expect(apiSpy.updateProjectStatus).toHaveBeenCalledWith(4, { status: 'ACTIVO' });
+    expect(apiSpy.deleteProject).toHaveBeenCalledWith(4);
+    expect(store.projects()).toEqual([project(5)]);
+    expect(store.selectedProject()).toBeNull();
+  });
+
+  it('keeps the selected project and exposes delete errors when deletion fails', async () => {
+    const existing = project(4);
+    apiSpy.getProject.mockReturnValue(of(existing));
+    store.loadProject(4);
+    apiSpy.deleteProject.mockReturnValue(throwError(() => ({ error: { detail: 'No se pudo eliminar' } })));
+
+    const deleted = await store.deleteProject(4);
+
+    expect(deleted).toBe(false);
+    expect(store.selectedProject()).toEqual(existing);
+    expect(store.error()).toBe('No se pudo eliminar');
+    expect(store.deleting()).toBe(false);
   });
 });
