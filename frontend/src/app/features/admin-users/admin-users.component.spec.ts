@@ -74,6 +74,14 @@ describe('AdminUsersComponent', () => {
     expect(storeStub.changeRole).toHaveBeenCalledWith(2, 'ADMINISTRADOR');
   });
 
+  it('labels each cell for the mobile card layout', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const row = compiled.querySelector('[data-testid="user-row-1"]') as HTMLElement;
+    const labels = Array.from(row.querySelectorAll('td')).map((td) => td.getAttribute('data-label'));
+
+    expect(labels).toEqual(['Nombre', 'Email', 'Rol', 'Activo', 'Acciones']);
+  });
+
   it('displays the store error when a change is rejected', () => {
     storeStub.error.set('Cannot deactivate or demote the last active Administrador');
     fixture.detectChanges();

@@ -41,17 +41,17 @@ import { AdminUsersStore } from './admin-users.store';
           <tbody>
             @for (user of users(); track user.id) {
               <tr [attr.data-testid]="'user-row-' + user.id">
-                <td>{{ user.name }}</td>
-                <td>{{ user.email }}</td>
-                <td data-testid="user-role">{{ user.role }}</td>
-                <td data-testid="user-active">
+                <td data-label="Nombre">{{ user.name }}</td>
+                <td data-label="Email">{{ user.email }}</td>
+                <td data-label="Rol" data-testid="user-role">{{ user.role }}</td>
+                <td data-label="Activo" data-testid="user-active">
                   @if (user.active) {
                     <fp-badge variant="success">Sí</fp-badge>
                   } @else {
                     <fp-badge variant="danger">No</fp-badge>
                   }
                 </td>
-                <td class="admin-users-actions">
+                <td class="admin-users-actions" data-label="Acciones">
                   <fp-button variant="secondary" testId="toggle-status" (click)="toggleStatus(user)">
                     {{ user.active ? 'Desactivar' : 'Activar' }}
                   </fp-button>
@@ -124,6 +124,62 @@ import { AdminUsersStore } from './admin-users.store';
       display: flex;
       align-items: center;
       gap: var(--fp-space-3);
+    }
+
+    // Below this width a 5-column table has no room to breathe even with
+    // horizontal scroll — restyle each row as a stacked label:value card
+    // instead (data-label supplies the label via ::before).
+    @media (max-width: 640px) {
+      .admin-users-table {
+        min-width: 0;
+      }
+
+      .admin-users-table thead {
+        display: none;
+      }
+
+      .admin-users-table,
+      .admin-users-table tbody,
+      .admin-users-table tr,
+      .admin-users-table td {
+        display: block;
+        width: 100%;
+      }
+
+      .admin-users-table tr {
+        border: 1px solid var(--fp-border);
+        border-radius: var(--fp-radius-md);
+        padding: var(--fp-space-3);
+      }
+
+      .admin-users-table tr + tr {
+        margin-top: var(--fp-space-3);
+      }
+
+      .admin-users-table td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--fp-space-3);
+        padding: var(--fp-space-2) 0;
+        border-bottom: none;
+      }
+
+      .admin-users-table td::before {
+        content: attr(data-label);
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--fp-text-muted);
+      }
+
+      .admin-users-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .admin-users-actions::before {
+        margin-bottom: var(--fp-space-1);
+      }
     }
   `,
 })
