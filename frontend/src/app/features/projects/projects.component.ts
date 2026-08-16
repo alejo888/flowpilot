@@ -217,6 +217,7 @@ import { ProjectsStore } from './projects.store';
 
     .project-row {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
       gap: var(--fp-space-4);
@@ -225,6 +226,10 @@ import { ProjectsStore } from './projects.store';
     .project-row-main {
       display: flex;
       flex-direction: column;
+      // Flex items default to min-width: auto (their content's intrinsic
+      // width), so an unbroken long word (project name/technologies with no
+      // spaces) forced this wider than the row instead of shrinking to fit.
+      min-width: 0;
       gap: var(--fp-space-1);
     }
 
@@ -234,6 +239,7 @@ import { ProjectsStore } from './projects.store';
       font-size: 1.125rem;
       color: var(--fp-text);
       text-decoration: none;
+      overflow-wrap: break-word;
     }
 
     .project-row-name:hover {
@@ -244,6 +250,7 @@ import { ProjectsStore } from './projects.store';
       font-family: var(--fp-font-body);
       font-size: 0.875rem;
       color: var(--fp-text-muted);
+      overflow-wrap: break-word;
     }
 
     .project-row-meta {
@@ -269,6 +276,7 @@ import { ProjectsStore } from './projects.store';
       font-size: 0.8125rem;
       font-weight: 600;
       color: var(--fp-text-muted);
+      overflow-wrap: break-word;
     }
 
     .project-row-dates,
@@ -276,6 +284,7 @@ import { ProjectsStore } from './projects.store';
       font-family: var(--fp-font-body);
       font-size: 0.8125rem;
       color: var(--fp-text-muted);
+      overflow-wrap: break-word;
     }
   `,
 })

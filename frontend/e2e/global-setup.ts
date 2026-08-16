@@ -2,9 +2,9 @@ import { chromium, request } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { ADMIN_EMAIL, ADMIN_PASSWORD, loginAsAdmin } from './admin-session';
+
 const BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost';
-const ADMIN_EMAIL = 'admin@flowpilot.local';
-const ADMIN_PASSWORD = 'ChangeMe123!';
 const AUTH_DIR = path.join(__dirname, '.auth');
 
 /**
@@ -19,14 +19,7 @@ export default async function globalSetup(): Promise<void> {
   mkdirSync(AUTH_DIR, { recursive: true });
 
   const api = await request.newContext({ baseURL: BASE_URL });
-
-  const loginResponse = await api.post('/api/auth/login', {
-    data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
-  });
-  if (!loginResponse.ok()) {
-    throw new Error(`E2E seed login failed: ${loginResponse.status()} ${await loginResponse.text()}`);
-  }
-  const { accessToken } = (await loginResponse.json()) as { accessToken: string };
+  const accessToken = await loginAsAdmin(api);
 
   const projectResponse = await api.post('/api/projects', {
     headers: { Authorization: `Bearer ${accessToken}` },
