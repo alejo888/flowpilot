@@ -70,7 +70,7 @@ describe('BoardComponent', () => {
     }).compileComponents();
 
     fixture = TestBed.createComponent(BoardComponent);
-    fixture.componentRef.setInput('projectId', 10);
+    fixture.componentRef.setInput('projectId', '10');
     fixture.detectChanges();
   });
 
@@ -182,22 +182,36 @@ describe('BoardComponent', () => {
     });
   });
 
-  it('asks for confirmation before deleting a task', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const selected = item(500, 1, 1024, 'Design schema');
-
-    fixture.componentInstance.confirmDelete(selected);
-
-    expect(confirmSpy).toHaveBeenCalledWith('¿Eliminar la tarea "Design schema"?');
-    expect(storeStub.deleteItem).toHaveBeenCalledWith(500);
+  it('opens an accessible delete confirmation dialog', () => {
+    fixture.componentInstance.confirmDelete(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+    const dialog = fixture.nativeElement.querySelector('[data-testid="delete-dialog"]') as HTMLElement;
+    expect(dialog.getAttribute('role')).toBe('dialog');
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(dialog.getAttribute('aria-labelledby')).toBe('delete-dialog-title');
+    expect(dialog.getAttribute('aria-describedby')).toBe('delete-dialog-description');
+    expect(dialog.querySelector('#delete-dialog-title')?.textContent).toContain('Eliminar tarea');
+    expect(dialog.querySelector('#delete-dialog-description')?.textContent).toBe(
+      '¿Seguro que querés eliminar la tarea \"Design schema\"? Esta acción no se puede deshacer.',
+    );
   });
 
-  it('does not delete when confirmation is rejected', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
-
+  it('deletes only after confirmation and closes the dialog', () => {
     fixture.componentInstance.confirmDelete(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+    findButton(fixture.nativeElement, 'Sí, eliminar').click();
+    fixture.detectChanges();
+    expect(storeStub.deleteItem).toHaveBeenCalledWith(500);
+    expect(fixture.nativeElement.querySelector('[data-testid="delete-dialog"]')).toBeNull();
+  });
 
+  it('cancels deletion without calling the store', () => {
+    fixture.componentInstance.confirmDelete(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+    findButton(fixture.nativeElement, 'Cancelar').click();
+    fixture.detectChanges();
     expect(storeStub.deleteItem).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('[data-testid="delete-dialog"]')).toBeNull();
   });
 
   it('displays the store error when a move is rejected', () => {
@@ -247,7 +261,18 @@ describe('BoardComponent', () => {
     select.value = '2';
     select.dispatchEvent(new Event('change'));
 
-    expect(storeStub.moveItem).toHaveBeenCalledWith(500, 2, 0);
+    expect(storeStub.moveItem).toHaveBeenCalledWith(500, 2, 1024);
+  });
+
+  it('labels the detail panel and manual movement control', () => {
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+    const panel = fixture.nativeElement.querySelector('[data-testid="detail-panel"]') as HTMLElement;
+    const select = fixture.nativeElement.querySelector('[data-testid="move-to-column-select"]') as HTMLSelectElement;
+    expect(panel.getAttribute('role')).toBe('dialog');
+    expect(panel.getAttribute('aria-labelledby')).toBe('detail-panel-title');
+    expect(panel.getAttribute('aria-describedby')).toBe('detail-panel-description');
+    expect(select.getAttribute('aria-label')).toBe('Mover tarea a otra columna');
   });
 
   it('calls store.moveItem with the target column and index on drop', () => {

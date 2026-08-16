@@ -1,8 +1,9 @@
 import { CdkDrag, CdkDragDrop, CdkDropList, CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { FormsModule } from '@angular/forms';
-import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, numberAttribute, signal } from '@angular/core';
 
 import { FpCardComponent } from '../../shared/ui/card.component';
+import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { WorkItem, WorkItemCreateRequest, WorkItemUpdateRequest } from './board.model';
 import { BoardStore } from './board.store';
 
@@ -24,7 +25,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
 @Component({
   selector: 'app-board',
   standalone: true,
-  imports: [CdkDropListGroup, CdkDropList, CdkDrag, FormsModule, FpCardComponent],
+  imports: [CdkDropListGroup, CdkDropList, CdkDrag, FormsModule, FpCardComponent, FpDialogComponent],
   template: `
     <div class="board" cdkDropListGroup>
       <header class="board-header">
@@ -115,11 +116,12 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
 
         @if (selectedItem(); as item) {
           <div class="detail-backdrop" data-testid="detail-backdrop" (click)="closeDetail()"></div>
-          <aside class="task-panel detail-panel" data-testid="detail-panel" aria-label="Detalle de tarea">
+          <aside class="task-panel detail-panel" data-testid="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detail-panel-title" aria-describedby="detail-panel-description">
             <div class="detail-header">
               <div>
                 <p class="eyebrow">Detalle</p>
-                <h3>{{ item.title }}</h3>
+                <h3 id="detail-panel-title">{{ item.title }}</h3>
+                    <p id="detail-panel-description" class="sr-only">Editá los datos de la tarea o movela a otra columna.</p>
               </div>
               <button class="icon-button" type="button" aria-label="Cerrar detalle" (click)="closeDetail()">×</button>
             </div>
@@ -128,7 +130,8 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
               Columna
               <select
                 data-testid="move-to-column-select"
-                (change)="onMoveToColumn(item.id, $any($event.target).value)"
+                aria-label="Mover tarea a otra columna"
+                (change)="onMoveToColumn(item, $any($event.target).value)"
               >
                 @for (column of columns(); track column.id) {
                   <option [value]="column.id" [selected]="column.id === item.columnId">{{ column.name }}</option>
@@ -159,6 +162,17 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
               </div>
             </form>
           </aside>
+        }
+
+        @if (deleteCandidate(); as itemToDelete) {
+          <fp-dialog data-testid="delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-description">
+            <h3 id="delete-dialog-title">Eliminar tarea</h3>
+            <p id="delete-dialog-description">¿Seguro que querés eliminar la tarea "{{ itemToDelete.title }}"? Esta acción no se puede deshacer.</p>
+            <div class="panel-actions">
+              <button class="danger-button" type="button" (click)="deleteConfirmed()">Sí, eliminar</button>
+              <button class="ghost-button" type="button" (click)="cancelDelete()">Cancelar</button>
+            </div>
+          </fp-dialog>
         }
       </div>
     </div>
@@ -485,7 +499,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
 export class BoardComponent {
   private readonly store = inject(BoardStore);
 
-  readonly projectId = input.required<number>();
+  readonly projectId = input.required<number, number | string>({ transform: numberAttribute });
 
   readonly columns = this.store.columns;
   readonly selectedItem = this.store.selectedItem;
@@ -494,6 +508,7 @@ export class BoardComponent {
   readonly isMutating = this.store.isMutating;
   readonly itemsByColumn = computed(() => this.store.itemsByColumn());
   readonly showCreateForm = signal(false);
+      readonly deleteCandidate = signal<WorkItem | null>(null);
 
   /** Which column the mobile single-column view shows; desktop ignores this. */
   readonly activeColumnId = signal<number | null>(null);
@@ -563,19 +578,28 @@ export class BoardComponent {
   }
 
   confirmDelete(item: WorkItem): void {
-    if (window.confirm(`¿Eliminar la tarea "${item.title}"?`)) {
-      this.store.deleteItem(item.id);
-    }
-  }
+        this.deleteCandidate.set(item);
+      }
 
-  onDrop(event: CdkDragDrop<number, number, WorkItem>): void {
+      deleteConfirmed(): void {
+        const item = this.deleteCandidate();
+        if (!item) return;
+        this.deleteCandidate.set(null);
+        this.store.deleteItem(item.id);
+      }
+
+      cancelDelete(): void {
+        this.deleteCandidate.set(null);
+      }
+
+      onDrop(event: CdkDragDrop<number, number, WorkItem>): void {
     const movedItem = event.item.data;
     const targetColumnId = event.container.data;
     this.store.moveItem(movedItem.id, targetColumnId, event.currentIndex);
   }
 
-  onMoveToColumn(itemId: number, columnId: string): void {
-    this.store.moveItem(itemId, Number(columnId), 0);
+  onMoveToColumn(item: WorkItem, columnId: string): void {
+    this.store.moveItem(item.id, Number(columnId), item.position);
   }
 }
 
