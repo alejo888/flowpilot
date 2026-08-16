@@ -29,8 +29,17 @@ describe('BoardComponent', () => {
   let storeStub: {
     columns: ReturnType<typeof signal<BoardColumn[]>>;
     itemsByColumn: ReturnType<typeof signal<Record<number, WorkItem[]>>>;
+    selectedItem: ReturnType<typeof signal<WorkItem | null>>;
     error: ReturnType<typeof signal<string | null>>;
+    success: ReturnType<typeof signal<string | null>>;
+    isMutating: ReturnType<typeof signal<boolean>>;
     load: ReturnType<typeof vi.fn>;
+    createItem: ReturnType<typeof vi.fn>;
+    clearSuccess: ReturnType<typeof vi.fn>;
+    selectItem: ReturnType<typeof vi.fn>;
+    loadItem: ReturnType<typeof vi.fn>;
+    updateItem: ReturnType<typeof vi.fn>;
+    deleteItem: ReturnType<typeof vi.fn>;
     moveItem: ReturnType<typeof vi.fn>;
   };
 
@@ -41,8 +50,17 @@ describe('BoardComponent', () => {
         1: [item(500, 1, 1024, 'Design schema')],
         2: [],
       }),
+      selectedItem: signal(null),
       error: signal(null),
+      success: signal(null),
+      isMutating: signal(false),
       load: vi.fn(),
+      createItem: vi.fn(),
+      clearSuccess: vi.fn(),
+      selectItem: vi.fn((selected: WorkItem | null) => storeStub.selectedItem.set(selected)),
+      loadItem: vi.fn(),
+      updateItem: vi.fn(),
+      deleteItem: vi.fn(),
       moveItem: vi.fn(),
     };
 
@@ -56,8 +74,17 @@ describe('BoardComponent', () => {
     fixture.detectChanges();
   });
 
-  it('loads the board for the given project on init', () => {
+  it('loads the board for the given project input without duplicate initial loads', () => {
+    expect(storeStub.load).toHaveBeenCalledTimes(1);
     expect(storeStub.load).toHaveBeenCalledWith(10);
+  });
+
+  it('reloads the board when the project input changes', () => {
+    fixture.componentRef.setInput('projectId', 20);
+    fixture.detectChanges();
+
+    expect(storeStub.load).toHaveBeenCalledTimes(2);
+    expect(storeStub.load).toHaveBeenLastCalledWith(20);
   });
 
   it('renders each column with its name and its work items', () => {
@@ -73,14 +100,112 @@ describe('BoardComponent', () => {
     expect(cards).toEqual(['Design schema']);
   });
 
+  it('shows the detail panel as an overlay only when an item is selected', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    expect(compiled.querySelector('[data-testid="detail-panel"]')).toBeNull();
+    expect(compiled.querySelector('[data-testid="detail-backdrop"]')).toBeNull();
+
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    expect(compiled.querySelector('[data-testid="detail-panel"]')).not.toBeNull();
+    expect(compiled.querySelector('[data-testid="detail-backdrop"]')).not.toBeNull();
+  });
+
+  it('closes the detail panel when the backdrop is clicked', () => {
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    (compiled.querySelector('[data-testid="detail-backdrop"]') as HTMLElement).click();
+
+    expect(storeStub.selectItem).toHaveBeenCalledWith(null);
+  });
+
+  it('renders successful task creation feedback', () => {
+    storeStub.success.set('Tarea creada correctamente.');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="board-success"]')?.textContent).toContain(
+      'Tarea creada correctamente.',
+    );
+  });
+
+  it('opens the create panel and submits a normalized create request', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    findButton(compiled, 'Crear tarea').click();
+    fixture.detectChanges();
+
+    expect(compiled.querySelector('[data-testid="create-form"]')).not.toBeNull();
+
+    fixture.componentInstance.createForm = {
+      title: '  Nueva tarea  ',
+      description: '  Detalle  ',
+      assignedUserId: 42,
+    };
+    fixture.componentInstance.submitCreate();
+
+    expect(storeStub.createItem).toHaveBeenCalledWith(10, {
+      title: 'Nueva tarea',
+      description: 'Detalle',
+      assignedUserId: 42,
+    });
+    expect(fixture.componentInstance.showCreateForm()).toBe(false);
+  });
+
+  it('opens task detail on card title click and loads fresh detail', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    (compiled.querySelector('[data-testid="work-item-title"]') as HTMLElement).click();
+    fixture.detectChanges();
+
+    expect(storeStub.selectItem).toHaveBeenCalledWith(expect.objectContaining({ id: 500 }));
+    expect(storeStub.loadItem).toHaveBeenCalledWith(500);
+    expect(compiled.querySelector('[data-testid="detail-panel"]')?.textContent).toContain('Design schema');
+  });
+
+  it('submits task edits from the detail panel', () => {
+    storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Design schema'), description: 'Old' });
+    fixture.detectChanges();
+
+    fixture.componentInstance.editForm = {
+      title: '  Schema editado ',
+      description: '',
+      assignedUserId: null,
+    };
+    fixture.componentInstance.submitUpdate(500);
+
+    expect(storeStub.updateItem).toHaveBeenCalledWith(500, {
+      title: 'Schema editado',
+      description: null,
+      assignedUserId: null,
+    });
+  });
+
+  it('asks for confirmation before deleting a task', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const selected = item(500, 1, 1024, 'Design schema');
+
+    fixture.componentInstance.confirmDelete(selected);
+
+    expect(confirmSpy).toHaveBeenCalledWith('¿Eliminar la tarea "Design schema"?');
+    expect(storeStub.deleteItem).toHaveBeenCalledWith(500);
+  });
+
+  it('does not delete when confirmation is rejected', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    fixture.componentInstance.confirmDelete(item(500, 1, 1024, 'Design schema'));
+
+    expect(storeStub.deleteItem).not.toHaveBeenCalled();
+  });
+
   it('displays the store error when a move is rejected', () => {
     storeStub.error.set('cross-project column');
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('[data-testid="board-error"]')?.textContent).toContain(
-      'cross-project column',
-    );
+    expect(compiled.querySelector('[data-testid="board-error"]')?.textContent).toContain('cross-project column');
   });
 
   it('calls store.moveItem with the target column and index on drop', () => {
@@ -96,3 +221,13 @@ describe('BoardComponent', () => {
     expect(storeStub.moveItem).toHaveBeenCalledWith(500, 2, 0);
   });
 });
+
+function findButton(root: HTMLElement, text: string): HTMLButtonElement {
+  const button = Array.from(root.querySelectorAll('button')).find((candidate) =>
+    candidate.textContent?.includes(text),
+  );
+  if (!button) {
+    throw new Error(`Button not found: ${text}`);
+  }
+  return button;
+}

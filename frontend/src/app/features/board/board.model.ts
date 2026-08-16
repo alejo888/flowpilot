@@ -20,6 +20,20 @@ export interface WorkItem {
   updatedAt: string;
 }
 
+/** Request body for POST /api/projects/{projectId}/work-items. */
+export interface WorkItemCreateRequest {
+  title: string;
+  description?: string | null;
+  assignedUserId?: number | null;
+}
+
+/** Request body for PUT /api/work-items/{id}. */
+export interface WorkItemUpdateRequest {
+  title: string;
+  description?: string | null;
+  assignedUserId?: number | null;
+}
+
 /**
  * Request body for PUT /api/work-items/{id}/move. `position` is the
  * zero-based insertion index within the target column's OTHER items (the

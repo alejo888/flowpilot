@@ -1,7 +1,8 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { forkJoin } from 'rxjs';
 
 import { BoardApiService } from './board-api.service';
-import { BoardColumn, WorkItem } from './board.model';
+import { BoardColumn, WorkItem, WorkItemCreateRequest, WorkItemUpdateRequest } from './board.model';
 
 /**
  * Signals-based board state (design D6 — signals + injectable services, no
@@ -17,10 +18,18 @@ export class BoardStore {
 
   private readonly columnsSignal = signal<BoardColumn[]>([]);
   private readonly itemsSignal = signal<WorkItem[]>([]);
+  private readonly selectedItemSignal = signal<WorkItem | null>(null);
   private readonly errorSignal = signal<string | null>(null);
+  private readonly successSignal = signal<string | null>(null);
+  private readonly mutatingSignal = signal(false);
+  private loadRequestId = 0;
+  private detailRequestId = 0;
 
   readonly columns = this.columnsSignal.asReadonly();
+  readonly selectedItem = this.selectedItemSignal.asReadonly();
   readonly error = this.errorSignal.asReadonly();
+  readonly success = this.successSignal.asReadonly();
+  readonly isMutating = this.mutatingSignal.asReadonly();
 
   /** Work items grouped by columnId, each group ordered by position ascending. */
   readonly itemsByColumn = computed<Record<number, WorkItem[]>>(() => {
@@ -36,9 +45,96 @@ export class BoardStore {
   });
 
   load(projectId: number): void {
-    this.errorSignal.set(null);
-    this.api.getBoardColumns(projectId).subscribe((columns) => this.columnsSignal.set(columns));
-    this.api.getWorkItems(projectId).subscribe((items) => this.itemsSignal.set(items));
+    const requestId = ++this.loadRequestId;
+    this.clearFeedback();
+    this.detailRequestId++;
+    this.selectedItemSignal.set(null);
+    forkJoin({
+      columns: this.api.getBoardColumns(projectId),
+      items: this.api.getWorkItems(projectId),
+    }).subscribe({
+      next: ({ columns, items }) => {
+        if (requestId !== this.loadRequestId) {
+          return;
+        }
+        this.columnsSignal.set(columns);
+        this.itemsSignal.set(items);
+      },
+      error: (err: unknown) => {
+        if (requestId !== this.loadRequestId) {
+          return;
+        }
+        this.columnsSignal.set([]);
+        this.itemsSignal.set([]);
+        this.errorSignal.set(errorMessage(err, 'No se pudo cargar el tablero'));
+      },
+    });
+  }
+
+  createItem(projectId: number, request: WorkItemCreateRequest): void {
+    this.beginMutation();
+    this.api.createWorkItem(projectId, request).subscribe({
+      next: (created) => {
+        this.itemsSignal.set([...this.itemsSignal(), created]);
+        this.selectedItemSignal.set(created);
+        this.successSignal.set('Tarea creada correctamente.');
+        this.mutatingSignal.set(false);
+      },
+      error: (err: unknown) => this.failMutation(err, 'No se pudo crear la tarea'),
+    });
+  }
+
+  selectItem(item: WorkItem | null): void {
+    this.detailRequestId++;
+    this.clearFeedback();
+    this.selectedItemSignal.set(item);
+  }
+
+  loadItem(itemId: number): void {
+    const requestId = ++this.detailRequestId;
+    this.clearFeedback();
+    this.api.getWorkItem(itemId).subscribe({
+      next: (item) => {
+        const selectedItem = this.selectedItemSignal();
+        if (requestId !== this.detailRequestId || (selectedItem !== null && selectedItem.id !== itemId)) {
+          return;
+        }
+        this.upsertItem(item);
+        this.selectedItemSignal.set(item);
+      },
+      error: (err: unknown) => {
+        if (requestId === this.detailRequestId) {
+          this.errorSignal.set(errorMessage(err, 'No se pudo cargar la tarea'));
+        }
+      },
+    });
+  }
+
+  updateItem(itemId: number, request: WorkItemUpdateRequest): void {
+    this.beginMutation();
+    this.api.updateWorkItem(itemId, request).subscribe({
+      next: (updated) => {
+        this.upsertItem(updated);
+        this.selectedItemSignal.set(updated);
+        this.mutatingSignal.set(false);
+      },
+      error: (err: unknown) => this.failMutation(err, 'No se pudo actualizar la tarea'),
+    });
+  }
+
+  deleteItem(itemId: number): void {
+    this.detailRequestId++;
+    this.beginMutation();
+    this.api.deleteWorkItem(itemId).subscribe({
+      next: () => {
+        this.itemsSignal.set(this.itemsSignal().filter((item) => item.id !== itemId));
+        if (this.selectedItemSignal()?.id === itemId) {
+          this.selectedItemSignal.set(null);
+        }
+        this.mutatingSignal.set(false);
+      },
+      error: (err: unknown) => this.failMutation(err, 'No se pudo eliminar la tarea'),
+    });
   }
 
   /**
@@ -53,24 +149,60 @@ export class BoardStore {
       return;
     }
 
-    this.errorSignal.set(null);
+    this.clearFeedback();
     this.itemsSignal.set(
       previousItems.map((item) =>
-        item.id === itemId ? { ...item, columnId: targetColumnId, position: index } : item,
+        item.id === itemId
+          ? {
+              ...item,
+              columnId: targetColumnId,
+              position: optimisticPosition(previousItems, movingItem, targetColumnId, index),
+            }
+          : item,
       ),
     );
 
     this.api.moveWorkItem(itemId, { columnId: targetColumnId, position: index }).subscribe({
       next: (confirmed) => {
-        this.itemsSignal.set(
-          this.itemsSignal().map((item) => (item.id === itemId ? confirmed : item)),
-        );
+        this.upsertItem(confirmed);
+        if (this.selectedItemSignal()?.id === itemId) {
+          this.selectedItemSignal.set(confirmed);
+        }
       },
       error: (err: unknown) => {
         this.itemsSignal.set(previousItems);
-        this.errorSignal.set(errorMessage(err, 'Failed to move work item'));
+        this.errorSignal.set(errorMessage(err, 'No se pudo mover la tarea'));
       },
     });
+  }
+
+  clearSuccess(): void {
+    this.successSignal.set(null);
+  }
+
+  private clearFeedback(): void {
+    this.errorSignal.set(null);
+    this.successSignal.set(null);
+  }
+
+  private beginMutation(): void {
+    this.clearFeedback();
+    this.mutatingSignal.set(true);
+  }
+
+  private failMutation(err: unknown, fallback: string): void {
+    this.successSignal.set(null);
+    this.errorSignal.set(errorMessage(err, fallback));
+    this.mutatingSignal.set(false);
+  }
+
+  private upsertItem(nextItem: WorkItem): void {
+    const items = this.itemsSignal();
+    if (items.some((item) => item.id === nextItem.id)) {
+      this.itemsSignal.set(items.map((item) => (item.id === nextItem.id ? nextItem : item)));
+      return;
+    }
+    this.itemsSignal.set([...items, nextItem]);
   }
 }
 
@@ -82,4 +214,24 @@ export class BoardStore {
  */
 function errorMessage(err: unknown, fallback: string): string {
   return (err as { error?: { detail?: string } })?.error?.detail ?? fallback;
+}
+
+function optimisticPosition(items: WorkItem[], movingItem: WorkItem, targetColumnId: number, index: number): number {
+  const targetItems = items
+    .filter((item) => item.columnId === targetColumnId && item.id !== movingItem.id)
+    .sort((a, b) => a.position - b.position);
+  const targetIndex = Math.max(0, Math.min(index, targetItems.length));
+  const before = targetItems[targetIndex - 1];
+  const after = targetItems[targetIndex];
+
+  if (!before && !after) {
+    return movingItem.position;
+  }
+  if (!before) {
+    return after.position - 1;
+  }
+  if (!after) {
+    return before.position + 1;
+  }
+  return before.position + (after.position - before.position) / 2;
 }
