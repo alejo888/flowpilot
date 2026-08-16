@@ -16,7 +16,7 @@ Implemented and covered by backend/frontend tests at a high level:
 - Admin users: admin-only user list, activation/deactivation, global role changes, last-active-admin guard; frontend screen is wired.
 - Projects: backend list/create/get/update/status/delete with rich fields and default board columns; frontend currently supports list/create and links to board/members.
 - Project members: backend and frontend list/add/change role/remove, including self-removal confirmation.
-- Work items / Kanban: backend CRUD plus move between/within columns; frontend board lists cards and supports drag/drop move.
+- Work items / Kanban: backend CRUD plus move between/within columns; frontend board lists cards, supports drag/drop move, and create/edit/delete via an overlay detail panel.
 - Role-permission matrix: backend dense role/permission seed, admin read/update, optimistic concurrency, authorization cache reload; frontend matrix screen is wired.
 - API contract: `api/openapi.yaml` covers the implemented path families at a high level.
 
@@ -24,10 +24,10 @@ Pending or partial for portfolio readiness:
 
 - Frontend UI for registration, forgot password, and reset password.
 - Frontend UI for project edit/status/delete/detail.
-- Frontend UI for work item create/edit/delete/detail; the board can move existing cards but cannot create/edit them yet.
 - Backlog, sprints, dashboard/metrics, comments/activity feed, profile/change-password, and AI-assisted planning features.
 - Demo polish: seeded/demo data, screenshots/GIFs, portfolio-friendly feature tour, and deployment notes.
 - OpenAPI drift cleanup before making contract drift checks blocking in CI.
+- E2E responsive-overflow coverage (`frontend/e2e/`) only guards horizontal-overflow regressions on the routes/viewport it checks — not a general accessibility or cross-browser suite.
 
 ## Commands
 
@@ -67,7 +67,7 @@ Flyway requires the `spring-boot-starter-flyway` dependency (not just `flyway-co
 
 **Config profiles**: base `application.yml` holds shared defaults; `application-dev.yml`, `application-docker.yml` (datasource host `db`, the Compose service name), `application-prod.yml`, and test's `application-test.yml` override only what differs (datasource, JWT secret, logging). The `docker` profile has no insecure JWT-secret fallback — Compose fails fast if `FLOWPILOT_JWT_SECRET` isn't set. The `prod` profile requires `FLOWPILOT_DATASOURCE_URL`, `FLOWPILOT_DATASOURCE_USERNAME`, `FLOWPILOT_DATASOURCE_PASSWORD`, and `FLOWPILOT_JWT_SECRET` as env vars with no defaults — Spring fails fast at startup if any are missing.
 
-**Frontend**: standalone Angular app with implemented routes for `/`, `/login`, `/projects`, `/projects/:projectId/board`, `/projects/:projectId/members`, `/admin/users`, and `/admin/permissions`. Core auth/API code lives under `frontend/src/app/core/`; feature slices live under `frontend/src/app/features/`; shared UI components live under `frontend/src/app/shared/ui/`. Current frontend gaps are mostly screens for backend capabilities that already exist: auth recovery/register, project mutation/detail, and work-item mutation/detail.
+**Frontend**: standalone Angular app with implemented routes for `/`, `/login`, `/projects`, `/projects/:projectId/board`, `/projects/:projectId/members`, `/admin/users`, and `/admin/permissions`. Core auth/API code lives under `frontend/src/app/core/`; feature slices live under `frontend/src/app/features/`; shared UI components live under `frontend/src/app/shared/ui/`. Current frontend gaps are mostly screens for backend capabilities that already exist: auth recovery/register and project mutation/detail.
 
 **API contract**: `api/openapi.yaml` is the hand-authored, contract-first source of truth — write the spec before the controller, not the other way around. The contract is currently monolithic; `api/components/` and `api/paths/` are not populated. CI exports the live Springdoc spec during backend tests and runs a non-blocking `oasdiff` breaking-change report. Known DTO/schema drift remains pending; make the gate blocking only after those gaps are resolved.
 
