@@ -195,6 +195,26 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
       align-items: flex-start;
       overflow-x: auto;
       min-width: 0;
+
+      // CSS-only scroll shadows: two "cover" gradients scroll with the
+      // content (background-attachment: local) and exactly cancel out two
+      // fixed shadow gradients (attachment: scroll) at the start/end of the
+      // scrollable area. Scrolling away from an edge uncovers that edge's
+      // shadow — no JS scroll listener needed to know when more content is
+      // off-screen in either direction.
+      background:
+        linear-gradient(to right, var(--fp-bg) 30%, transparent) left,
+        linear-gradient(to left, var(--fp-bg) 30%, transparent) right,
+        linear-gradient(to right, rgba(36, 31, 28, 0.12), transparent) left,
+        linear-gradient(to left, rgba(36, 31, 28, 0.12), transparent) right;
+      background-repeat: no-repeat;
+      background-color: var(--fp-bg);
+      background-size:
+        40px 100%,
+        40px 100%,
+        16px 100%,
+        16px 100%;
+      background-attachment: local, local, scroll, scroll;
     }
 
     .board-column,
@@ -250,6 +270,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
       font-weight: 700;
       text-align: left;
       cursor: pointer;
+      overflow-wrap: break-word;
     }
 
     .assignee {
