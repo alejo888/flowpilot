@@ -62,3 +62,52 @@ jobs:
         run: npx ng test --watch=false
       - name: Build
         run: npx ng build
+
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      # CI-only ephemeral secret for a stack that's destroyed at the end of
+      # the job — not a real credential, no rotation/secrecy requirement.
+      FLOWPILOT_JWT_SECRET: ci-ephemeral-jwt-secret-flowpilot-e2e
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start the full stack
+        run: docker compose up -d --build
+      - name: Wait for the backend to accept requests
+        run: |
+          for i in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8080/api/auth/login \
+              -H "Content-Type: application/json" -d '{"email":"x","password":"x"}' || true)
+            if [ "$code" = "400" ] || [ "$code" = "401" ]; then
+              echo "backend is up (HTTP $code)"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "backend never became ready" >&2
+          docker compose logs backend
+          exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Run responsive e2e suite
+        working-directory: frontend
+        run: npm run e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7
+      - name: Tear down the stack
+        if: always()
+        run: docker compose down -v
