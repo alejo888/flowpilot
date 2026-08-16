@@ -5,6 +5,16 @@
 // custom components at https://material.angular.dev/guide/theming
 @use '@angular/material' as mat;
 
+// Without this, `width: 100%` + `padding` on content-box (the browser
+// default) renders wider than the parent instead of fitting inside it —
+// the root cause behind several page-level horizontal-overflow bugs found
+// on narrow viewports (app-content__container chief among them).
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html {
   height: 100%;
   @include mat.theme(
