@@ -18,6 +18,7 @@ import { Component, input } from '@angular/core';
       [type]="type()"
       [disabled]="disabled()"
       [attr.data-testid]="testId()"
+      [attr.aria-label]="ariaLabel()"
     >
       <ng-content></ng-content>
     </button>
@@ -84,4 +85,5 @@ export class FpButtonComponent {
   readonly type = input<'button' | 'submit'>('button');
   readonly disabled = input(false);
   readonly testId = input<string | undefined>(undefined);
+  readonly ariaLabel = input<string | undefined>(undefined);
 }

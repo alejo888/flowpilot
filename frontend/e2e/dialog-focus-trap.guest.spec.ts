@@ -46,7 +46,7 @@ test('Tab key stays trapped inside the fp-dialog focus trap', async ({ page }) =
   const detailPanel = page.locator('[data-testid="detail-panel"]');
   await expect(detailPanel).toBeVisible();
   await expect(detailPanel.getByText(uniqueTitle)).toBeVisible();
-  await detailPanel.locator('.danger-button', { hasText: 'Eliminar tarea' }).click();
+  await detailPanel.locator('[data-testid="detail-delete-button"]').click();
 
   const dialogPanel = page.locator('[data-testid="delete-dialog"] .fp-dialog__panel');
   await expect(dialogPanel).toBeVisible();

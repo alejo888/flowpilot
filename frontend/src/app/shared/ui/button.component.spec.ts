@@ -22,4 +22,15 @@ describe('FpButtonComponent', () => {
     const style = getComputedStyle(button());
     expect(style.borderRadius).toBe('var(--fp-radius-sm)');
   });
+
+  it('has no accessible name by default', () => {
+    expect(button().getAttribute('aria-label')).toBeNull();
+  });
+
+  it('forwards ariaLabel onto the native button, not the host element', () => {
+    fixture.componentRef.setInput('ariaLabel', 'Cerrar detalle');
+    fixture.detectChanges();
+
+    expect(button().getAttribute('aria-label')).toBe('Cerrar detalle');
+  });
 });
