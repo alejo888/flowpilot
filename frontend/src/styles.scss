@@ -46,6 +46,7 @@ html {
   --fp-success: #2f7d5a;
   --fp-warning: #c68a1d;
   --fp-danger: #c13b3b;
+  --fp-status-neutral: #9a9186;
 
   --fp-space-1: 4px;
   --fp-space-2: 8px;
@@ -56,9 +57,10 @@ html {
   --fp-space-12: 48px;
   --fp-space-16: 64px;
 
-  --fp-radius-sm: 6px;
-  --fp-radius-md: 10px;
+  --fp-radius-sm: 8px;
+  --fp-radius-md: 14px;
   --fp-radius-lg: 16px;
+  --fp-radius-pill: 999px;
 
   --fp-shadow-sm: 0 1px 3px rgba(36, 31, 28, 0.08);
   --fp-shadow-md: 0 4px 12px rgba(36, 31, 28, 0.1);
