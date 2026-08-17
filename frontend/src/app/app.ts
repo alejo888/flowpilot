@@ -1,16 +1,18 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 import { AuthStore } from './core/auth/auth.store';
+import { decodeEmail } from './core/auth/jwt-claims';
 import { FpButtonComponent } from './shared/ui/button.component';
 
 /**
- * Root app shell: top nav (brand + section links + logout) and a
- * max-width, centered content region wrapping the router outlet. Nav links
- * are gated on {@link AuthStore.isAuthenticated}/`isAdmin` so unauthenticated
- * visitors (e.g. on `/login`) never see links to guarded routes. Below the
- * `app.scss` collapse breakpoint, the links + logout button hide behind a
- * toggle (`navOpen`) instead of wrapping onto extra rows.
+ * Root app shell: fixed sidebar (spec: app-shell-navigation; design D4) at
+ * desktop widths, collapsing to a top bar + off-canvas drawer below the
+ * breakpoint. Nav links are gated on {@link AuthStore.isAuthenticated}/`isAdmin`
+ * so unauthenticated visitors (e.g. on `/login`) never see links to guarded
+ * routes. `drawerOpen` (formerly `navOpen`) controls the mobile drawer only —
+ * desktop always shows the sidebar. The sidebar footer reserves a
+ * `density-slot` for the density toggle; PR5 wires the actual control there.
  */
 @Component({
   selector: 'app-root',
@@ -22,18 +24,27 @@ export class App {
   protected readonly authStore = inject(AuthStore);
   private readonly router = inject(Router);
 
-  protected readonly navOpen = signal(false);
+  protected readonly drawerOpen = signal(false);
 
-  toggleNav(): void {
-    this.navOpen.update((open) => !open);
+  /** Decoded from the in-memory access token (backend `JwtService` sets the `email` claim). */
+  protected readonly currentUserEmail = computed(() => decodeEmail(this.authStore.accessToken()));
+
+  /** Single uppercase initial for the sidebar avatar, derived from the email local part. */
+  protected readonly currentUserInitial = computed(() => {
+    const email = this.currentUserEmail();
+    return email ? email.charAt(0).toUpperCase() : '?';
+  });
+
+  toggleDrawer(): void {
+    this.drawerOpen.update((open) => !open);
   }
 
-  closeNav(): void {
-    this.navOpen.set(false);
+  closeDrawer(): void {
+    this.drawerOpen.set(false);
   }
 
   onLogout(): void {
-    this.closeNav();
+    this.closeDrawer();
     this.authStore.logout();
     this.router.navigateByUrl('/login');
   }

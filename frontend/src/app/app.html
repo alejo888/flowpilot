@@ -1,55 +1,81 @@
 @if (authStore.isAuthenticated()) {
-  <nav class="app-nav" data-testid="app-nav">
-    <a routerLink="/" class="app-nav__brand">FlowPilot</a>
+  <header class="app-topbar" data-testid="app-topbar">
+    <a routerLink="/" class="app-topbar__brand">FlowPilot</a>
     <button
       type="button"
-      class="app-nav__toggle"
+      class="app-topbar__toggle"
       data-testid="nav-toggle"
-      [attr.aria-expanded]="navOpen()"
+      [attr.aria-expanded]="drawerOpen()"
       aria-label="Abrir menú"
-      (click)="toggleNav()"
+      (click)="toggleDrawer()"
     >
       ☰
     </button>
-    <div class="app-nav__menu" [class.app-nav__menu--open]="navOpen()" data-testid="nav-menu">
-      <div class="app-nav__links">
+  </header>
+
+  @if (drawerOpen()) {
+    <button
+      type="button"
+      class="app-sidebar__scrim"
+      data-testid="app-sidebar-scrim"
+      aria-label="Cerrar menú"
+      (click)="closeDrawer()"
+    ></button>
+  }
+
+  <aside class="app-sidebar" [class.app-sidebar--open]="drawerOpen()" data-testid="app-sidebar">
+    <a routerLink="/" class="app-sidebar__brand" (click)="closeDrawer()">
+      <span class="app-sidebar__logo" aria-hidden="true">FP</span>
+      <span class="app-sidebar__brand-text">FlowPilot</span>
+    </a>
+
+    <nav class="app-sidebar__nav">
+      <a
+        routerLink="/projects"
+        routerLinkActive="app-sidebar__link--active"
+        class="app-sidebar__link"
+        data-testid="nav-projects"
+        (click)="closeDrawer()"
+        >Proyectos</a
+      >
+      @if (authStore.isAdmin()) {
         <a
-          routerLink="/projects"
-          routerLinkActive="app-nav__link--active"
-          class="app-nav__link"
-          data-testid="nav-projects"
-          (click)="closeNav()"
-          >Proyectos</a
+          routerLink="/admin/users"
+          routerLinkActive="app-sidebar__link--active"
+          class="app-sidebar__link"
+          data-testid="nav-admin-users"
+          (click)="closeDrawer()"
+          >Usuarios</a
         >
-        @if (authStore.isAdmin()) {
-          <a
-            routerLink="/admin/users"
-            routerLinkActive="app-nav__link--active"
-            class="app-nav__link"
-            data-testid="nav-admin-users"
-            (click)="closeNav()"
-            >Usuarios</a
-          >
-          <a
-            routerLink="/admin/permissions"
-            routerLinkActive="app-nav__link--active"
-            class="app-nav__link"
-            data-testid="nav-admin-permissions"
-            (click)="closeNav()"
-            >Permisos</a
-          >
-        }
+        <a
+          routerLink="/admin/permissions"
+          routerLinkActive="app-sidebar__link--active"
+          class="app-sidebar__link"
+          data-testid="nav-admin-permissions"
+          (click)="closeDrawer()"
+          >Permisos</a
+        >
+      }
+    </nav>
+
+    <div class="app-sidebar__footer">
+      <div class="app-sidebar__user">
+        <span class="app-sidebar__avatar" data-testid="sidebar-avatar" aria-hidden="true">{{
+          currentUserInitial()
+        }}</span>
+        <span class="app-sidebar__user-email" data-testid="sidebar-user-email">{{ currentUserEmail() }}</span>
       </div>
+      <div class="app-sidebar__density-slot" data-testid="density-slot"></div>
       <fp-button variant="secondary" testId="logout-button" (click)="onLogout()">Cerrar sesión</fp-button>
     </div>
-  </nav>
+  </aside>
 } @else {
-  <nav class="app-nav app-nav--minimal" data-testid="app-nav">
-    <a routerLink="/" class="app-nav__brand">FlowPilot</a>
-  </nav>
+  <header class="app-topbar app-topbar--minimal" data-testid="app-topbar">
+    <a routerLink="/" class="app-topbar__brand">FlowPilot</a>
+  </header>
 }
 
-<main class="app-content">
+<main class="app-content" [class.app-content--with-sidebar]="authStore.isAuthenticated()">
   <div class="app-content__container">
     <router-outlet />
   </div>

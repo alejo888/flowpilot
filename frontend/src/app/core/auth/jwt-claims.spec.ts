@@ -1,4 +1,4 @@
-import { decodeRole, decodeUserId } from './jwt-claims';
+import { decodeEmail, decodeRole, decodeUserId } from './jwt-claims';
 
 /** Builds a syntactically valid JWT string from a header/payload pair. */
 function makeToken(payload: unknown, header: unknown = { alg: 'HS256', typ: 'JWT' }): string {
@@ -89,5 +89,39 @@ describe('decodeUserId', () => {
 
   it('returns null when the token is null', () => {
     expect(decodeUserId(null)).toBeNull();
+  });
+});
+
+describe('decodeEmail', () => {
+  it('returns the email claim from a valid token payload', () => {
+    const token = makeToken({ sub: '42', email: 'admin@flowpilot.local', role: 'ADMINISTRADOR' });
+
+    expect(decodeEmail(token)).toBe('admin@flowpilot.local');
+  });
+
+  it('returns a different email claim for a different payload', () => {
+    const token = makeToken({ sub: '7', email: 'member@flowpilot.local', role: 'MIEMBRO_EQUIPO' });
+
+    expect(decodeEmail(token)).toBe('member@flowpilot.local');
+  });
+
+  it('returns null when the email claim is missing', () => {
+    const token = makeToken({ sub: '42', role: 'ADMINISTRADOR' });
+
+    expect(decodeEmail(token)).toBeNull();
+  });
+
+  it('returns null when the email claim is not a string', () => {
+    const token = makeToken({ sub: '42', email: 123, role: 'ADMINISTRADOR' });
+
+    expect(decodeEmail(token)).toBeNull();
+  });
+
+  it('returns null when the token is malformed', () => {
+    expect(decodeEmail('only-one-segment')).toBeNull();
+  });
+
+  it('returns null when the token is null', () => {
+    expect(decodeEmail(null)).toBeNull();
   });
 });
