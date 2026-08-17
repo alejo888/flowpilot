@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 
 import { AuthStore } from './core/auth/auth.store';
+import { FP_DENSITY_STORAGE_KEY } from './core/ui/density.service';
 import { App } from './app';
 
 /** Builds a syntactically valid JWT string from a header/payload pair (mirrors jwt-claims.spec.ts). */
@@ -34,6 +35,9 @@ describe('App', () => {
   }
 
   beforeEach(async () => {
+    localStorage.clear();
+    document.documentElement.removeAttribute('data-fp-density');
+
     authStoreStub = {
       accessToken: signal<string | null>(null),
       isAuthenticated: signal(false),
@@ -45,6 +49,11 @@ describe('App', () => {
       imports: [App],
       providers: [provideRouter([]), { provide: AuthStore, useValue: authStoreStub }],
     }).compileComponents();
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+    document.documentElement.removeAttribute('data-fp-density');
   });
 
   it('should create the app shell', () => {
@@ -170,15 +179,62 @@ describe('App', () => {
     expect(compiled.querySelector('[data-testid="sidebar-avatar"]')?.textContent?.trim()).toBe('A');
   });
 
-  it('reserves a non-interactive density toggle slot in the sidebar footer', () => {
+  it('renders the density toggle in the sidebar footer, defaulting to comfortable', () => {
     authStoreStub.isAuthenticated.set(true);
     createFixture();
     const compiled = fixture.nativeElement as HTMLElement;
 
-    const slot = compiled.querySelector('[data-testid="density-slot"]');
-    expect(slot).not.toBeNull();
-    // PR5 wires the real toggle here; this batch only reserves layout room —
-    // no button/interactive control exists in the slot yet.
-    expect(slot?.querySelector('button')).toBeNull();
+    const comfortableButton = compiled.querySelector('[data-testid="density-comfortable-button"]');
+    const compactButton = compiled.querySelector('[data-testid="density-compact-button"]');
+    expect(comfortableButton).not.toBeNull();
+    expect(compactButton).not.toBeNull();
+    expect(comfortableButton?.getAttribute('aria-pressed')).toBe('true');
+    expect(compactButton?.getAttribute('aria-pressed')).toBe('false');
+    expect(document.documentElement.getAttribute('data-fp-density')).toBe('comfortable');
+  });
+
+  it('restores compact density from localStorage on load', () => {
+    localStorage.setItem(FP_DENSITY_STORAGE_KEY, 'compact');
+    authStoreStub.isAuthenticated.set(true);
+    createFixture();
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    expect(compiled.querySelector('[data-testid="density-compact-button"]')?.getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(document.documentElement.getAttribute('data-fp-density')).toBe('compact');
+  });
+
+  it('switches to compact density globally when the compact control is clicked', () => {
+    authStoreStub.isAuthenticated.set(true);
+    createFixture();
+    const compiled = fixture.nativeElement as HTMLElement;
+    const compactButton = compiled.querySelector('[data-testid="density-compact-button"]') as HTMLButtonElement;
+
+    compactButton.click();
+    fixture.detectChanges();
+
+    expect(document.documentElement.getAttribute('data-fp-density')).toBe('compact');
+    expect(localStorage.getItem(FP_DENSITY_STORAGE_KEY)).toBe('compact');
+    expect(compactButton.getAttribute('aria-pressed')).toBe('true');
+    expect(compiled.querySelector('[data-testid="density-comfortable-button"]')?.getAttribute('aria-pressed')).toBe(
+      'false',
+    );
+  });
+
+  it('switches back to comfortable density when the comfortable control is clicked', () => {
+    localStorage.setItem(FP_DENSITY_STORAGE_KEY, 'compact');
+    authStoreStub.isAuthenticated.set(true);
+    createFixture();
+    const compiled = fixture.nativeElement as HTMLElement;
+    const comfortableButton = compiled.querySelector(
+      '[data-testid="density-comfortable-button"]',
+    ) as HTMLButtonElement;
+
+    comfortableButton.click();
+    fixture.detectChanges();
+
+    expect(document.documentElement.getAttribute('data-fp-density')).toBe('comfortable');
+    expect(localStorage.getItem(FP_DENSITY_STORAGE_KEY)).toBe('comfortable');
   });
 });

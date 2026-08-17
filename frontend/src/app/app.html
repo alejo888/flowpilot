@@ -65,7 +65,28 @@
         }}</span>
         <span class="app-sidebar__user-email" data-testid="sidebar-user-email">{{ currentUserEmail() }}</span>
       </div>
-      <div class="app-sidebar__density-slot" data-testid="density-slot"></div>
+      <div class="app-sidebar__density-toggle" data-testid="density-slot" role="group" aria-label="Densidad">
+        <button
+          type="button"
+          class="app-sidebar__density-button"
+          data-testid="density-comfortable-button"
+          [attr.aria-pressed]="densityService.density() === 'comfortable'"
+          [class.app-sidebar__density-button--active]="densityService.density() === 'comfortable'"
+          (click)="setDensity('comfortable')"
+        >
+          Cómoda
+        </button>
+        <button
+          type="button"
+          class="app-sidebar__density-button"
+          data-testid="density-compact-button"
+          [attr.aria-pressed]="densityService.density() === 'compact'"
+          [class.app-sidebar__density-button--active]="densityService.density() === 'compact'"
+          (click)="setDensity('compact')"
+        >
+          Compacta
+        </button>
+      </div>
       <fp-button variant="secondary" testId="logout-button" (click)="onLogout()">Cerrar sesión</fp-button>
     </div>
   </aside>
