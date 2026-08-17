@@ -9,6 +9,7 @@ import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { FpInputComponent } from '../../shared/ui/input.component';
 import { FpSelectComponent } from '../../shared/ui/select.component';
 import { ProjectStatus } from './project.model';
+import { projectStatusBadgeVariant } from './project-status';
 import { ProjectsStore } from './projects.store';
 
 const STATUS_OPTIONS = [
@@ -30,7 +31,7 @@ const STATUS_OPTIONS = [
       @if (project(); as current) {
         <header class="detail-header">
           <div><p class="eyebrow">Proyecto</p><h1 data-testid="project-detail-name">{{ current.name }}</h1></div>
-          <fp-badge variant="neutral" data-testid="project-detail-status">{{ current.status }}</fp-badge>
+          <fp-badge [variant]="statusBadgeVariant(current.status)" data-testid="project-detail-status">{{ current.status }}</fp-badge>
         </header>
         <fp-card><div class="summary">
           <p data-testid="project-detail-description">{{ current.description || 'Sin descripción' }}</p>
@@ -80,6 +81,7 @@ export class ProjectDetailComponent {
   readonly deleting = this.store.deleting;
   readonly error = this.store.error;
   readonly statusOptions = STATUS_OPTIONS;
+  protected readonly statusBadgeVariant = projectStatusBadgeVariant;
   readonly name = signal(''); readonly description = signal(''); readonly code = signal(''); readonly startDate = signal(''); readonly estimatedEndDate = signal(''); readonly technologies = signal(''); readonly repositoryUrl = signal('');
   readonly confirmingDelete = signal(false);
 
