@@ -6,6 +6,11 @@ import path from 'node:path';
 // consistent narrow width to catch layout overflow, not real device parity.
 const MOBILE_VIEWPORT = { width: 375, height: 667 };
 
+// Comfortably above `$sidebar-breakpoint: 1024px` (app.scss) so the fixed
+// 240px sidebar and its media queries are genuinely exercised, not just the
+// mobile off-canvas drawer path every other project uses.
+const DESKTOP_VIEWPORT = { width: 1280, height: 800 };
+
 export default defineConfig({
   testDir: './e2e',
   globalSetup: './e2e/global-setup.ts',
@@ -50,6 +55,22 @@ export default defineConfig({
       testMatch: /dialog-focus-trap\.guest\.spec\.ts$/,
       dependencies: ['mobile-authenticated', 'mobile-guest'],
       use: { browserName: 'chromium', viewport: MOBILE_VIEWPORT },
+    },
+    {
+      // Distinct `.desktop.spec.ts` suffix so this project's `testMatch`
+      // cannot collide with `mobile-authenticated`'s `.authenticated.spec.ts`
+      // or `mobile-guest`'s `.guest.spec.ts` patterns — no `testIgnore` is
+      // needed on either of those to keep this out, avoiding the
+      // testMatch/testIgnore duplication bug fixed for `mobile-focus-trap`
+      // (see that project's comment above and PR4's apply-progress Issue 3).
+      // Logs in itself (like `mobile-focus-trap`) rather than sharing
+      // `mobile-authenticated`'s storageState, and is sequenced after the
+      // other projects via `dependencies` for the same reuse-detection
+      // reason.
+      name: 'desktop-sidebar',
+      testMatch: /\.desktop\.spec\.ts$/,
+      dependencies: ['mobile-authenticated', 'mobile-guest', 'mobile-focus-trap'],
+      use: { browserName: 'chromium', viewport: DESKTOP_VIEWPORT },
     },
   ],
 });
