@@ -60,7 +60,13 @@ const STATUS_OPTIONS = [
   styles: `
     .project-detail { display:flex; flex-direction:column; gap:var(--fp-space-6); padding:var(--fp-space-8); max-width:900px; }
     .detail-header,.actions { display:flex; align-items:center; justify-content:space-between; gap:var(--fp-space-4); }
-    h1,h2,.eyebrow { margin:0; font-family:var(--fp-font-display); color:var(--fp-text); } h1 { font-size:2rem; } h2 { font-size:1.25rem; margin-bottom:var(--fp-space-4); } .eyebrow { color:var(--fp-accent); text-transform:uppercase; letter-spacing:.12em; font-size:.75rem; }
+    h1,h2,.eyebrow { margin:0; font-family:var(--fp-font-display); color:var(--fp-text); } h1 { font-size:2rem; } h2 { font-size:1.25rem; margin-bottom:var(--fp-space-4); }
+    /* Explicit font-weight (kept at the pre-redesign normal weight) so this
+       accent-colored local variant stays independent of the global
+       .eyebrow utility promoted in PR6a, which sets font-weight: 700 —
+       see PR6a verify-report WARNING 7. This is a deliberate "stay normal"
+       decision, not an accident. */
+    .eyebrow { color:var(--fp-accent); text-transform:uppercase; letter-spacing:.12em; font-size:.75rem; font-weight:400; }
     form,.summary { display:flex; flex-direction:column; gap:var(--fp-space-4); } .summary span { color:var(--fp-text-muted); font-size:.875rem; } .error { color:var(--fp-danger); }
   `,
 })

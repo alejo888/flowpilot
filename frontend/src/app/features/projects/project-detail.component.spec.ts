@@ -59,6 +59,13 @@ describe('ProjectDetailComponent', () => {
     fixture.detectChanges();
   });
 
+  it('keeps its local .eyebrow font-weight independent of the global utility (PR6a verify WARNING 7)', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const eyebrow = compiled.querySelector('.eyebrow') as HTMLElement;
+    const style = getComputedStyle(eyebrow);
+    expect(style.fontWeight).toBe('400');
+  });
+
   it('loads the requested project and renders its detail fields', () => {
     expect(storeStub.loadProject).toHaveBeenCalledWith(4);
     const compiled = fixture.nativeElement as HTMLElement;
