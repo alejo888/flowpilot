@@ -165,7 +165,12 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
         }
 
         @if (deleteCandidate(); as itemToDelete) {
-          <fp-dialog data-testid="delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-description">
+          <fp-dialog
+            data-testid="delete-dialog"
+            label="delete-dialog-title"
+            describedById="delete-dialog-description"
+            (closed)="cancelDelete()"
+          >
             <h3 id="delete-dialog-title">Eliminar tarea</h3>
             <p id="delete-dialog-description">¿Seguro que querés eliminar la tarea "{{ itemToDelete.title }}"? Esta acción no se puede deshacer.</p>
             <div class="panel-actions">

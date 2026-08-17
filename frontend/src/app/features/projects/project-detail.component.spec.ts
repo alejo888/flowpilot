@@ -135,13 +135,26 @@ describe('ProjectDetailComponent', () => {
     fixture.detectChanges();
 
     const dialog = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="project-delete-dialog"]');
-    expect(dialog?.getAttribute('role')).toBe('dialog');
-    expect(dialog?.getAttribute('aria-modal')).toBe('true');
-    expect(dialog?.getAttribute('aria-labelledby')).toBe('project-delete-dialog-title');
-    const describedBy = dialog?.getAttribute('aria-describedby');
+    const panel = dialog?.querySelector('.fp-dialog__panel');
+    expect(panel?.getAttribute('role')).toBe('dialog');
+    expect(panel?.getAttribute('aria-modal')).toBe('true');
+    expect(panel?.getAttribute('aria-labelledby')).toBe('project-delete-dialog-title');
+    const describedBy = panel?.getAttribute('aria-describedby');
     expect(describedBy).toBe('project-delete-dialog-description');
     expect(describedBy ? dialog?.querySelector(`#${describedBy}`) : null).not.toBeNull();
     expect(dialog?.querySelector('#project-delete-dialog-title')?.textContent).toContain('Eliminar proyecto');
+  });
+
+  it('closes the delete confirmation dialog on Escape without deleting', () => {
+    fixture.componentInstance.confirmingDelete.set(true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="project-delete-dialog"]')).not.toBeNull();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+
+    expect(storeStub.deleteProject).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.confirmingDelete()).toBe(false);
   });
 
 it('navigates only after deletion succeeds', async () => {

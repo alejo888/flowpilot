@@ -186,10 +186,11 @@ describe('BoardComponent', () => {
     fixture.componentInstance.confirmDelete(item(500, 1, 1024, 'Design schema'));
     fixture.detectChanges();
     const dialog = fixture.nativeElement.querySelector('[data-testid="delete-dialog"]') as HTMLElement;
-    expect(dialog.getAttribute('role')).toBe('dialog');
-    expect(dialog.getAttribute('aria-modal')).toBe('true');
-    expect(dialog.getAttribute('aria-labelledby')).toBe('delete-dialog-title');
-    expect(dialog.getAttribute('aria-describedby')).toBe('delete-dialog-description');
+    const panel = dialog.querySelector('.fp-dialog__panel') as HTMLElement;
+    expect(panel.getAttribute('role')).toBe('dialog');
+    expect(panel.getAttribute('aria-modal')).toBe('true');
+    expect(panel.getAttribute('aria-labelledby')).toBe('delete-dialog-title');
+    expect(panel.getAttribute('aria-describedby')).toBe('delete-dialog-description');
     expect(dialog.querySelector('#delete-dialog-title')?.textContent).toContain('Eliminar tarea');
     expect(dialog.querySelector('#delete-dialog-description')?.textContent).toBe(
       '¿Seguro que querés eliminar la tarea \"Design schema\"? Esta acción no se puede deshacer.',
@@ -210,6 +211,18 @@ describe('BoardComponent', () => {
     fixture.detectChanges();
     findButton(fixture.nativeElement, 'Cancelar').click();
     fixture.detectChanges();
+    expect(storeStub.deleteItem).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('[data-testid="delete-dialog"]')).toBeNull();
+  });
+
+  it('closes the delete confirmation dialog on Escape without calling the store', () => {
+    fixture.componentInstance.confirmDelete(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="delete-dialog"]')).not.toBeNull();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+
     expect(storeStub.deleteItem).not.toHaveBeenCalled();
     expect(fixture.nativeElement.querySelector('[data-testid="delete-dialog"]')).toBeNull();
   });

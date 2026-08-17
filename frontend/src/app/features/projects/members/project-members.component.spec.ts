@@ -320,4 +320,24 @@ describe('ProjectMembersComponent', () => {
     expect(storeStub.removeMember).not.toHaveBeenCalled();
     expect(compiled.querySelector('[data-testid="self-remove-confirm"]')).toBeFalsy();
   });
+
+  it('closes the self-remove confirmation dialog on Escape without calling the store', async () => {
+    storeStub.members.set([member(1, 99)]);
+    authStoreStub.currentUserId.set(99);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const selfRemoveButton = compiled.querySelector(
+      '[data-testid="member-row-1"] [data-testid="member-remove-self"]',
+    ) as HTMLButtonElement;
+    selfRemoveButton.click();
+    fixture.detectChanges();
+    expect(compiled.querySelector('[data-testid="self-remove-dialog"]')).toBeTruthy();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+
+    expect(storeStub.removeMember).not.toHaveBeenCalled();
+    expect(compiled.querySelector('[data-testid="self-remove-dialog"]')).toBeFalsy();
+  });
 });
