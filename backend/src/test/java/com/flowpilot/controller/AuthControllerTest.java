@@ -83,12 +83,71 @@ class AuthControllerTest {
     @Test
     void registerWithDuplicateEmailReturns409() throws Exception {
         RegisterRequest request = new RegisterRequest("Ada", "ada@flowpilot.local", "supersecret1");
-        when(authService.register(any())).thenThrow(new DuplicateEmailException("ada@flowpilot.local"));
+        when(authService.register(any())).thenThrow(new DuplicateEmailException());
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsBytes(request)))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("El email ya está registrado"));
+    }
+
+    @Test
+    void registerWithEmailWithoutTldReturns400() throws Exception {
+        RegisterRequest request = new RegisterRequest("Ada", "alejo@gmail", "supersecret1");
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.email").value("El email debe tener un formato válido"));
+    }
+
+    @Test
+    void registerWithMalformedEmailReturns400() throws Exception {
+        RegisterRequest request = new RegisterRequest("Ada", "notanemail", "supersecret1");
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void forgotPasswordWithEmailWithoutTldReturns200() throws Exception {
+        ForgotPasswordRequest request = new ForgotPasswordRequest("alejo@gmail");
+
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void forgotPasswordWithMalformedEmailReturns400() throws Exception {
+        ForgotPasswordRequest request = new ForgotPasswordRequest("notanemail");
+
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void loginLooksUpTheUserWithTheNormalizedEmail() throws Exception {
+        LoginRequest request = new LoginRequest("Ada@FlowPilot.Local", "supersecret1");
+        User user = activeUser(3L);
+        Authentication authenticated = new UsernamePasswordAuthenticationToken(user.getEmail(), null);
+        when(authenticationManager.authenticate(any())).thenReturn(authenticated);
+        when(userRepository.findByEmail("ada@flowpilot.local")).thenReturn(Optional.of(user));
+        when(jwtService.generateAccessToken(user)).thenReturn("signed-access-token");
+        when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);
+        when(refreshTokenService.issue(user)).thenReturn("raw-refresh-token");
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isOk());
     }
 
     @Test

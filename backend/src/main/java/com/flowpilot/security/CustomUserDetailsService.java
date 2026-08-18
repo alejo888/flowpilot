@@ -2,6 +2,7 @@ package com.flowpilot.security;
 
 import com.flowpilot.entity.User;
 import com.flowpilot.repository.UserRepository;
+import com.flowpilot.service.EmailNormalizer;
 import java.util.List;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -26,7 +27,7 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) {
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmail(EmailNormalizer.normalize(email))
                 .orElseThrow(() -> new UsernameNotFoundException("No user with email: " + email));
 
         return org.springframework.security.core.userdetails.User.builder()

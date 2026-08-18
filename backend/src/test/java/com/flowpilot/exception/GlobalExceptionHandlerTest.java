@@ -16,10 +16,11 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void duplicateEmailMapsTo409() {
-        ProblemDetail detail = handler.handleDuplicateEmail(new DuplicateEmailException("dup@flowpilot.local"));
+        ProblemDetail detail = handler.handleDuplicateEmail(new DuplicateEmailException());
 
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
-        assertThat(detail.getDetail()).contains("dup@flowpilot.local");
+        assertThat(detail.getDetail()).isEqualTo("El email ya está registrado");
+        assertThat(detail.getDetail()).doesNotContain("@");
     }
 
     @Test
@@ -42,7 +43,7 @@ class GlobalExceptionHandlerTest {
         ProblemDetail detail = handler.handleBadCredentials(new BadCredentialsException("bad"));
 
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
-        assertThat(detail.getDetail()).isEqualTo("Invalid email or password");
+        assertThat(detail.getDetail()).isEqualTo("Email o contraseña inválidos");
     }
 
     @Test
@@ -52,7 +53,7 @@ class GlobalExceptionHandlerTest {
         ProblemDetail detail = handler.handleDisabled(new DisabledException("disabled"));
 
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
-        assertThat(detail.getDetail()).isEqualTo("Invalid email or password");
+        assertThat(detail.getDetail()).isEqualTo("Email o contraseña inválidos");
     }
 
     @Test

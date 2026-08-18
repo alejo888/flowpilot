@@ -49,7 +49,7 @@ public class PasswordResetService {
 
     /** Always completes successfully; only creates a token if the account exists (no enumeration). */
     public void forgotPassword(String email) {
-        userRepository.findByEmail(email).ifPresent(user -> {
+        userRepository.findByEmail(EmailNormalizer.normalize(email)).ifPresent(user -> {
             String rawToken = generateRawToken();
             PasswordResetToken token = new PasswordResetToken(
                     user, hash(rawToken), OffsetDateTime.now().plusMinutes(resetTokenTtlMinutes));
@@ -62,13 +62,13 @@ public class PasswordResetService {
     @Transactional
     public void resetPassword(String rawToken, String newPassword) {
         PasswordResetToken token = passwordResetTokenRepository.findByTokenHash(hash(rawToken))
-                .orElseThrow(() -> new InvalidResetTokenException("Unknown reset token"));
+                .orElseThrow(() -> new InvalidResetTokenException("El enlace de restablecimiento no es válido"));
 
         if (token.isUsed()) {
-            throw new InvalidResetTokenException("Reset token already used");
+            throw new InvalidResetTokenException("El enlace de restablecimiento ya fue utilizado");
         }
         if (token.isExpired()) {
-            throw new InvalidResetTokenException("Reset token expired");
+            throw new InvalidResetTokenException("El enlace de restablecimiento venció");
         }
 
         User user = token.getUser();

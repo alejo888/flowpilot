@@ -11,6 +11,7 @@ import com.flowpilot.repository.UserRepository;
 import com.flowpilot.security.CookieService;
 import com.flowpilot.security.JwtService;
 import com.flowpilot.service.AuthService;
+import com.flowpilot.service.EmailNormalizer;
 import com.flowpilot.service.PasswordResetService;
 import com.flowpilot.service.RefreshTokenService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -94,8 +95,9 @@ public class AuthController {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.email(), request.password()));
 
-        User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new IllegalStateException("Authenticated user vanished: " + request.email()));
+        String email = EmailNormalizer.normalize(request.email());
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalStateException("Authenticated user vanished: " + email));
 
         String accessToken = jwtService.generateAccessToken(user);
         String rawRefreshToken = refreshTokenService.issue(user);

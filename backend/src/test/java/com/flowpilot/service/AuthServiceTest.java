@@ -65,4 +65,38 @@ class AuthServiceTest {
 
         verify(userRepository, org.mockito.Mockito.never()).save(any());
     }
+
+    @Test
+    void registerNormalizesEmailCaseAndWhitespaceBeforeCheckingAndPersisting() {
+        RegisterRequest request = new RegisterRequest("Ada Lovelace", "  Ada@X.Com ", "supersecret1");
+        when(userRepository.existsByEmail("ada@x.com")).thenReturn(false);
+        when(passwordEncoder.encode("supersecret1")).thenReturn("hashed-password");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User created = authService.register(request);
+
+        assertThat(created.getEmail()).isEqualTo("ada@x.com");
+        verify(userRepository).existsByEmail("ada@x.com");
+    }
+
+    @Test
+    void registerRejectsDuplicateEmailRegardlessOfCase() {
+        RegisterRequest request = new RegisterRequest("Ada Lovelace", "ADA@X.COM", "supersecret1");
+        when(userRepository.existsByEmail("ada@x.com")).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.register(request))
+                .isInstanceOf(DuplicateEmailException.class);
+
+        verify(userRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void duplicateEmailMessageNeverEchoesTheSubmittedAddress() {
+        RegisterRequest request = new RegisterRequest("Ada Lovelace", "ada@x.com", "supersecret1");
+        when(userRepository.existsByEmail("ada@x.com")).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.register(request))
+                .isInstanceOf(DuplicateEmailException.class)
+                .hasMessage("El email ya está registrado");
+    }
 }
