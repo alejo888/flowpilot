@@ -132,7 +132,7 @@ public class ProjectService {
 
     private void requirePermission(Long userId, Long projectId, Permission permission) {
         if (!authorizationService.hasPermission(userId, projectId, permission)) {
-            throw new AccessDeniedException("Missing permission " + permission + " on project " + projectId);
+            throw new AccessDeniedException("Falta el permiso " + permission + " en el proyecto " + projectId);
         }
     }
 
@@ -143,7 +143,7 @@ public class ProjectService {
      */
     private void requireCanView(Long userId, Long projectId) {
         if (!authorizationService.canView(userId, projectId)) {
-            throw new AccessDeniedException("Not authorized to view this project");
+            throw new AccessDeniedException("No autorizado para ver este proyecto");
         }
     }
 

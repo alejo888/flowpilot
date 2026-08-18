@@ -139,7 +139,7 @@ public class RolePermissionAdminService {
         User caller = userRepository.findById(callerId)
                 .orElseThrow(() -> new UserNotFoundException(callerId));
         if (caller.getRole() != GlobalRole.ADMINISTRADOR) {
-            throw new AccessDeniedException("Administrator role required");
+            throw new AccessDeniedException("Se requiere el rol de administrador");
         }
     }
 }

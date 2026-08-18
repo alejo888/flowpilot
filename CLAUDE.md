@@ -26,7 +26,7 @@ Pending or partial for portfolio readiness:
 - Demo polish: seeded/demo data, screenshots/GIFs, portfolio-friendly feature tour, and deployment notes.
 - OpenAPI drift cleanup before making contract drift checks blocking in CI.
 - E2E responsive-overflow coverage (`frontend/e2e/`) only guards horizontal-overflow regressions on the routes/viewport it checks — not a general accessibility or cross-browser suite.
-- Error/success message translation to Spanish is currently scoped to the auth screens only (login, register, forgot-password, reset-password); the rest of the app (projects, members, board, admin) still relays backend `ProblemDetail` text in English and remains pending.
+- Error/success message translation to Spanish now covers auth (login, register, forgot-password, reset-password) plus projects, project members, work-items/board, and admin (users, role-permissions). Refresh-token/logout error details (`RefreshTokenService`) and the CSRF-filter error still relay English text and remain pending, along with the Jakarta-default validation-message path in `GlobalExceptionHandler.handleConstraintViolation` for any constraint without an explicit `message=`.
 
 Frontend validation: 315 tests pass. The production build passes cleanly, with no `anyComponentStyle` warnings.
 

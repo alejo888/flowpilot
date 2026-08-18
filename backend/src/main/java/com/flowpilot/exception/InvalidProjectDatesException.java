@@ -8,6 +8,6 @@ package com.flowpilot.exception;
 public class InvalidProjectDatesException extends RuntimeException {
 
     public InvalidProjectDatesException() {
-        super("Start date must not be after the estimated end date");
+        super("La fecha de inicio no puede ser posterior a la fecha estimada de finalización");
     }
 }

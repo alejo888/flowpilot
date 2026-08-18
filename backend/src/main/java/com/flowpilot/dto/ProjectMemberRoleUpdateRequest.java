@@ -4,5 +4,5 @@ import com.flowpilot.entity.ProjectRole;
 import jakarta.validation.constraints.NotNull;
 
 public record ProjectMemberRoleUpdateRequest(
-        @NotNull ProjectRole role) {
+        @NotNull(message = "El rol no puede estar vacío") ProjectRole role) {
 }

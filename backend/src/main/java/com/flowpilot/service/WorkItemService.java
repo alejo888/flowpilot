@@ -103,13 +103,13 @@ public class WorkItemService {
 
     private void requirePermission(Long requesterId, Long projectId, Permission permission) {
         if (!authorizationService.hasPermission(requesterId, projectId, permission)) {
-            throw new AccessDeniedException("Missing permission " + permission + " on project " + projectId);
+            throw new AccessDeniedException("Falta el permiso " + permission + " en el proyecto " + projectId);
         }
     }
 
     private void requireCanView(Long requesterId, Long projectId) {
         if (!authorizationService.canView(requesterId, projectId)) {
-            throw new AccessDeniedException("Not authorized to view this project's work items");
+            throw new AccessDeniedException("No autorizado para ver los elementos de trabajo de este proyecto");
         }
     }
 

@@ -53,7 +53,7 @@ public class BoardService {
 
         if (!authorizationService.hasPermission(requesterId, item.getProjectId(), Permission.WORKITEM_MOVE)) {
             throw new AccessDeniedException(
-                    "Missing permission " + Permission.WORKITEM_MOVE + " on project " + item.getProjectId());
+                    "Falta el permiso " + Permission.WORKITEM_MOVE + " en el proyecto " + item.getProjectId());
         }
 
         BoardColumn targetColumn = boardColumnRepository.findById(request.columnId())

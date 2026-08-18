@@ -101,7 +101,7 @@ class GlobalExceptionHandlerTest {
         ProblemDetail detail = handler.handleLastAdministrator(new LastAdministratorException());
 
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
-        assertThat(detail.getDetail()).contains("Administrador");
+        assertThat(detail.getDetail()).contains("administrador");
     }
 
     @Test
@@ -117,7 +117,7 @@ class GlobalExceptionHandlerTest {
         ProblemDetail detail = handler.handleInvalidProjectDates(new InvalidProjectDatesException());
 
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
-        assertThat(detail.getDetail()).contains("Start date");
+        assertThat(detail.getDetail()).contains("fecha de inicio");
     }
 
     @Test

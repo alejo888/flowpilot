@@ -8,6 +8,6 @@ package com.flowpilot.exception;
 public class CrossProjectColumnException extends RuntimeException {
 
     public CrossProjectColumnException(Long columnId, Long itemProjectId) {
-        super("Board column " + columnId + " does not belong to project " + itemProjectId);
+        super("La columna del tablero " + columnId + " no pertenece al proyecto " + itemProjectId);
     }
 }

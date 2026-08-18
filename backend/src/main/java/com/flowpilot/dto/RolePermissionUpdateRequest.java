@@ -16,6 +16,6 @@ import java.util.List;
  * since the dense 6x9 seed always has 54 rows).
  */
 public record RolePermissionUpdateRequest(
-        @NotEmpty List<@Valid RolePermissionGrant> grants,
+        @NotEmpty(message = "La lista de permisos no puede estar vacía") List<@Valid RolePermissionGrant> grants,
         OffsetDateTime expectedUpdatedAt) {
 }
