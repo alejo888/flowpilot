@@ -28,7 +28,7 @@ Pending or partial for portfolio readiness:
 - OpenAPI drift cleanup before making contract drift checks blocking in CI.
 - E2E responsive-overflow coverage (`frontend/e2e/`) only guards horizontal-overflow regressions on the routes/viewport it checks — not a general accessibility or cross-browser suite.
 
-Frontend validation: 240 tests pass. The production build passes with a pre-existing `board.component.ts` stylesheet budget warning.
+Frontend validation: 304 tests pass. The production build passes cleanly, with no `anyComponentStyle` warnings.
 
 ## Commands
 

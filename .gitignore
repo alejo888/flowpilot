@@ -21,6 +21,7 @@ npm-debug.log*
 
 # OS
 Thumbs.db
+nul
 
 # Local agent tooling (not part of the project)
 .atl/
