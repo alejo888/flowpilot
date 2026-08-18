@@ -5,9 +5,24 @@ import { Router, provideRouter } from '@angular/router';
 import { AuthStore } from './core/auth/auth.store';
 import { App } from './app';
 
+/** Builds a syntactically valid JWT string from a header/payload pair (mirrors jwt-claims.spec.ts). */
+function makeToken(payload: unknown, header: unknown = { alg: 'HS256', typ: 'JWT' }): string {
+  const encode = (value: unknown): string => {
+    const bytes = new TextEncoder().encode(JSON.stringify(value));
+    const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+    return btoa(binary)
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  };
+
+  return `${encode(header)}.${encode(payload)}.signature`;
+}
+
 describe('App', () => {
   let fixture: ComponentFixture<App>;
   let authStoreStub: {
+    accessToken: ReturnType<typeof signal<string | null>>;
     isAuthenticated: ReturnType<typeof signal<boolean>>;
     isAdmin: ReturnType<typeof signal<boolean>>;
     logout: ReturnType<typeof vi.fn>;
@@ -20,6 +35,7 @@ describe('App', () => {
 
   beforeEach(async () => {
     authStoreStub = {
+      accessToken: signal<string | null>(null),
       isAuthenticated: signal(false),
       isAdmin: signal(false),
       logout: vi.fn(),
@@ -39,7 +55,7 @@ describe('App', () => {
   it('renders the FlowPilot brand link', () => {
     createFixture();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.app-nav__brand')?.textContent).toContain('FlowPilot');
+    expect(compiled.querySelector('.app-topbar__brand')?.textContent).toContain('FlowPilot');
   });
 
   it('hides section nav links when not authenticated', () => {
@@ -68,19 +84,19 @@ describe('App', () => {
     expect(compiled.querySelector('[data-testid="nav-admin-permissions"]')).not.toBeNull();
   });
 
-  it('nav menu starts closed with the toggle collapsed', () => {
+  it('nav drawer starts closed with the toggle collapsed', () => {
     authStoreStub.isAuthenticated.set(true);
     createFixture();
     const compiled = fixture.nativeElement as HTMLElement;
 
     const toggle = compiled.querySelector('[data-testid="nav-toggle"]');
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
-    expect(compiled.querySelector('[data-testid="nav-menu"]')?.classList.contains('app-nav__menu--open')).toBe(
+    expect(compiled.querySelector('[data-testid="app-sidebar"]')?.classList.contains('app-sidebar--open')).toBe(
       false,
     );
   });
 
-  it('opens and closes the nav menu when the toggle is clicked', () => {
+  it('opens and closes the nav drawer when the toggle is clicked', () => {
     authStoreStub.isAuthenticated.set(true);
     createFixture();
     const compiled = fixture.nativeElement as HTMLElement;
@@ -89,19 +105,19 @@ describe('App', () => {
     toggle.click();
     fixture.detectChanges();
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect(compiled.querySelector('[data-testid="nav-menu"]')?.classList.contains('app-nav__menu--open')).toBe(
+    expect(compiled.querySelector('[data-testid="app-sidebar"]')?.classList.contains('app-sidebar--open')).toBe(
       true,
     );
 
     toggle.click();
     fixture.detectChanges();
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    expect(compiled.querySelector('[data-testid="nav-menu"]')?.classList.contains('app-nav__menu--open')).toBe(
+    expect(compiled.querySelector('[data-testid="app-sidebar"]')?.classList.contains('app-sidebar--open')).toBe(
       false,
     );
   });
 
-  it('closes the nav menu after a section link is clicked', async () => {
+  it('closes the nav drawer after a section link is clicked', async () => {
     authStoreStub.isAuthenticated.set(true);
     createFixture();
     const compiled = fixture.nativeElement as HTMLElement;
@@ -133,5 +149,36 @@ describe('App', () => {
 
     expect(authStoreStub.logout).toHaveBeenCalledTimes(1);
     expect(navigateSpy).toHaveBeenCalledWith('/login');
+  });
+
+  it('renders the sidebar logo mark with "FP" initials', () => {
+    authStoreStub.isAuthenticated.set(true);
+    createFixture();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('.app-sidebar__logo')?.textContent?.trim()).toBe('FP');
+  });
+
+  it('renders the authenticated user email and avatar initials in the sidebar footer', () => {
+    authStoreStub.isAuthenticated.set(true);
+    authStoreStub.accessToken.set(makeToken({ sub: '1', email: 'admin@flowpilot.local', role: 'ADMINISTRADOR' }));
+    createFixture();
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    expect(compiled.querySelector('[data-testid="sidebar-user-email"]')?.textContent).toContain(
+      'admin@flowpilot.local',
+    );
+    expect(compiled.querySelector('[data-testid="sidebar-avatar"]')?.textContent?.trim()).toBe('A');
+  });
+
+  it('reserves a non-interactive density toggle slot in the sidebar footer', () => {
+    authStoreStub.isAuthenticated.set(true);
+    createFixture();
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    const slot = compiled.querySelector('[data-testid="density-slot"]');
+    expect(slot).not.toBeNull();
+    // PR5 wires the real toggle here; this batch only reserves layout room —
+    // no button/interactive control exists in the slot yet.
+    expect(slot?.querySelector('button')).toBeNull();
   });
 });

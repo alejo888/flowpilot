@@ -59,6 +59,31 @@ export function decodeUserId(token: string | null): number | null {
   return Number.isFinite(userId) ? userId : null;
 }
 
+/**
+ * Decodes the `email` claim from the JWT payload (design D4 — sidebar user
+ * footer identity; backend `JwtService` already sets this claim). Fail-closed
+ * like {@link decodeRole}/{@link decodeUserId}: any malformed input, missing
+ * claim, or non-string claim resolves to `null`.
+ */
+export function decodeEmail(token: string | null): string | null {
+  if (!token) {
+    return null;
+  }
+
+  const segments = token.split('.');
+  if (segments.length !== 3) {
+    return null;
+  }
+
+  const payload = decodePayload(segments[1]);
+  if (payload === null) {
+    return null;
+  }
+
+  const email = (payload as { email?: unknown }).email;
+  return typeof email === 'string' ? email : null;
+}
+
 function decodePayload(base64url: string): unknown {
   try {
     const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
