@@ -23,7 +23,7 @@ import { Component, input } from '@angular/core';
       display: inline-flex;
       align-items: center;
       padding: var(--fp-space-1) var(--fp-space-2);
-      border-radius: var(--fp-radius-lg);
+      border-radius: var(--fp-radius-pill);
       font-family: var(--fp-font-body);
       font-size: 0.75rem;
       font-weight: 600;
@@ -49,7 +49,7 @@ import { Component, input } from '@angular/core';
 
     .fp-badge--neutral {
       background: var(--fp-border);
-      color: var(--fp-text-muted);
+      color: var(--fp-status-neutral);
     }
   `,
 })
