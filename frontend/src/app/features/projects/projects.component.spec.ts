@@ -226,6 +226,31 @@ describe('ProjectsComponent', () => {
     expect(repoLink.getAttribute('href')).toBe('https://github.com/org/repo');
   });
 
+  it('maps each project status to its badge variant class (design D2)', async () => {
+    const active = project(1, 'Alpha');
+    active.status = 'ACTIVO';
+    const paused = project(2, 'Beta');
+    paused.status = 'PAUSADO';
+    const cancelled = project(3, 'Gamma');
+    cancelled.status = 'CANCELADO';
+    const planning = project(4, 'Delta');
+    planning.status = 'PLANIFICACION';
+    const finished = project(5, 'Epsilon');
+    finished.status = 'FINALIZADO';
+    storeStub.projects.set([active, paused, cancelled, planning, finished]);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const badge = (id: number) =>
+      compiled.querySelector(`[data-testid="project-row-${id}"] .fp-badge`) as HTMLElement;
+
+    expect(badge(1).classList.contains('fp-badge--success')).toBe(true);
+    expect(badge(2).classList.contains('fp-badge--warning')).toBe(true);
+    expect(badge(3).classList.contains('fp-badge--danger')).toBe(true);
+    expect(badge(4).classList.contains('fp-badge--neutral')).toBe(true);
+    expect(badge(5).classList.contains('fp-badge--neutral')).toBe(true);
+  });
+
   it('renders the list row without errors and without rich-field markup when all five fields are null', async () => {
     storeStub.projects.set([project(1, 'Alpha')]);
     await setup();

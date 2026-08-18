@@ -6,12 +6,12 @@ import { Project } from './project.model';
 import { ProjectDetailComponent } from './project-detail.component';
 import { ProjectsStore } from './projects.store';
 
-function project(id = 4): Project {
+function project(id = 4, status: Project['status'] = 'PLANIFICACION'): Project {
   return {
     id,
     name: 'Proyecto detalle',
     description: 'Descripción',
-    status: 'PLANIFICACION',
+    status,
     ownerId: 7,
     createdAt: '2026-08-01T00:00:00Z',
     updatedAt: '2026-08-01T00:00:00Z',
@@ -57,6 +57,22 @@ describe('ProjectDetailComponent', () => {
     fixture = TestBed.createComponent(ProjectDetailComponent);
     fixture.componentRef.setInput('projectId', 4);
     fixture.detectChanges();
+  });
+
+  it('keeps its local .eyebrow font-weight independent of the global utility (PR6a verify WARNING 7)', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const eyebrow = compiled.querySelector('.eyebrow') as HTMLElement;
+    const style = getComputedStyle(eyebrow);
+    expect(style.fontWeight).toBe('400');
+  });
+
+  it('renders the status badge with the same variant as the projects list (PR6b verify WARNING 9)', () => {
+    storeStub.selectedProject.set(project(4, 'ACTIVO'));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const badge = compiled.querySelector('[data-testid="project-detail-status"] .fp-badge') as HTMLElement;
+    expect(badge.classList.contains('fp-badge--success')).toBe(true);
   });
 
   it('loads the requested project and renders its detail fields', () => {

@@ -6,6 +6,7 @@ import { FpBadgeComponent } from '../../shared/ui/badge.component';
 import { FpButtonComponent } from '../../shared/ui/button.component';
 import { FpCardComponent } from '../../shared/ui/card.component';
 import { FpInputComponent } from '../../shared/ui/input.component';
+import { projectStatusBadgeVariant } from './project-status';
 import { ProjectsStore } from './projects.store';
 
 /**
@@ -145,7 +146,9 @@ import { ProjectsStore } from './projects.store';
                     }
                   </div>
                   <div class="project-row-meta">
-                    <fp-badge variant="neutral" data-testid="project-status">{{ project.status }}</fp-badge>
+                    <fp-badge [variant]="statusBadgeVariant(project.status)" data-testid="project-status">{{
+                      project.status
+                    }}</fp-badge>
                     <a
                       [routerLink]="['/projects', project.id, 'board']"
                       data-testid="project-board-link"
@@ -310,6 +313,8 @@ export class ProjectsComponent implements OnInit {
   readonly technologies = signal('');
   readonly repositoryUrl = signal('');
   readonly formError = signal<string | null>(null);
+
+  protected readonly statusBadgeVariant = projectStatusBadgeVariant;
 
   constructor() {
     effect(() => {
