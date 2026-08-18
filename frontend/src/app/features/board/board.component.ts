@@ -2,8 +2,10 @@ import { CdkDrag, CdkDragDrop, CdkDropList, CdkDropListGroup } from '@angular/cd
 import { FormsModule } from '@angular/forms';
 import { Component, computed, effect, inject, input, numberAttribute, signal } from '@angular/core';
 
+import { FpButtonComponent } from '../../shared/ui/button.component';
 import { FpCardComponent } from '../../shared/ui/card.component';
 import { FpDialogComponent } from '../../shared/ui/dialog.component';
+import { columnAccent } from './column-accent';
 import { WorkItem, WorkItemCreateRequest, WorkItemUpdateRequest } from './board.model';
 import { BoardStore } from './board.store';
 
@@ -25,7 +27,15 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
 @Component({
   selector: 'app-board',
   standalone: true,
-  imports: [CdkDropListGroup, CdkDropList, CdkDrag, FormsModule, FpCardComponent, FpDialogComponent],
+  imports: [
+    CdkDropListGroup,
+    CdkDropList,
+    CdkDrag,
+    FormsModule,
+    FpButtonComponent,
+    FpCardComponent,
+    FpDialogComponent,
+  ],
   template: `
     <div class="board" cdkDropListGroup>
       <header class="board-header">
@@ -33,7 +43,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
           <p class="eyebrow">Tablero Kanban</p>
           <h2>Trabajo del proyecto</h2>
         </div>
-        <button class="primary-button" type="button" (click)="startCreate()">Crear tarea</button>
+        <fp-button type="button" (click)="startCreate()">Crear tarea</fp-button>
       </header>
 
       @if (error(); as message) {
@@ -62,8 +72,8 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
             </label>
           </div>
           <div class="panel-actions">
-            <button class="primary-button" type="submit" [disabled]="isMutating()">Guardar tarea</button>
-            <button class="ghost-button" type="button" (click)="cancelCreate()">Cancelar</button>
+            <fp-button type="submit" [disabled]="isMutating()">Guardar tarea</fp-button>
+            <fp-button variant="secondary" type="button" (click)="cancelCreate()">Cancelar</fp-button>
           </div>
         </form>
       }
@@ -86,10 +96,11 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
         </div>
 
         <div class="board-columns">
-          @for (column of columns(); track column.id) {
+          @for (column of columns(); track column.id; let $i = $index) {
             <section
               class="board-column"
               [class.board-column--inactive-mobile]="column.id !== activeColumnId()"
+              [style.--fp-column-accent]="columnAccent(column.name, $i)"
             >
               <h3 data-testid="column-name" class="board-column-name">{{ column.name }}</h3>
               <div
@@ -123,7 +134,14 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                 <h3 id="detail-panel-title">{{ item.title }}</h3>
                     <p id="detail-panel-description" class="sr-only">Editá los datos de la tarea o movela a otra columna.</p>
               </div>
-              <button class="icon-button" type="button" aria-label="Cerrar detalle" (click)="closeDetail()">×</button>
+              <fp-button
+                variant="secondary"
+                type="button"
+                ariaLabel="Cerrar detalle"
+                testId="detail-panel-close"
+                (click)="closeDetail()"
+                >×</fp-button
+              >
             </div>
 
             <label class="move-to-column">
@@ -155,10 +173,16 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                 </label>
               </div>
               <div class="panel-actions wrap">
-                <button class="primary-button" type="submit" [disabled]="isMutating()">Guardar cambios</button>
-                <button class="danger-button" type="button" [disabled]="isMutating()" (click)="confirmDelete(item)">
+                <fp-button type="submit" [disabled]="isMutating()">Guardar cambios</fp-button>
+                <fp-button
+                  variant="danger"
+                  type="button"
+                  testId="detail-delete-button"
+                  [disabled]="isMutating()"
+                  (click)="confirmDelete(item)"
+                >
                   Eliminar tarea
-                </button>
+                </fp-button>
               </div>
             </form>
           </aside>
@@ -174,332 +198,15 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
             <h3 id="delete-dialog-title">Eliminar tarea</h3>
             <p id="delete-dialog-description">¿Seguro que querés eliminar la tarea "{{ itemToDelete.title }}"? Esta acción no se puede deshacer.</p>
             <div class="panel-actions">
-              <button class="danger-button" type="button" (click)="deleteConfirmed()">Sí, eliminar</button>
-              <button class="ghost-button" type="button" (click)="cancelDelete()">Cancelar</button>
+              <fp-button variant="danger" type="button" (click)="deleteConfirmed()">Sí, eliminar</fp-button>
+              <fp-button variant="secondary" type="button" (click)="cancelDelete()">Cancelar</fp-button>
             </div>
           </fp-dialog>
         }
       </div>
     </div>
   `,
-  styles: `
-    .board {
-      display: flex;
-      flex-direction: column;
-      gap: var(--fp-space-4);
-      padding: var(--fp-space-8);
-      min-height: 100%;
-    }
-
-    .board-header,
-    .detail-header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--fp-space-4);
-    }
-
-    .board-header h2,
-    .detail-header h3,
-    .task-panel h3 {
-      margin: 0;
-      font-family: var(--fp-font-display);
-      color: var(--fp-text);
-    }
-
-    .eyebrow {
-      margin: 0 0 var(--fp-space-1);
-      font-family: var(--fp-font-body);
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--fp-text-muted);
-    }
-
-    .board-error,
-    .board-success {
-      margin: 0;
-      font-family: var(--fp-font-body);
-      font-size: 0.875rem;
-    }
-
-    .board-error {
-      color: var(--fp-danger);
-    }
-
-    .board-success {
-      color: var(--fp-success, #257a4b);
-    }
-
-    .board-layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      gap: var(--fp-space-4);
-      align-items: flex-start;
-    }
-
-    // Hidden on desktop — swiping a half-cut column into view isn't a great
-    // mobile pattern. Below the breakpoint this becomes the only way to
-    // switch which column is visible (see .board-column--inactive-mobile).
-    .board-column-tabs {
-      display: none;
-      gap: var(--fp-space-2);
-      overflow-x: auto;
-    }
-
-    .board-column-tab {
-      flex: none;
-      border: 1px solid var(--fp-border);
-      border-radius: var(--fp-radius-sm);
-      background: var(--fp-surface);
-      padding: var(--fp-space-2) var(--fp-space-3);
-      font-family: var(--fp-font-body);
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: var(--fp-text-muted);
-      cursor: pointer;
-    }
-
-    .board-column-tab--active {
-      border-color: var(--fp-accent);
-      background: var(--fp-accent);
-      color: var(--fp-accent-contrast);
-    }
-
-    .board-columns {
-      display: flex;
-      gap: var(--fp-space-4);
-      align-items: flex-start;
-      overflow-x: auto;
-      min-width: 0;
-
-      // CSS-only scroll shadows: two "cover" gradients scroll with the
-      // content (background-attachment: local) and exactly cancel out two
-      // fixed shadow gradients (attachment: scroll) at the start/end of the
-      // scrollable area. Scrolling away from an edge uncovers that edge's
-      // shadow — no JS scroll listener needed to know when more content is
-      // off-screen in either direction.
-      background:
-        linear-gradient(to right, var(--fp-bg) 30%, transparent) left,
-        linear-gradient(to left, var(--fp-bg) 30%, transparent) right,
-        linear-gradient(to right, rgba(36, 31, 28, 0.12), transparent) left,
-        linear-gradient(to left, rgba(36, 31, 28, 0.12), transparent) right;
-      background-repeat: no-repeat;
-      background-color: var(--fp-bg);
-      background-size:
-        40px 100%,
-        40px 100%,
-        16px 100%,
-        16px 100%;
-      background-attachment: local, local, scroll, scroll;
-    }
-
-    .board-column,
-    .task-panel {
-      background: var(--fp-bg);
-      border: 1px solid var(--fp-border);
-      border-radius: var(--fp-radius-md);
-      box-shadow: var(--fp-shadow-sm);
-    }
-
-    .board-column {
-      display: flex;
-      flex-direction: column;
-      gap: var(--fp-space-3);
-      min-width: 260px;
-      padding: var(--fp-space-4);
-    }
-
-    .board-column-name {
-      margin: 0;
-      font-family: var(--fp-font-display);
-      font-optical-sizing: auto;
-      font-weight: 600;
-      font-size: 1.0625rem;
-      color: var(--fp-text);
-    }
-
-    .board-column-list {
-      display: flex;
-      flex-direction: column;
-      gap: var(--fp-space-2);
-      min-height: 40px;
-    }
-
-    .board-card {
-      display: flex;
-      flex-direction: column;
-      gap: var(--fp-space-1);
-      padding: var(--fp-space-3);
-      cursor: grab;
-      font-family: var(--fp-font-body);
-      font-size: 0.9375rem;
-      color: var(--fp-text);
-    }
-
-    .card-title {
-      appearance: none;
-      padding: 0;
-      border: 0;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      font-weight: 700;
-      text-align: left;
-      cursor: pointer;
-      overflow-wrap: break-word;
-    }
-
-    .assignee {
-      color: var(--fp-text-muted);
-      font-size: 0.8125rem;
-    }
-
-    .task-panel {
-      display: flex;
-      flex-direction: column;
-      gap: var(--fp-space-4);
-      padding: var(--fp-space-4);
-    }
-
-    .detail-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.32);
-      z-index: 20;
-    }
-
-    .detail-panel {
-      position: fixed;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      width: min(360px, 100vw);
-      border-radius: 0;
-      overflow-y: auto;
-      z-index: 21;
-    }
-
-    .form-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--fp-space-3);
-    }
-
-    .form-grid.stacked {
-      grid-template-columns: 1fr;
-    }
-
-    .full-width {
-      grid-column: 1 / -1;
-    }
-
-    label {
-      display: flex;
-      flex-direction: column;
-      gap: var(--fp-space-1);
-      font-family: var(--fp-font-body);
-      font-size: 0.875rem;
-      font-weight: 700;
-      color: var(--fp-text);
-    }
-
-    input,
-    select,
-    textarea {
-      width: 100%;
-      box-sizing: border-box;
-      border: 1px solid var(--fp-border);
-      border-radius: var(--fp-radius-sm);
-      padding: var(--fp-space-2) var(--fp-space-3);
-      background: var(--fp-surface);
-      color: var(--fp-text);
-      font: 400 0.9375rem var(--fp-font-body);
-    }
-
-    textarea {
-      resize: vertical;
-    }
-
-    .panel-actions {
-      display: flex;
-      gap: var(--fp-space-2);
-      justify-content: flex-end;
-    }
-
-    .panel-actions.wrap {
-      flex-wrap: wrap;
-      justify-content: space-between;
-    }
-
-    .primary-button,
-    .ghost-button,
-    .danger-button,
-    .icon-button {
-      border-radius: var(--fp-radius-sm);
-      padding: var(--fp-space-2) var(--fp-space-3);
-      font-family: var(--fp-font-body);
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .primary-button {
-      border: 1px solid var(--fp-accent);
-      background: var(--fp-accent);
-      color: var(--fp-accent-contrast);
-    }
-
-    .ghost-button,
-    .icon-button {
-      border: 1px solid var(--fp-border);
-      background: transparent;
-      color: var(--fp-text);
-    }
-
-    .danger-button {
-      border: 1px solid var(--fp-danger);
-      background: transparent;
-      color: var(--fp-danger);
-    }
-
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    @media (max-width: 900px) {
-      .form-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .detail-panel {
-        width: 100vw;
-      }
-    }
-
-    // Swiping a column half into view isn't a great mobile pattern — below
-    // this width, show the active column full-width with a tab strip to
-    // switch instead of the desktop horizontal-scroll row.
-    @media (max-width: 640px) {
-      .board-column-tabs {
-        display: flex;
-      }
-
-      .board-columns {
-        overflow-x: visible;
-        background: none;
-      }
-
-      .board-column--inactive-mobile {
-        display: none;
-      }
-
-      .board-column {
-        width: 100%;
-      }
-    }
-  `,
+  styleUrl: './board.component.scss',
 })
 export class BoardComponent {
   private readonly store = inject(BoardStore);
@@ -517,6 +224,9 @@ export class BoardComponent {
 
   /** Which column the mobile single-column view shows; desktop ignores this. */
   readonly activeColumnId = signal<number | null>(null);
+
+  /** Bound in the template to set each column's `--fp-column-accent`. */
+  protected readonly columnAccent = columnAccent;
 
   createForm = emptyForm();
   editForm = emptyForm();

@@ -288,6 +288,14 @@ describe('BoardComponent', () => {
     expect(select.getAttribute('aria-label')).toBe('Mover tarea a otra columna');
   });
 
+  it('sets a per-column --fp-column-accent custom property from the known palette', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const sections = Array.from(compiled.querySelectorAll('.board-column')) as HTMLElement[];
+
+    expect(sections[0].style.getPropertyValue('--fp-column-accent')).toBe('#9a9186');
+    expect(sections[1].style.getPropertyValue('--fp-column-accent')).toBe('#2a6f8c');
+  });
+
   it('calls store.moveItem with the target column and index on drop', () => {
     const dropEvent = {
       previousContainer: { data: 1, id: 'column-1' },
