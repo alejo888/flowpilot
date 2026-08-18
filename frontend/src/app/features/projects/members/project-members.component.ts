@@ -132,8 +132,12 @@ import { ProjectMembersStore } from './project-members.store';
       }
 
       @if (confirmingSelfRemoval()) {
-        <fp-dialog data-testid="self-remove-dialog">
-          <p class="self-remove-dialog-text">
+        <fp-dialog
+          data-testid="self-remove-dialog"
+          describedById="self-remove-dialog-description"
+          (closed)="onCancelSelfRemoval()"
+        >
+          <p id="self-remove-dialog-description" class="self-remove-dialog-text">
             Vas a quitarte a vos mismo de este proyecto. Perderás el acceso salvo que seas el dueño
             o un administrador.
           </p>
