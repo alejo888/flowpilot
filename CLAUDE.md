@@ -11,7 +11,7 @@ FlowPilot — an AI-assisted agile project management platform intended as a per
 Implemented and covered by backend/frontend tests at a high level:
 
 - Auth/session backend: register, login, refresh-token rotation, logout, forgot-password, reset-password.
-- Auth/session frontend: login screen, refresh-cookie hydration, JWT interceptor, route guards, admin guard.
+- Auth/session frontend: login/register/forgot-password/reset-password screens, refresh-cookie hydration, JWT interceptor, route guards, admin guard.
 - User directory backend: authenticated user list and user detail.
 - Admin users: admin-only user list, activation/deactivation, global role changes, last-active-admin guard; frontend screen is wired.
 - Projects: backend list/create/get/update/status/delete with rich fields and default board columns; frontend supports list/create/detail navigation, edit, status change, and delete with accessible confirmation, plus links to board/members.
@@ -22,13 +22,13 @@ Implemented and covered by backend/frontend tests at a high level:
 
 Pending or partial for portfolio readiness:
 
-- Frontend UI for registration, forgot password, and reset password.
 - Backlog, sprints, dashboard/metrics, comments/activity feed, profile/change-password, and AI-assisted planning features.
 - Demo polish: seeded/demo data, screenshots/GIFs, portfolio-friendly feature tour, and deployment notes.
 - OpenAPI drift cleanup before making contract drift checks blocking in CI.
 - E2E responsive-overflow coverage (`frontend/e2e/`) only guards horizontal-overflow regressions on the routes/viewport it checks — not a general accessibility or cross-browser suite.
+- Error/success message translation to Spanish is currently scoped to the auth screens only (login, register, forgot-password, reset-password); the rest of the app (projects, members, board, admin) still relays backend `ProblemDetail` text in English and remains pending.
 
-Frontend validation: 304 tests pass. The production build passes cleanly, with no `anyComponentStyle` warnings.
+Frontend validation: 315 tests pass. The production build passes cleanly, with no `anyComponentStyle` warnings.
 
 ## Commands
 

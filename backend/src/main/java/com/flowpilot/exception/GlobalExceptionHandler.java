@@ -109,14 +109,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BadCredentialsException.class)
     public ProblemDetail handleBadCredentials(BadCredentialsException ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Email o contraseña inválidos");
     }
 
     @ExceptionHandler(DisabledException.class)
     public ProblemDetail handleDisabled(DisabledException ex) {
         // Intentionally uses the same generic message as handleBadCredentials to avoid an
         // account-existence/state enumeration signal on the login endpoint.
-        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Email o contraseña inválidos");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
