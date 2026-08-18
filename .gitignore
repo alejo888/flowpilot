@@ -23,6 +23,9 @@ npm-debug.log*
 Thumbs.db
 nul
 
+# Playwright MCP session artifacts (screenshots/snapshots, not part of the project)
+.playwright-mcp/
+
 # Local agent tooling (not part of the project)
 .atl/
 
