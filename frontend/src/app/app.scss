@@ -206,10 +206,37 @@ $sidebar-width: 240px;
   min-width: 0;
 }
 
-// PR5 wires the density toggle control into this slot; reserved here only
-// so the sidebar footer already has room and doesn't reflow when it lands.
-.app-sidebar__density-slot {
-  min-height: 1px;
+// Density toggle segmented control (spec: ui-density; design D5).
+.app-sidebar__density-toggle {
+  display: flex;
+  gap: var(--fp-space-1);
+  padding: var(--fp-space-1);
+  background: var(--fp-bg);
+  border: 1px solid var(--fp-border);
+  border-radius: var(--fp-radius-sm);
+}
+
+.app-sidebar__density-button {
+  flex: 1;
+  border: none;
+  border-radius: var(--fp-radius-sm);
+  background: transparent;
+  padding: var(--fp-space-1) var(--fp-space-2);
+  font-family: var(--fp-font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fp-text-muted);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--fp-text);
+  }
+}
+
+.app-sidebar__density-button--active {
+  color: var(--fp-accent);
+  background: var(--fp-surface);
+  box-shadow: var(--fp-shadow-sm);
 }
 
 // ---------------------------------------------------------------------------

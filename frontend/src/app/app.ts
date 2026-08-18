@@ -3,6 +3,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 
 import { AuthStore } from './core/auth/auth.store';
 import { decodeEmail } from './core/auth/jwt-claims';
+import { DensityService } from './core/ui/density.service';
 import { FpButtonComponent } from './shared/ui/button.component';
 
 /**
@@ -11,8 +12,8 @@ import { FpButtonComponent } from './shared/ui/button.component';
  * breakpoint. Nav links are gated on {@link AuthStore.isAuthenticated}/`isAdmin`
  * so unauthenticated visitors (e.g. on `/login`) never see links to guarded
  * routes. `drawerOpen` (formerly `navOpen`) controls the mobile drawer only —
- * desktop always shows the sidebar. The sidebar footer reserves a
- * `density-slot` for the density toggle; PR5 wires the actual control there.
+ * desktop always shows the sidebar. The sidebar footer hosts the density
+ * toggle (spec: ui-density; design D5), backed by {@link DensityService}.
  */
 @Component({
   selector: 'app-root',
@@ -22,6 +23,7 @@ import { FpButtonComponent } from './shared/ui/button.component';
 })
 export class App {
   protected readonly authStore = inject(AuthStore);
+  protected readonly densityService = inject(DensityService);
   private readonly router = inject(Router);
 
   protected readonly drawerOpen = signal(false);
@@ -41,6 +43,10 @@ export class App {
 
   closeDrawer(): void {
     this.drawerOpen.set(false);
+  }
+
+  setDensity(value: 'comfortable' | 'compact'): void {
+    this.densityService.setDensity(value);
   }
 
   onLogout(): void {
