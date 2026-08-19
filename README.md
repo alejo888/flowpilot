@@ -1,92 +1,102 @@
 # FlowPilot
 
-FlowPilot is a portfolio-oriented agile project management MVP. The current build demonstrates a secured Spring Boot 4 / Java 25 backend, an Angular 21 frontend, PostgreSQL persistence, Docker Compose packaging, and an OpenAPI contract workflow. It is not the full AI-assisted product vision yet; this README focuses on what is implemented and what remains pending.
+FlowPilot is an AI-assisted agile project management platform — a personal portfolio project built to demonstrate a production-shaped full-stack setup: a layered Spring Boot backend, a standalone Angular frontend, contract-first API design, and a CI pipeline that actually runs the test suites.
 
-## Quick demo path
+Full product vision: [`FlowPilot_Gestor_Proyectos_IA.md`](FlowPilot_Gestor_Proyectos_IA.md) (broader than the current MVP below).
 
-1. Start the stack:
+## Screenshots
 
-   ```bash
-   # Set a strong local secret first; do not commit it.
-   export FLOWPILOT_JWT_SECRET="replace-with-a-long-local-secret"
-   docker compose up --build
-   ```
+| | |
+|---|---|
+| **Login** | **Home** |
+| ![Login screen](docs/screenshots/login.png) | ![Home screen](docs/screenshots/00-home.png) |
+| **Projects** | **Kanban board** |
+| ![Projects list](docs/screenshots/01-projects.png) | ![Kanban board](docs/screenshots/02-board.png) |
+| **Project members** | **Admin — users** |
+| ![Project members](docs/screenshots/03-members.png) | ![Admin users](docs/screenshots/04-admin-users.png) |
+| **Admin — role/permission matrix** | |
+| ![Admin role-permission matrix](docs/screenshots/05-admin-permissions.png) | |
 
-2. Open the frontend at `http://localhost:80`.
-3. Sign in with the local seeded admin account: `admin@flowpilot.local` / `ChangeMe123!`.
-4. Review the implemented flows:
-   - Admin users: list users, activate/deactivate, change global roles.
-   - Role permissions: update the project role-permission matrix.
-   - Projects: list, create, open details, edit, change status, and delete projects with accessible confirmation.
-   - Project members: add/remove members and change project roles.
-   - Kanban board: view columns/cards, create/edit/delete work items, inspect details, and drag cards between/within columns.
+## What's implemented
 
-Backend is also exposed at `http://localhost:8080`; the frontend nginx container proxies API calls under `/api`.
+- **Auth & session**: register, login, refresh-token rotation with reuse detection, logout, forgot-password, reset-password — backed by short-lived JWT access tokens plus an `HttpOnly` refresh cookie, and a double-submit CSRF filter protecting the refresh/logout endpoints.
+- **User directory & admin**: authenticated user listing, admin-only user management (activate/deactivate, global role changes, last-active-admin guard).
+- **Projects**: full CRUD with rich fields (code, dates, technologies, repository URL), status transitions, and per-project default Kanban columns.
+- **Project members**: add/remove/change role, including a confirmed self-removal flow.
+- **Kanban board**: work-item CRUD, drag-and-drop move between and within columns.
+- **Role-permission matrix**: a dense, project-role × permission grid, editable by admins with optimistic-concurrency protection.
+- **Spanish-localized errors**: auth, projects, members, board, and admin error/validation messages are translated end-to-end (see [`CLAUDE.md`](CLAUDE.md) for the few remaining English-only paths).
+- **API contract**: [`api/openapi.yaml`](api/openapi.yaml) is hand-authored and contract-first, with a CI job that diffs it against the live-generated spec for breaking changes.
 
-## Current MVP status
+See [`CLAUDE.md`](CLAUDE.md) for the full current-status breakdown and what's still pending toward a complete MVP (backlog, sprints, dashboard/metrics, AI-assisted planning, etc.).
 
-| Area | Implemented now | Partial / pending |
-|------|-----------------|-------------------|
-| Auth/session | Backend register, login, refresh-token rotation, logout, forgot/reset password. Frontend login, refresh-cookie hydration, JWT interceptor, route guards, admin guard. | Frontend register, forgot password, and reset password screens. |
-| Users/admin | Authenticated backend user list/detail. Admin user list, activate/deactivate, role changes, and last-active-admin protection with frontend screens. | Profile and change-password UI. |
-| Projects | Backend list/create/get/update/status/delete with rich fields and default board columns. Frontend supports list/create/detail navigation, edit, status change, and delete with accessible confirmation. | — |
-| Project members | Backend and frontend list/add/change role/remove, including self-removal confirmation. | Portfolio polish around empty states/demo data. |
-| Work items/Kanban | Backend and frontend work-item CRUD, detail view, accessible delete confirmation, and move with drag/drop or manual position preservation. | — |
-| Permissions | Backend and frontend admin role-permission matrix with optimistic concurrency and authorization cache reload. | Broader audit/activity history. |
-| API contract/CI | `api/openapi.yaml` covers implemented path families. CI exports live Springdoc spec and runs non-blocking `oasdiff`. | Clean up known OpenAPI drift before making the drift gate blocking. |
-| Product vision | Agile project management foundation is underway. | Backlog, sprints, dashboard/metrics, comments/activity feed, AI-assisted planning, screenshots, deployment polish. |
+## Tech stack
 
-Frontend validation: 242 tests pass. The production build passes with a pre-existing `board.component.ts` stylesheet budget warning.
+- **Backend**: Spring Boot 4, Java 25, Spring Security, jjwt, Flyway, PostgreSQL
+- **Frontend**: Angular 21 (standalone components), Vitest for unit tests, Playwright for e2e
+- **Infra**: Docker Compose (Postgres + backend + nginx-served frontend), GitHub Actions CI (backend tests, frontend tests + build, e2e)
 
-## Repository layout
+## Running it locally
 
-| Path | Purpose |
-|------|---------|
-| `backend/` | Spring Boot 4 layered monolith, Maven, Flyway migrations, Testcontainers-backed integration coverage. |
-| `frontend/` | Angular 21 standalone-components app with auth, admin, projects, members, and board slices. |
-| `api/openapi.yaml` | Hand-authored OpenAPI contract for implemented API path families. |
-| `docker-compose.yml` | Local stack: PostgreSQL, backend, frontend/nginx. |
-| `.github/workflows/ci.yml` | CI for backend tests, frontend tests/build, and OpenAPI lint/drift reporting. |
-| `FlowPilot_Gestor_Proyectos_IA.md` | Full Spanish product vision; broader than the current MVP. |
-
-## Local development
-
-### Full stack
+Requires Docker and Docker Compose.
 
 ```bash
+# Set a strong local secret first; do not commit it (e.g. put it in a .env file).
 export FLOWPILOT_JWT_SECRET="replace-with-a-long-local-secret"
 docker compose up --build
 ```
 
-### Backend
+- Frontend: http://localhost
+- Backend API (proxied under `/api` by the frontend, or directly): http://localhost:8080
+- Postgres: `localhost:5432`
+
+On first boot, Flyway seeds the database with demo data so the app isn't empty:
+
+| Email | Password | Role |
+|---|---|---|
+| `admin@flowpilot.local` | `ChangeMe123!` | Administrador |
+| `ana.garcia@flowpilot.local` | `Demo1234!` | Miembro del equipo |
+| `carlos.fernandez@flowpilot.local` | `Demo1234!` | Miembro del equipo |
+| `lucia.martinez@flowpilot.local` | `Demo1234!` | Miembro del equipo |
+| `diego.torres@flowpilot.local` | `Demo1234!` | Miembro del equipo |
+
+These are local/dev-only bootstrap credentials — rotate them before any real deployment.
+
+### Running the backend or frontend on their own
+
+Backend (from `backend/`):
 
 ```bash
-cd backend
-./mvnw -B test
-./mvnw spring-boot:run
+./mvnw spring-boot:run   # requires JAVA_HOME pointed at a JDK 25
+./mvnw -B test           # full test suite
 ```
 
-Notes:
-- Java 25 is required.
-- Some integration tests require Docker/Testcontainers.
-
-### Frontend
+Frontend (from `frontend/`):
 
 ```bash
-cd frontend
 npm ci
-npm start
-npm test -- --watch=false
-npm run build
+ng serve   # dev server
+ng test --watch=false   # unit tests
+ng build   # production build
 ```
 
-## Portfolio-readiness backlog
+## Repository layout
 
-- Add frontend screens for registration and password recovery/reset.
-- Add product modules that are still vision-only: backlog, sprints, dashboard/metrics, comments/activity feed, profile/change-password, and AI-assisted planning.
-- Add demo seed data, screenshots/GIFs, a short feature tour, and deployment notes.
-- Resolve OpenAPI schema/DTO drift and make the drift check blocking in CI.
+| Path | Purpose |
+|---|---|
+| `backend/` | Spring Boot 4 layered monolith, Maven, Flyway migrations, Testcontainers-backed integration coverage. |
+| `frontend/` | Angular 21 standalone-components app with auth, admin, projects, members, and board slices. |
+| `api/openapi.yaml` | Hand-authored OpenAPI contract for implemented API path families. |
+| `docker-compose.yml` | Local stack: PostgreSQL, backend, frontend/nginx. |
+| `.github/workflows/ci.yml` | CI for backend tests, frontend tests/build, and e2e. |
+| `docs/screenshots/` | Screenshots used in this README. |
+| `FlowPilot_Gestor_Proyectos_IA.md` | Full Spanish product vision; broader than the current MVP. |
 
-## Scope note
+## Architecture notes
 
-FlowPilot is an MVP intended to show end-to-end product engineering practices. It currently emphasizes secure auth/session handling, role-based administration, project membership, Kanban movement, API contracts, and CI. Production hardening, real email delivery, public deployment, and AI features remain future work.
+- **Layered backend**, not hexagonal: `config`, `controller`, `dto`, `entity`, `exception`, `mapper`, `repository`, `security`, `service`.
+- **Auth flow**: `AuthenticationManager`-based login issues a 15-minute stateless JWT (body) plus a 7-day opaque, DB-backed refresh token (`HttpOnly` cookie). Refresh-token rotation detects reuse and revokes all of a user's active tokens if it happens. All errors funnel through a global `@RestControllerAdvice` as RFC 7807 `ProblemDetail` responses.
+- **Authorization**: project role permissions are enforced through `ProjectAuthorizationService` against a dense role/permission matrix; admin screens use separate admin-only endpoints for global user and permission-matrix management.
+- **Migrations**: `backend/src/main/resources/db/migration/` — see `CLAUDE.md` for the migration-by-migration breakdown.
+
+For the deeper contributor-facing guide (commands, config profiles, delivery model), see [`CLAUDE.md`](CLAUDE.md).

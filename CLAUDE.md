@@ -19,11 +19,12 @@ Implemented and covered by backend/frontend tests at a high level:
 - Work items / Kanban: backend CRUD plus move between/within columns; frontend board lists cards, supports drag/drop move, and create/edit/delete via an overlay detail panel.
 - Role-permission matrix: backend dense role/permission seed, admin read/update, optimistic concurrency, authorization cache reload; frontend matrix screen is wired.
 - API contract: `api/openapi.yaml` covers the implemented path families at a high level.
+- Demo data: `V9__seed_demo_data.sql` seeds 4 demo users (`Demo1234!`) plus 3 projects with members and work items, so a fresh `docker compose up --build` isn't empty. Root `README.md` has screenshots, the demo credential table, and a feature tour.
 
 Pending or partial for portfolio readiness:
 
 - Backlog, sprints, dashboard/metrics, comments/activity feed, profile/change-password, and AI-assisted planning features.
-- Demo polish: seeded/demo data, screenshots/GIFs, portfolio-friendly feature tour, and deployment notes.
+- Deployment notes (there's a local Docker Compose quick start in `README.md`, but nothing about deploying beyond a dev machine).
 - OpenAPI drift cleanup before making contract drift checks blocking in CI.
 - E2E responsive-overflow coverage (`frontend/e2e/`) only guards horizontal-overflow regressions on the routes/viewport it checks — not a general accessibility or cross-browser suite.
 - Error/success message translation to Spanish now covers auth (login, register, forgot-password, reset-password) plus projects, project members, work-items/board, and admin (users, role-permissions). Refresh-token/logout error details (`RefreshTokenService`) and the CSRF-filter error still relay English text and remain pending, along with the Jakarta-default validation-message path in `GlobalExceptionHandler.handleConstraintViolation` for any constraint without an explicit `message=`.
