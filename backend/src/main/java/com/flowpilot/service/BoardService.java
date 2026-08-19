@@ -4,11 +4,13 @@ import com.flowpilot.dto.WorkItemMoveRequest;
 import com.flowpilot.dto.WorkItemResponse;
 import com.flowpilot.entity.BoardColumn;
 import com.flowpilot.entity.Permission;
+import com.flowpilot.entity.User;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.exception.BoardColumnNotFoundException;
 import com.flowpilot.exception.CrossProjectColumnException;
 import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.repository.BoardColumnRepository;
+import com.flowpilot.repository.UserRepository;
 import com.flowpilot.repository.WorkItemRepository;
 import java.util.List;
 import org.springframework.security.access.AccessDeniedException;
@@ -35,14 +37,17 @@ public class BoardService {
 
     private final WorkItemRepository workItemRepository;
     private final BoardColumnRepository boardColumnRepository;
+    private final UserRepository userRepository;
     private final ProjectAuthorizationService authorizationService;
 
     public BoardService(
             WorkItemRepository workItemRepository,
             BoardColumnRepository boardColumnRepository,
+            UserRepository userRepository,
             ProjectAuthorizationService authorizationService) {
         this.workItemRepository = workItemRepository;
         this.boardColumnRepository = boardColumnRepository;
+        this.userRepository = userRepository;
         this.authorizationService = authorizationService;
     }
 
@@ -79,7 +84,14 @@ public class BoardService {
         }
 
         item.moveTo(targetColumn.getId(), newPosition);
-        return toResponse(item);
+        return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
+    }
+
+    private String resolveAssignedUserName(Long assignedUserId) {
+        if (assignedUserId == null) {
+            return null;
+        }
+        return userRepository.findById(assignedUserId).map(User::getName).orElse(null);
     }
 
     private int computeCandidate(Integer beforePosition, Integer afterPosition) {
@@ -130,16 +142,7 @@ public class BoardService {
         return newPosition;
     }
 
-    private static WorkItemResponse toResponse(WorkItem item) {
-        return new WorkItemResponse(
-                item.getId(),
-                item.getProjectId(),
-                item.getColumnId(),
-                item.getTitle(),
-                item.getDescription(),
-                item.getAssignedUserId(),
-                item.getPosition(),
-                item.getCreatedAt(),
-                item.getUpdatedAt());
+    private static WorkItemResponse toResponse(WorkItem item, String assignedUserName) {
+        return WorkItemService.toResponse(item, assignedUserName);
     }
 }

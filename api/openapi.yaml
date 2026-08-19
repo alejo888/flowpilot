@@ -1392,6 +1392,9 @@ components:
         assignedUserId:
           type: integer
           format: int64
+        assignedUserName:
+          type: string
+          nullable: true
         position:
           type: integer
         createdAt:

@@ -206,7 +206,7 @@ class WorkItemControllerTest {
 
     private WorkItemResponse workItemResponse(Long id, Long projectId, Long columnId, String title, int position) {
         OffsetDateTime now = OffsetDateTime.now();
-        return new WorkItemResponse(id, projectId, columnId, title, null, null, position, now, now);
+        return new WorkItemResponse(id, projectId, columnId, title, null, null, null, position, now, now);
     }
 
     private UsernamePasswordAuthenticationToken authenticatedAs(Long userId) {

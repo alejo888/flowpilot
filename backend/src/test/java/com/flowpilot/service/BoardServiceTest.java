@@ -14,6 +14,7 @@ import com.flowpilot.exception.BoardColumnNotFoundException;
 import com.flowpilot.exception.CrossProjectColumnException;
 import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.repository.BoardColumnRepository;
+import com.flowpilot.repository.UserRepository;
 import com.flowpilot.repository.WorkItemRepository;
 import java.lang.reflect.Field;
 import java.util.List;
@@ -42,6 +43,9 @@ class BoardServiceTest {
     @Mock
     private BoardColumnRepository boardColumnRepository;
 
+    @Mock
+    private UserRepository userRepository;
+
     private ProjectAuthorizationService authorizationService;
 
     private BoardService boardService;
@@ -49,7 +53,7 @@ class BoardServiceTest {
     @BeforeEach
     void setUp() {
         authorizationService = mock(ProjectAuthorizationService.class);
-        boardService = new BoardService(workItemRepository, boardColumnRepository, authorizationService);
+        boardService = new BoardService(workItemRepository, boardColumnRepository, userRepository, authorizationService);
     }
 
     @Test

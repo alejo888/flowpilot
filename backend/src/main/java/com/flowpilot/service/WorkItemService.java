@@ -5,12 +5,17 @@ import com.flowpilot.dto.WorkItemResponse;
 import com.flowpilot.dto.WorkItemUpdateRequest;
 import com.flowpilot.entity.BoardColumn;
 import com.flowpilot.entity.Permission;
+import com.flowpilot.entity.User;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.exception.ProjectNotFoundException;
 import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.repository.BoardColumnRepository;
+import com.flowpilot.repository.UserRepository;
 import com.flowpilot.repository.WorkItemRepository;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,14 +45,17 @@ public class WorkItemService {
 
     private final WorkItemRepository workItemRepository;
     private final BoardColumnRepository boardColumnRepository;
+    private final UserRepository userRepository;
     private final ProjectAuthorizationService authorizationService;
 
     public WorkItemService(
             WorkItemRepository workItemRepository,
             BoardColumnRepository boardColumnRepository,
+            UserRepository userRepository,
             ProjectAuthorizationService authorizationService) {
         this.workItemRepository = workItemRepository;
         this.boardColumnRepository = boardColumnRepository;
+        this.userRepository = userRepository;
         this.authorizationService = authorizationService;
     }
 
@@ -61,19 +69,21 @@ public class WorkItemService {
                 projectId, firstColumn.getId(), request.title(), request.description(),
                 request.assignedUserId(), position);
         item = workItemRepository.save(item);
-        return toResponse(item);
+        return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
     }
 
     public WorkItemResponse findById(Long id, Long requesterId) {
         WorkItem item = getOrThrow(id);
         requireCanView(requesterId, item.getProjectId());
-        return toResponse(item);
+        return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
     }
 
     public List<WorkItemResponse> list(Long projectId, Long requesterId) {
         requireCanView(requesterId, projectId);
-        return workItemRepository.findByProjectIdOrderByColumnIdAscPositionAsc(projectId).stream()
-                .map(WorkItemService::toResponse)
+        List<WorkItem> items = workItemRepository.findByProjectIdOrderByColumnIdAscPositionAsc(projectId);
+        Map<Long, String> assignedUserNames = assignedUserNamesFor(items);
+        return items.stream()
+                .map(item -> toResponse(item, assignedUserNames.get(item.getAssignedUserId())))
                 .toList();
     }
 
@@ -85,7 +95,7 @@ public class WorkItemService {
         item.setDescription(request.description());
         item.setAssignedUserId(request.assignedUserId());
         item.touch();
-        return toResponse(item);
+        return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
     }
 
     @Transactional
@@ -118,7 +128,24 @@ public class WorkItemService {
                 .orElseThrow(() -> new WorkItemNotFoundException(id));
     }
 
-    private static WorkItemResponse toResponse(WorkItem item) {
+    private String resolveAssignedUserName(Long assignedUserId) {
+        if (assignedUserId == null) {
+            return null;
+        }
+        return userRepository.findById(assignedUserId).map(User::getName).orElse(null);
+    }
+
+    private Map<Long, String> assignedUserNamesFor(List<WorkItem> items) {
+        List<Long> assignedUserIds = items.stream()
+                .map(WorkItem::getAssignedUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        return userRepository.findAllById(assignedUserIds).stream()
+                .collect(Collectors.toMap(User::getId, User::getName));
+    }
+
+    static WorkItemResponse toResponse(WorkItem item, String assignedUserName) {
         return new WorkItemResponse(
                 item.getId(),
                 item.getProjectId(),
@@ -126,6 +153,7 @@ public class WorkItemService {
                 item.getTitle(),
                 item.getDescription(),
                 item.getAssignedUserId(),
+                assignedUserName,
                 item.getPosition(),
                 item.getCreatedAt(),
                 item.getUpdatedAt());

@@ -9,6 +9,7 @@ public record WorkItemResponse(
         String title,
         String description,
         Long assignedUserId,
+        String assignedUserName,
         int position,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt) {

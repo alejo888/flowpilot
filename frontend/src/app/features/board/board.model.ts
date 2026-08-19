@@ -15,6 +15,7 @@ export interface WorkItem {
   title: string;
   description: string | null;
   assignedUserId: number | null;
+  assignedUserName: string | null;
   position: number;
   createdAt: string;
   updatedAt: string;

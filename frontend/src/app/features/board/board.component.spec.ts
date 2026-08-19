@@ -18,6 +18,7 @@ function item(id: number, columnId: number, position: number, title: string): Wo
     title,
     description: null,
     assignedUserId: null,
+    assignedUserName: null,
     position,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',

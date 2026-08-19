@@ -15,6 +15,7 @@ import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.repository.BoardColumnRepository;
+import com.flowpilot.repository.UserRepository;
 import com.flowpilot.repository.WorkItemRepository;
 import java.lang.reflect.Field;
 import java.util.List;
@@ -44,6 +45,9 @@ class WorkItemServiceTest {
     @Mock
     private BoardColumnRepository boardColumnRepository;
 
+    @Mock
+    private UserRepository userRepository;
+
     private ProjectAuthorizationService authorizationService;
 
     private WorkItemService workItemService;
@@ -51,7 +55,8 @@ class WorkItemServiceTest {
     @BeforeEach
     void setUp() {
         authorizationService = mock(ProjectAuthorizationService.class);
-        workItemService = new WorkItemService(workItemRepository, boardColumnRepository, authorizationService);
+        workItemService =
+                new WorkItemService(workItemRepository, boardColumnRepository, userRepository, authorizationService);
     }
 
     @Test

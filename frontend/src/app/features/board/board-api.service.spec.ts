@@ -13,6 +13,7 @@ function item(overrides: Partial<WorkItem> = {}): WorkItem {
     title: 'Design schema',
     description: null,
     assignedUserId: null,
+    assignedUserName: null,
     position: 1024,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
