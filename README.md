@@ -41,14 +41,17 @@ See [`CLAUDE.md`](CLAUDE.md) for the full current-status breakdown and what's st
 Requires Docker and Docker Compose.
 
 ```bash
-# Set a strong local secret first; do not commit it (e.g. put it in a .env file).
-export FLOWPILOT_JWT_SECRET="replace-with-a-long-local-secret"
+# Create the ignored local environment file and replace every placeholder with local values.
+cp .env.example .env
+$EDITOR .env
 docker compose up --build
 ```
 
 - Frontend: http://localhost
 - Backend API (proxied under `/api` by the frontend, or directly): http://localhost:8080
 - Postgres: `localhost:5432`
+
+For production deployment, configuration, backups, rollback, and operational checks, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). The Compose instructions above remain the local quick start.
 
 On first boot, Flyway seeds the database with demo data so the app isn't empty:
 

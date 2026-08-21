@@ -2,18 +2,18 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: flowpilot
-      POSTGRES_USER: flowpilot
-      POSTGRES_PASSWORD: flowpilot
+      POSTGRES_DB: ${FLOWPILOT_DB_NAME:?set FLOWPILOT_DB_NAME in your .env}
+      POSTGRES_USER: ${FLOWPILOT_DB_USERNAME:?set FLOWPILOT_DB_USERNAME in your .env}
+      POSTGRES_PASSWORD: ${FLOWPILOT_DB_PASSWORD:?set FLOWPILOT_DB_PASSWORD in your .env}
     volumes:
       - flowpilot-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U flowpilot"]
+      test: ["CMD-SHELL", "pg_isready -U ${FLOWPILOT_DB_USERNAME:?set FLOWPILOT_DB_USERNAME in your .env}"]
       interval: 5s
       timeout: 5s
       retries: 10
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
 
   backend:
     build:
@@ -23,8 +23,9 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_USERNAME: flowpilot
-      SPRING_DATASOURCE_PASSWORD: flowpilot
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${FLOWPILOT_DB_NAME:?set FLOWPILOT_DB_NAME in your .env}
+      SPRING_DATASOURCE_USERNAME: ${FLOWPILOT_DB_USERNAME:?set FLOWPILOT_DB_USERNAME in your .env}
+      SPRING_DATASOURCE_PASSWORD: ${FLOWPILOT_DB_PASSWORD:?set FLOWPILOT_DB_PASSWORD in your .env}
       FLOWPILOT_JWT_SECRET: ${FLOWPILOT_JWT_SECRET:?set FLOWPILOT_JWT_SECRET in your .env}
     ports:
       - "8080:8080"
@@ -33,7 +34,8 @@ services:
     build:
       context: ./frontend
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "80:80"
 

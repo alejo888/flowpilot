@@ -1,5 +1,6 @@
 package com.flowpilot.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import java.time.OffsetDateTime;
@@ -17,5 +18,5 @@ import java.util.List;
  */
 public record RolePermissionUpdateRequest(
         @NotEmpty(message = "La lista de permisos no puede estar vacía") List<@Valid RolePermissionGrant> grants,
-        OffsetDateTime expectedUpdatedAt) {
+        @Schema(nullable = true) OffsetDateTime expectedUpdatedAt) {
 }

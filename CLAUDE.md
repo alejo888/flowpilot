@@ -73,4 +73,4 @@ Flyway requires the `spring-boot-starter-flyway` dependency (not just `flyway-co
 
 **API contract**: `api/openapi.yaml` is the hand-authored, contract-first source of truth — write the spec before the controller, not the other way around. The contract is currently monolithic; `api/components/` and `api/paths/` are not populated. CI exports the live Springdoc spec during backend tests and runs a non-blocking `oasdiff` breaking-change report. Known DTO/schema drift remains pending; make the gate blocking only after those gaps are resolved.
 
-**Delivery model**: one Git branch/PR per SDD task-slice, stacked toward `main` where practical. CI (`.github/workflows/ci.yml`) runs backend (`./mvnw -B test`, JDK 25) and frontend (`npm ci && ng test --watch=false && ng build`, Node 22) as separate parallel jobs on every PR and push to `main`.
+**Delivery model**: one Git branch/PR per SDD task-slice, stacked toward `main` where practical. CI (`.github/workflows/ci.yml`) runs backend (`./mvnw -B test`, JDK 25) and frontend (`npm ci && ng test --watch=false && ng build`, Node 24) as separate parallel jobs on every PR and push to `main`.

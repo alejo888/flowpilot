@@ -1030,9 +1030,12 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
         email:
           type: string
           format: email
+          minLength: 1
+          pattern: '^[^\s@]+@[^\s@]+\.[^\s@]+$'
         password:
           type: string
           minLength: 8
@@ -1043,8 +1046,10 @@ components:
         email:
           type: string
           format: email
+          minLength: 1
         password:
           type: string
+          minLength: 1
     AccessTokenResponse:
       type: object
       properties:
@@ -1060,12 +1065,14 @@ components:
         email:
           type: string
           format: email
+          minLength: 1
     ResetPasswordRequest:
       type: object
       required: [token, newPassword]
       properties:
         token:
           type: string
+          minLength: 1
         newPassword:
           type: string
           minLength: 8
@@ -1138,6 +1145,7 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
         description:
           type: string
         code:
@@ -1163,6 +1171,7 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
         description:
           type: string
         code:
@@ -1236,6 +1245,7 @@ components:
           type: string
         position:
           type: integer
+          format: int32
     ProjectRole:
       type: string
       description: >-
@@ -1310,9 +1320,8 @@ components:
           items:
             $ref: '#/components/schemas/RolePermissionGrant'
         expectedUpdatedAt:
-          type: string
+          type: [string, 'null']
           format: date-time
-          nullable: true
     ProjectMemberAddRequest:
       type: object
       required: [userId, role]
@@ -1354,6 +1363,7 @@ components:
       properties:
         title:
           type: string
+          minLength: 1
         description:
           type: string
         assignedUserId:
@@ -1368,6 +1378,7 @@ components:
       properties:
         title:
           type: string
+          minLength: 1
         description:
           type: string
         assignedUserId:
@@ -1416,6 +1427,7 @@ components:
           format: int64
         position:
           type: integer
+          format: int32
           minimum: 0
   responses: {}
   securitySchemes:
