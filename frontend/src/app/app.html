@@ -38,6 +38,14 @@
         (click)="closeDrawer()"
         >Proyectos</a
       >
+      <a
+        routerLink="/profile"
+        routerLinkActive="app-sidebar__link--active"
+        class="app-sidebar__link"
+        data-testid="nav-profile"
+        (click)="closeDrawer()"
+        >Perfil</a
+      >
       @if (authStore.isAdmin()) {
         <a
           routerLink="/admin/users"

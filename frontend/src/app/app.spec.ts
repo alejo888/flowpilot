@@ -70,6 +70,7 @@ describe('App', () => {
     createFixture();
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('[data-testid="nav-projects"]')).not.toBeNull();
+    expect(compiled.querySelector('[data-testid="nav-profile"]')).not.toBeNull();
     expect(compiled.querySelector('[data-testid="logout-button"]')).not.toBeNull();
     expect(compiled.querySelector('[data-testid="nav-admin-users"]')).toBeNull();
     expect(compiled.querySelector('[data-testid="nav-admin-permissions"]')).toBeNull();

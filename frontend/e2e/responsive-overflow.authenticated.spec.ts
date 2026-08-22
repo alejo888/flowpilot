@@ -10,7 +10,7 @@ function seededProjectId(): number {
   return (JSON.parse(raw) as { id: number }).id;
 }
 
-const staticRoutes = ['/', '/projects', '/admin/users', '/admin/permissions'];
+const staticRoutes = ['/', '/projects', '/profile', '/admin/users', '/admin/permissions'];
 
 for (const route of staticRoutes) {
   test(`stays within viewport width: ${route}`, async ({ page }) => {
