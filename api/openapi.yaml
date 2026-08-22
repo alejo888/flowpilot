@@ -215,6 +215,56 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/users/me:
+    get:
+      summary: Get the authenticated caller's own profile
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Caller's profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAdminResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/users/me/password:
+    put:
+      summary: Change the authenticated caller's own password
+      operationId: changePassword
+      description: >-
+        Verifies currentPassword against the stored hash before re-hashing.
+        On success, revokes all of the caller's active refresh tokens (same
+        as /api/auth/reset-password).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password updated; all refresh tokens revoked
+        '400':
+          description: Validation failed, or current password is incorrect
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/admin/users:
     get:
       summary: List all users with full admin projection (role, active) — admin-only
@@ -1151,6 +1201,16 @@ components:
         email:
           type: string
           format: email
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          minLength: 8
     GlobalRole:
       type: string
       enum: [ADMINISTRADOR, MIEMBRO_EQUIPO]
