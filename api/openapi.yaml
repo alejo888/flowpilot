@@ -787,6 +787,47 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/projects/{projectId}/sprints:
+    get:
+      summary: List project sprints
+      operationId: listSprints
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/NestedProjectId' }]
+      responses:
+        '200': { description: Project sprints, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SprintResponse' } } } } }
+        '403': { description: Forbidden }
+    post:
+      summary: Create a planned sprint
+      operationId: createSprint
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/NestedProjectId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SprintCreateRequest' } } } }
+      responses:
+        '201': { description: Sprint created, content: { application/json: { schema: { $ref: '#/components/schemas/SprintResponse' } } } }
+        '400': { description: Invalid dates }
+        '403': { description: Forbidden }
+  /api/sprints/{id}:
+    put:
+      summary: Update a planned sprint
+      operationId: updateSprint
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/SprintId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SprintUpdateRequest' } } } }
+      responses: { '200': { description: Sprint updated, content: { application/json: { schema: { $ref: '#/components/schemas/SprintResponse' } } } } }
+  /api/sprints/{id}/start:
+    post:
+      summary: Start a planned sprint
+      operationId: startSprint
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/SprintId' }]
+      responses: { '200': { description: Sprint activated }, '400': { description: Invalid transition or active sprint already exists } }
+  /api/sprints/{id}/complete:
+    post:
+      summary: Complete an active sprint
+      operationId: completeSprint
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/SprintId' }]
+      responses: { '200': { description: Sprint completed }, '400': { description: Invalid transition } }
   /api/projects/{projectId}/work-items:
     get:
       summary: List a project's work items
@@ -1011,6 +1052,13 @@ components:
         format: int64
     MemberUserId:
       name: userId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    SprintId:
+      name: id
       in: path
       required: true
       schema:
@@ -1354,6 +1402,31 @@ components:
         joinedAt:
           type: string
           format: date-time
+    SprintStatus:
+      type: string
+      enum: [PLANNED, ACTIVE, COMPLETED]
+    SprintCreateRequest:
+      type: object
+      required: [name, startDate, endDate]
+      properties:
+        name: { type: string, minLength: 1 }
+        goal: { type: string, nullable: true }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+    SprintUpdateRequest:
+      $ref: '#/components/schemas/SprintCreateRequest'
+    SprintResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        projectId: { type: integer, format: int64 }
+        name: { type: string }
+        goal: { type: string, nullable: true }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        status: { $ref: '#/components/schemas/SprintStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     WorkItemCreateRequest:
       type: object
       description: >-
@@ -1414,6 +1487,10 @@ components:
         updatedAt:
           type: string
           format: date-time
+        sprintId:
+          type: integer
+          format: int64
+          nullable: true
     WorkItemMoveRequest:
       type: object
       description: >-

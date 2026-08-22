@@ -17,8 +17,8 @@ import java.time.OffsetDateTime;
  * (design D10): new items start at {@code max(position in column) + 1024}, or
  * {@code 1024} if the column is empty. The move endpoint that mutates {@code
  * columnId}/{@code position} together is slice 6 (Kanban board) — this slice
- * only creates items into the project's first column and never changes
- * either field after creation.
+ * only creates items into the project's first column and never changes either
+ * field after creation.
  */
 @Entity
 @Table(name = "work_items")
@@ -43,6 +43,9 @@ public class WorkItem {
     @Column(name = "assigned_user_id")
     private Long assignedUserId;
 
+    @Column(name = "sprint_id")
+    private Long sprintId;
+
     @Column(nullable = false)
     private int position;
 
@@ -58,12 +61,24 @@ public class WorkItem {
 
     public WorkItem(
             Long projectId, Long columnId, String title, String description, Long assignedUserId, int position) {
+        this(projectId, columnId, title, description, assignedUserId, position, null);
+    }
+
+    public WorkItem(
+            Long projectId,
+            Long columnId,
+            String title,
+            String description,
+            Long assignedUserId,
+            int position,
+            Long sprintId) {
         this.projectId = projectId;
         this.columnId = columnId;
         this.title = title;
         this.description = description;
         this.assignedUserId = assignedUserId;
         this.position = position;
+        this.sprintId = sprintId;
         OffsetDateTime now = OffsetDateTime.now();
         this.createdAt = now;
         this.updatedAt = now;
@@ -103,6 +118,14 @@ public class WorkItem {
 
     public void setAssignedUserId(Long assignedUserId) {
         this.assignedUserId = assignedUserId;
+    }
+
+    public Long getSprintId() {
+        return sprintId;
+    }
+
+    public void setSprintId(Long sprintId) {
+        this.sprintId = sprintId;
     }
 
     public int getPosition() {

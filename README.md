@@ -24,11 +24,12 @@ Full product vision: [`FlowPilot_Gestor_Proyectos_IA.md`](FlowPilot_Gestor_Proye
 - **Projects**: full CRUD with rich fields (code, dates, technologies, repository URL), status transitions, and per-project default Kanban columns.
 - **Project members**: add/remove/change role, including a confirmed self-removal flow.
 - **Kanban board**: work-item CRUD, drag-and-drop move between and within columns.
+- **Backlog and sprints**: project backlog browsing and sprint planning with work-item assignment.
 - **Role-permission matrix**: a dense, project-role × permission grid, editable by admins with optimistic-concurrency protection.
 - **Spanish-localized errors**: auth, projects, members, board, and admin error/validation messages are translated end-to-end (see [`CLAUDE.md`](CLAUDE.md) for the few remaining English-only paths).
 - **API contract**: [`api/openapi.yaml`](api/openapi.yaml) is hand-authored and contract-first, with a CI job that diffs it against the live-generated spec for breaking changes.
 
-See [`CLAUDE.md`](CLAUDE.md) for the full current-status breakdown and what's still pending toward a complete MVP (backlog, sprints, dashboard/metrics, AI-assisted planning, etc.).
+See [`CLAUDE.md`](CLAUDE.md) for the full current-status breakdown and what remains toward a complete MVP (dashboard/metrics, AI-assisted planning, etc.).
 
 ## Tech stack
 
@@ -82,6 +83,16 @@ ng serve   # dev server
 ng test --watch=false   # unit tests
 ng build   # production build
 ```
+
+### Backend test troubleshooting
+
+From `backend/`, the normal full-suite command is:
+
+```bash
+./mvnw -B test
+```
+
+The integration tests use Testcontainers 1.21.2 and require a running Docker daemon (Docker Desktop is supported). If Testcontainers cannot discover Docker on a Windows developer machine, configure the local machine rather than the repository: `~/.testcontainers.properties` may define `docker.host`, and `~/.docker-java.properties` may define `api.version`. Add these files only when discovery fails; do not commit machine-specific named-pipe or API-version settings. Without Docker, run the non-container tests with the project-specific exclusions documented in `CLAUDE.md`.
 
 ## Repository layout
 

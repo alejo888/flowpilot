@@ -10,5 +10,10 @@ import jakarta.validation.constraints.NotBlank;
 public record WorkItemUpdateRequest(
         @NotBlank(message = "El título no puede estar vacío") String title,
         String description,
-        Long assignedUserId) {
+        Long assignedUserId,
+        Long sprintId) {
+
+    public WorkItemUpdateRequest(String title, String description, Long assignedUserId) {
+        this(title, description, assignedUserId, null);
+    }
 }
