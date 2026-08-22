@@ -19,17 +19,18 @@ Implemented and covered by backend/frontend tests at a high level:
 - Work items / Kanban: backend CRUD plus move between/within columns; frontend board lists cards, supports drag/drop move, and create/edit/delete via an overlay detail panel.
 - Backlog and sprints: project backlog browsing and sprint planning with work-item assignment.
 - Role-permission matrix: backend dense role/permission seed, admin read/update, optimistic concurrency, authorization cache reload; frontend matrix screen is wired.
+- Own profile: backend `GET /api/users/me` and `PUT /api/users/me/password` (verifies the current password, re-hashes, revokes all of the caller's active refresh tokens — mirrors `PasswordResetService`); frontend `/profile` screen shows name/email and a change-password form, reachable from a "Perfil" nav link for any authenticated user.
 - API contract: `api/openapi.yaml` covers the implemented path families at a high level.
 - Demo data: `V9__seed_demo_data.sql` seeds 4 demo users (`Demo1234!`) plus 3 projects with members and work items, so a fresh `docker compose up --build` isn't empty. Root `README.md` has screenshots, the demo credential table, and a feature tour.
 
 Pending or partial for portfolio readiness:
 
-- Dashboard/metrics, comments/activity feed, profile/change-password, and AI-assisted planning features.
+- Dashboard/metrics, comments/activity feed, and AI-assisted planning features.
 - OpenAPI drift cleanup before making contract drift checks blocking in CI.
 - E2E responsive-overflow coverage (`frontend/e2e/`) only guards horizontal-overflow regressions on the routes/viewport it checks — not a general accessibility or cross-browser suite.
-- Error/success message translation to Spanish now covers auth (login, register, forgot-password, reset-password) plus projects, project members, work-items/board, and admin (users, role-permissions). Refresh-token/logout error details (`RefreshTokenService`) and the CSRF-filter error still relay English text and remain pending, along with the Jakarta-default validation-message path in `GlobalExceptionHandler.handleConstraintViolation` for any constraint without an explicit `message=`.
+- Error/success message translation to Spanish now covers auth (login, register, forgot-password, reset-password) plus projects, project members, work-items/board, admin (users, role-permissions), and profile/change-password. Refresh-token/logout error details (`RefreshTokenService`) and the CSRF-filter error still relay English text and remain pending, along with the Jakarta-default validation-message path in `GlobalExceptionHandler.handleConstraintViolation` for any constraint without an explicit `message=`.
 
-Frontend validation: 328 tests pass. The production build passes cleanly, with no `anyComponentStyle` warnings.
+Frontend validation: 341 tests pass. The production build passes cleanly, with no `anyComponentStyle` warnings.
 
 ## Commands
 
@@ -70,7 +71,7 @@ Flyway requires the `spring-boot-starter-flyway` dependency (not just `flyway-co
 
 **Config profiles**: base `application.yml` holds shared defaults; `application-dev.yml`, `application-docker.yml` (datasource host `db`, the Compose service name), `application-prod.yml`, and test's `application-test.yml` override only what differs (datasource, JWT secret, logging). The `docker` profile has no insecure JWT-secret fallback — Compose fails fast if `FLOWPILOT_JWT_SECRET` isn't set. The `prod` profile requires `FLOWPILOT_DATASOURCE_URL`, `FLOWPILOT_DATASOURCE_USERNAME`, `FLOWPILOT_DATASOURCE_PASSWORD`, and `FLOWPILOT_JWT_SECRET` as env vars with no defaults — Spring fails fast at startup if any are missing.
 
-**Frontend**: standalone Angular app with implemented routes for `/`, `/login`, `/projects`, `/projects/:projectId/board`, `/projects/:projectId/backlog`, `/projects/:projectId/members`, `/admin/users`, and `/admin/permissions`. Core auth/API code lives under `frontend/src/app/core/`; feature slices live under `frontend/src/app/features/`; shared UI components live under `frontend/src/app/shared/ui/`. Current frontend gaps are mostly screens for backend capabilities that already exist: profile/change-password and dashboard/metrics.
+**Frontend**: standalone Angular app with implemented routes for `/`, `/login`, `/projects`, `/projects/:projectId/board`, `/projects/:projectId/backlog`, `/projects/:projectId/members`, `/profile`, `/admin/users`, and `/admin/permissions`. Core auth/API code lives under `frontend/src/app/core/`; feature slices live under `frontend/src/app/features/`; shared UI components live under `frontend/src/app/shared/ui/`. Current frontend gaps are mostly screens for backend capabilities that already exist: dashboard/metrics.
 
 **API contract**: `api/openapi.yaml` is the hand-authored, contract-first source of truth — write the spec before the controller, not the other way around. The contract is currently monolithic; `api/components/` and `api/paths/` are not populated. CI exports the live Springdoc spec during backend tests and runs a non-blocking `oasdiff` breaking-change report. Keep the gate non-blocking until the remaining DTO/schema drift gaps are resolved.
 

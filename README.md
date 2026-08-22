@@ -14,8 +14,8 @@ Full product vision: [`FlowPilot_Gestor_Proyectos_IA.md`](FlowPilot_Gestor_Proye
 | ![Projects list](docs/screenshots/01-projects.png) | ![Kanban board](docs/screenshots/02-board.png) |
 | **Project members** | **Admin — users** |
 | ![Project members](docs/screenshots/03-members.png) | ![Admin users](docs/screenshots/04-admin-users.png) |
-| **Admin — role/permission matrix** | |
-| ![Admin role-permission matrix](docs/screenshots/05-admin-permissions.png) | |
+| **Admin — role/permission matrix** | **Profile** |
+| ![Admin role-permission matrix](docs/screenshots/05-admin-permissions.png) | ![Profile screen](docs/screenshots/06-profile.png) |
 
 ## What's implemented
 
@@ -26,7 +26,8 @@ Full product vision: [`FlowPilot_Gestor_Proyectos_IA.md`](FlowPilot_Gestor_Proye
 - **Kanban board**: work-item CRUD, drag-and-drop move between and within columns.
 - **Backlog and sprints**: project backlog browsing and sprint planning with work-item assignment.
 - **Role-permission matrix**: a dense, project-role × permission grid, editable by admins with optimistic-concurrency protection.
-- **Spanish-localized errors**: auth, projects, members, board, and admin error/validation messages are translated end-to-end (see [`CLAUDE.md`](CLAUDE.md) for the few remaining English-only paths).
+- **Profile**: view your own name/email and change your password, which revokes your other active sessions.
+- **Spanish-localized errors**: auth, projects, members, board, admin, and profile error/validation messages are translated end-to-end (see [`CLAUDE.md`](CLAUDE.md) for the few remaining English-only paths).
 - **API contract**: [`api/openapi.yaml`](api/openapi.yaml) is hand-authored and contract-first, with a CI job that diffs it against the live-generated spec for breaking changes.
 
 See [`CLAUDE.md`](CLAUDE.md) for the full current-status breakdown and what remains toward a complete MVP (dashboard/metrics, AI-assisted planning, etc.).
