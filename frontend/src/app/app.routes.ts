@@ -40,6 +40,14 @@ export const routes: Routes = [
       import('./features/projects/project-detail.component').then((m) => m.ProjectDetailComponent)
   },
   {
+    path: 'projects/:projectId/dashboard',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/projects/project-dashboard.component').then(
+        (m) => m.ProjectDashboardComponent
+      )
+  },
+  {
     path: 'projects/:projectId/backlog',
     canActivate: [authGuard],
     loadComponent: () => import('./features/backlog/backlog.component').then((m) => m.BacklogComponent)

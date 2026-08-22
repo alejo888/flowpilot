@@ -2,6 +2,8 @@ package com.flowpilot.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -46,6 +48,10 @@ public class WorkItem {
     @Column(name = "sprint_id")
     private Long sprintId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private WorkItemPriority priority;
+
     @Column(nullable = false)
     private int position;
 
@@ -61,7 +67,7 @@ public class WorkItem {
 
     public WorkItem(
             Long projectId, Long columnId, String title, String description, Long assignedUserId, int position) {
-        this(projectId, columnId, title, description, assignedUserId, position, null);
+        this(projectId, columnId, title, description, assignedUserId, position, null, WorkItemPriority.MEDIUM);
     }
 
     public WorkItem(
@@ -72,6 +78,18 @@ public class WorkItem {
             Long assignedUserId,
             int position,
             Long sprintId) {
+        this(projectId, columnId, title, description, assignedUserId, position, sprintId, WorkItemPriority.MEDIUM);
+    }
+
+    public WorkItem(
+            Long projectId,
+            Long columnId,
+            String title,
+            String description,
+            Long assignedUserId,
+            int position,
+            Long sprintId,
+            WorkItemPriority priority) {
         this.projectId = projectId;
         this.columnId = columnId;
         this.title = title;
@@ -79,6 +97,7 @@ public class WorkItem {
         this.assignedUserId = assignedUserId;
         this.position = position;
         this.sprintId = sprintId;
+        this.priority = priority == null ? WorkItemPriority.MEDIUM : priority;
         OffsetDateTime now = OffsetDateTime.now();
         this.createdAt = now;
         this.updatedAt = now;
@@ -126,6 +145,14 @@ public class WorkItem {
 
     public void setSprintId(Long sprintId) {
         this.sprintId = sprintId;
+    }
+
+    public WorkItemPriority getPriority() {
+        return priority;
+    }
+
+    public void setPriority(WorkItemPriority priority) {
+        this.priority = priority == null ? WorkItemPriority.MEDIUM : priority;
     }
 
     public int getPosition() {

@@ -1079,6 +1079,22 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+/api/projects/{projectId}/dashboard:
+  get:
+        summary: Get project dashboard aggregates
+        operationId: getProjectDashboard
+        parameters:
+          - in: path
+            name: projectId
+            required: true
+            schema: {type: integer, format: int64}
+        responses:
+          '200':
+            description: Dashboard metrics
+            content:
+              application/json:
+                schema: {$ref: '#/components/schemas/ProjectDashboardResponse'}
+          '403': {description: Not authorized}
 components:
   parameters:
     ProjectId:
@@ -1487,6 +1503,21 @@ components:
         status: { $ref: '#/components/schemas/SprintStatus' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    WorkItemPriority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, URGENT]
+    ProjectDashboardResponse:
+      type: object
+      properties:
+        totalItems: {type: integer, format: int64}
+        completedItems: {type: integer, format: int64}
+        columnCounts: {type: array, items: {type: object}}
+        activeSprint: {type: object, nullable: true}
+        activeSprintTotalItems: {type: integer, format: int64}
+        activeSprintCompletedItems: {type: integer, format: int64}
+        backlogPendingCount: {type: integer, format: int64}
+        workload: {type: array, items: {type: object}}
+        priorityDistribution: {type: object, additionalProperties: {type: integer, format: int64}}
     WorkItemCreateRequest:
       type: object
       description: >-
@@ -1502,6 +1533,8 @@ components:
         assignedUserId:
           type: integer
           format: int64
+        priority:
+          $ref: '#/components/schemas/WorkItemPriority'
     WorkItemUpdateRequest:
       type: object
       description: >-
@@ -1517,6 +1550,8 @@ components:
         assignedUserId:
           type: integer
           format: int64
+        priority:
+          $ref: '#/components/schemas/WorkItemPriority'
     WorkItemResponse:
       type: object
       properties:
@@ -1551,6 +1586,8 @@ components:
           type: integer
           format: int64
           nullable: true
+        priority:
+          $ref: '#/components/schemas/WorkItemPriority'
     WorkItemMoveRequest:
       type: object
       description: >-

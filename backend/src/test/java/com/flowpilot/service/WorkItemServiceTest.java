@@ -14,6 +14,7 @@ import com.flowpilot.entity.BoardColumn;
 import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.Sprint;
 import com.flowpilot.entity.WorkItem;
+import com.flowpilot.entity.WorkItemPriority;
 import com.flowpilot.exception.SprintNotFoundException;
     import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.repository.BoardColumnRepository;
@@ -189,6 +190,18 @@ class WorkItemServiceTest {
         assertThat(response.description()).isEqualTo("New description");
         assertThat(response.assignedUserId()).isEqualTo(42L);
         assertThat(item.getColumnId()).isEqualTo(200L);
+    }
+
+    @Test
+    void updateWithoutPriorityPreservesStoredPriority() throws Exception {
+        WorkItem item = new WorkItem(10L, 200L, "Old title", null, null, 1024, null, WorkItemPriority.HIGH);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+
+        WorkItemResponse response = workItemService.update(
+                500L, new WorkItemUpdateRequest("Updated title", null, null), 1L);
+
+        assertThat(response.priority()).isEqualTo(WorkItemPriority.HIGH);
     }
 
     @Test

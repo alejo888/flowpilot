@@ -30,7 +30,7 @@ const STATUS_OPTIONS = [
       @if (error(); as message) { <p data-testid="project-detail-error" class="error">{{ message }}</p> }
       @if (project(); as current) {
         <header class="detail-header">
-          <div><a [routerLink]="['/projects', projectId(), 'backlog']" class="project-link">Backlog y sprints</a><p class="eyebrow">Proyecto</p><h1 data-testid="project-detail-name">{{ current.name }}</h1></div>
+          <div><a [routerLink]="['/projects', projectId(), 'backlog']" class="project-link">Backlog y sprints</a> <a [routerLink]="['/projects', projectId(), 'dashboard']" class="project-link">Dashboard</a><p class="eyebrow">Proyecto</p><h1 data-testid="project-detail-name">{{ current.name }}</h1></div>
           <fp-badge [variant]="statusBadgeVariant(current.status)" data-testid="project-detail-status">{{ current.status }}</fp-badge>
         </header>
         <fp-card><div class="summary">

@@ -71,7 +71,7 @@ public class WorkItemService {
         int position = nextPosition(firstColumn.getId());
         WorkItem item = new WorkItem(
                 projectId, firstColumn.getId(), request.title(), request.description(),
-                request.assignedUserId(), position, request.sprintId());
+                request.assignedUserId(), position, request.sprintId(), request.priority());
         validateSprint(projectId, item.getSprintId());
         item = workItemRepository.save(item);
         return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
@@ -101,6 +101,9 @@ public class WorkItemService {
         item.setAssignedUserId(request.assignedUserId());
         validateSprint(item.getProjectId(), request.sprintId());
         item.setSprintId(request.sprintId());
+        if (request.priority() != null) {
+            item.setPriority(request.priority());
+        }
         item.touch();
         return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
     }
@@ -170,6 +173,7 @@ public class WorkItemService {
                 item.getPosition(),
                 item.getCreatedAt(),
                 item.getUpdatedAt(),
-                item.getSprintId());
+                item.getSprintId(),
+                item.getPriority());
     }
 }
