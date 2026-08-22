@@ -1,0 +1,7 @@
+INSERT INTO role_permissions (role, permission, granted, updated_at) VALUES
+ ('PROJECT_MANAGER','COMMENT_CREATE',TRUE,now()),
+ ('PRODUCT_OWNER','COMMENT_CREATE',TRUE,now()),
+ ('DEVELOPER','COMMENT_CREATE',TRUE,now()),
+ ('UX_UI_DESIGNER','COMMENT_CREATE',TRUE,now()),
+ ('QA','COMMENT_CREATE',TRUE,now()),
+ ('DEVOPS','COMMENT_CREATE',TRUE,now());

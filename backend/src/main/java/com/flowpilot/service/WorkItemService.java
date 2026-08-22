@@ -5,6 +5,7 @@ import com.flowpilot.dto.WorkItemResponse;
 import com.flowpilot.dto.WorkItemUpdateRequest;
 import com.flowpilot.entity.BoardColumn;
 import com.flowpilot.entity.Permission;
+import com.flowpilot.entity.ActivityEventType;
 import com.flowpilot.entity.User;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.exception.ProjectNotFoundException;
@@ -48,6 +49,7 @@ public class WorkItemService {
     private final BoardColumnRepository boardColumnRepository;
     private final UserRepository userRepository;
     private final ProjectAuthorizationService authorizationService;
+    private ProjectActivityService activityService;
     private final SprintRepository sprintRepository;
 
     public WorkItemService(
@@ -63,6 +65,9 @@ public class WorkItemService {
         this.sprintRepository = sprintRepository;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    void setActivityService(ProjectActivityService service) { this.activityService = service; }
+
     @Transactional
     public WorkItemResponse create(Long projectId, WorkItemCreateRequest request, Long requesterId) {
         requirePermission(requesterId, projectId, Permission.WORKITEM_CREATE);
@@ -74,6 +79,7 @@ public class WorkItemService {
                 request.assignedUserId(), position, request.sprintId(), request.priority());
         validateSprint(projectId, item.getSprintId());
         item = workItemRepository.save(item);
+            if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED, "Work item created", "{}");
         return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
     }
 
@@ -105,6 +111,7 @@ public class WorkItemService {
             item.setPriority(request.priority());
         }
         item.touch();
+            if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_UPDATED, "Work item updated", "{}");
         return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
     }
 

@@ -1,13 +1,17 @@
 import { CdkDrag, CdkDragDrop, CdkDropList, CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { FormsModule } from '@angular/forms';
+import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, input, numberAttribute, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 import { FpButtonComponent } from '../../shared/ui/button.component';
 import { FpCardComponent } from '../../shared/ui/card.component';
+import { FpIconComponent } from '../../shared/ui/icon.component';
 import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { columnAccent } from './column-accent';
 import { WorkItem, WorkItemCreateRequest, WorkItemUpdateRequest } from './board.model';
 import { BoardStore } from './board.store';
+import { CommentsStore } from '../comments/comments.store';
 
 type WorkItemForm = {
   title: string;
@@ -28,22 +32,25 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
   selector: 'app-board',
   standalone: true,
   imports: [
-    CdkDropListGroup,
+    RouterLink,
+        CdkDropListGroup,
     CdkDropList,
     CdkDrag,
     FormsModule,
+    DatePipe,
     FpButtonComponent,
+        FpIconComponent,
     FpCardComponent,
     FpDialogComponent,
   ],
   template: `
     <div class="board" cdkDropListGroup>
-      <header class="board-header">
+      <header class="board-header"><a class="project-back-link" routerLink="/projects"><fp-icon name="arrow-left" /> Volver a proyectos</a>
         <div>
           <p class="eyebrow">Tablero Kanban</p>
           <h2>Trabajo del proyecto</h2>
         </div>
-        <fp-button type="button" (click)="startCreate()">Crear tarea</fp-button>
+        <fp-button type="button" icon="add" (click)="startCreate()">Crear tarea</fp-button>
       </header>
 
       @if (error(); as message) {
@@ -72,8 +79,8 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
             </label>
           </div>
           <div class="panel-actions">
-            <fp-button type="submit" [disabled]="isMutating()">Guardar tarea</fp-button>
-            <fp-button variant="secondary" type="button" (click)="cancelCreate()">Cancelar</fp-button>
+            <fp-button type="submit" icon="save" [disabled]="isMutating()">Guardar tarea</fp-button>
+            <fp-button variant="secondary" icon="close" type="button" (click)="cancelCreate()">Cancelar</fp-button>
           </div>
         </form>
       }
@@ -140,7 +147,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                 ariaLabel="Cerrar detalle"
                 testId="detail-panel-close"
                 (click)="closeDetail()"
-                >×</fp-button
+                icon="close"></fp-button
               >
             </div>
 
@@ -156,6 +163,11 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                 }
               </select>
             </label>
+
+            <section class="work-comments" aria-labelledby="work-comments-title"><h4 id="work-comments-title">Comentarios</h4>
+              <form data-testid="work-comment-form" (ngSubmit)="submitWorkComment()"><label for="work-comment">Agregar comentario</label><textarea id="work-comment" rows="3" maxlength="4000" [(ngModel)]="commentDraft" name="work-comment" [disabled]="commentSubmitting()"></textarea><fp-button type="submit" icon="comment" [disabled]="commentSubmitting() || !commentDraft.trim()">Comentar</fp-button></form>
+              @if (commentLoading()) { <p role="status" aria-live="polite">Cargando comentarios...</p> } @if (commentError(); as message) { <p class="board-error" role="alert">{{ message }}</p> } @for (comment of workComments(); track comment.id) { <article class="work-comment"><strong>{{ comment.authorName || 'Usuario' }}</strong><span>{{ comment.createdAt | date:'d MMM y, HH:mm' }}</span>@if (editingCommentId() === comment.id) { <textarea rows="3" aria-label="Editar comentario" [value]="editingContent()" (input)="editingContent.set($any($event.target).value)"></textarea><fp-button type="button" icon="save" ariaLabel="Guardar comentario" (click)="saveComment(comment.id)">Guardar comentario</fp-button> } @else { <p>{{ comment.content }}</p>@if (canEdit(comment)) { <fp-button type="button" variant="secondary" icon="edit" ariaLabel="Editar comentario" (click)="startEdit(comment)">Editar</fp-button> } }</article> }
+            </section>
 
             <form (ngSubmit)="submitUpdate(item.id)">
               <div class="form-grid stacked">
@@ -173,11 +185,12 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                 </label>
               </div>
               <div class="panel-actions wrap">
-                <fp-button type="submit" [disabled]="isMutating()">Guardar cambios</fp-button>
+                <fp-button type="submit" icon="save" [disabled]="isMutating()">Guardar cambios</fp-button>
                 <fp-button
                   variant="danger"
                   type="button"
-                  testId="detail-delete-button"
+                  icon="delete"
+                   testId="detail-delete-button"
                   [disabled]="isMutating()"
                   (click)="confirmDelete(item)"
                 >
@@ -198,8 +211,8 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
             <h3 id="delete-dialog-title">Eliminar tarea</h3>
             <p id="delete-dialog-description">¿Seguro que querés eliminar la tarea "{{ itemToDelete.title }}"? Esta acción no se puede deshacer.</p>
             <div class="panel-actions">
-              <fp-button variant="danger" type="button" (click)="deleteConfirmed()">Sí, eliminar</fp-button>
-              <fp-button variant="secondary" type="button" (click)="cancelDelete()">Cancelar</fp-button>
+              <fp-button variant="danger" icon="delete" type="button" (click)="deleteConfirmed()">Sí, eliminar</fp-button>
+              <fp-button variant="secondary" icon="close" type="button" (click)="cancelDelete()">Cancelar</fp-button>
             </div>
           </fp-dialog>
         }
@@ -221,6 +234,12 @@ export class BoardComponent {
   readonly itemsByColumn = computed(() => this.store.itemsByColumn());
   readonly showCreateForm = signal(false);
       readonly deleteCandidate = signal<WorkItem | null>(null);
+      private readonly commentsStore = inject(CommentsStore, { optional: true });
+      readonly workComments = computed(() => this.commentsStore?.workItemComments() ?? []);
+      readonly commentLoading = computed(() => this.commentsStore?.workItemLoading() ?? false);
+      readonly commentSubmitting = computed(() => this.commentsStore?.submitting() ?? false);
+      readonly commentError = computed(() => this.commentsStore?.error() ?? null);
+      readonly editingCommentId = signal<number | null>(null); readonly editingContent = signal(''); commentDraft = '';
 
   /** Which column the mobile single-column view shows; desktop ignores this. */
   readonly activeColumnId = signal<number | null>(null);
@@ -278,11 +297,17 @@ export class BoardComponent {
   openDetail(item: WorkItem): void {
     this.store.selectItem(item);
     this.store.loadItem(item.id);
+    this.commentsStore?.loadWorkItem(item.id);
   }
 
   closeDetail(): void {
     this.store.selectItem(null);
   }
+
+  submitWorkComment(): void { const content=this.commentDraft.trim(); const item=this.selectedItem(); if(content && item && this.commentsStore){this.commentsStore.createWorkItem(item.id,content);this.commentDraft='';} }
+  canEdit(comment: import('../comments/comments.model').Comment): boolean { const id=this.commentsStore?.currentUserId(); return id!==null && id!==undefined && comment.authorId===id; }
+  startEdit(comment: import('../comments/comments.model').Comment): void { this.editingCommentId.set(comment.id); this.editingContent.set(comment.content); }
+  saveComment(id:number): void { const content=this.editingContent().trim(); if(content && this.commentsStore){this.commentsStore.update(id,content,'workItem');this.editingCommentId.set(null);} }
 
   submitUpdate(itemId: number): void {
     const request = requestFromForm(this.editForm);

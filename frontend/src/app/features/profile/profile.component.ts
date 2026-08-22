@@ -30,8 +30,11 @@ interface ProblemDetailLike {
 
       @if (loadError(); as message) {
         <p data-testid="profile-load-error" class="profile-error">{{ message }}</p>
-      } @else if (profile(); as user) {
-        <fp-card class="profile-card">
+      }
+
+      <div class="profile-sections">
+        @if (profile(); as user) {
+          <fp-card class="profile-card profile-identity-card">
           <dl class="profile-summary">
             <div class="profile-summary-row">
               <dt>Nombre</dt>
@@ -43,9 +46,9 @@ interface ProblemDetailLike {
             </div>
           </dl>
         </fp-card>
-      }
+        }
 
-      <fp-card class="profile-card">
+        <fp-card class="profile-card profile-password-card">
         <form class="profile-password-form" (submit)="onSubmit($event)">
           <h2 class="profile-password-title">Cambiar contraseña</h2>
           @if (formError(); as message) {
@@ -81,11 +84,12 @@ interface ProblemDetailLike {
             [error]="confirmPasswordError()"
             (valueChange)="confirmPassword.set($event)"
           />
-          <fp-button type="submit" testId="profile-password-submit" [disabled]="submitting()">
+          <fp-button type="submit" icon="key" testId="profile-password-submit" [disabled]="submitting()">
             Cambiar contraseña
           </fp-button>
         </form>
-      </fp-card>
+        </fp-card>
+      </div>
     </div>
   `,
   styles: `
@@ -93,7 +97,20 @@ interface ProblemDetailLike {
       display: flex;
       flex-direction: column;
       gap: var(--fp-space-6);
-      padding: var(--fp-space-8);
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: clamp(var(--fp-space-6), 5vw, var(--fp-space-12)) clamp(var(--fp-space-4), 4vw, var(--fp-space-8));
+    }
+
+    .profile-sections {
+      display: grid;
+      grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.25fr);
+      align-items: start;
+      gap: var(--fp-space-6);
+    }
+
+    @media (max-width: 720px) {
+      .profile-sections { grid-template-columns: 1fr; }
     }
 
     .profile-title {
@@ -105,9 +122,8 @@ interface ProblemDetailLike {
       color: var(--fp-text);
     }
 
-    .profile-card {
-      max-width: 480px;
-    }
+    .profile-card { width: 100%; }
+    .profile-password-card { min-width: 0; }
 
     .profile-summary {
       display: flex;

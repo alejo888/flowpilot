@@ -38,7 +38,7 @@ interface ProblemDetailLike {
             [error]="newPasswordError()"
             (valueChange)="newPassword.set($event)"
           />
-          <fp-button type="submit" testId="reset-password-submit" [disabled]="submitting()">
+          <fp-button type="submit" icon="save" testId="reset-password-submit" [disabled]="submitting()">
             Restablecer contraseña
           </fp-button>
         </form>

@@ -4,6 +4,7 @@ import com.flowpilot.dto.SprintCreateRequest;
 import com.flowpilot.dto.SprintResponse;
 import com.flowpilot.dto.SprintUpdateRequest;
 import com.flowpilot.entity.Permission;
+import com.flowpilot.entity.ActivityEventType;
 import com.flowpilot.entity.Sprint;
 import com.flowpilot.entity.SprintStatus;
 import com.flowpilot.exception.InvalidSprintException;
@@ -23,6 +24,7 @@ public class SprintService {
     private final SprintRepository sprintRepository;
     private final ProjectRepository projectRepository;
     private final ProjectAuthorizationService authorizationService;
+    private ProjectActivityService activityService;
 
     public SprintService(
             SprintRepository sprintRepository,
@@ -33,6 +35,9 @@ public class SprintService {
         this.authorizationService = authorizationService;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    void setActivityService(ProjectActivityService service) { this.activityService = service; }
+
     @Transactional
     public SprintResponse create(Long projectId, SprintCreateRequest request, Long requesterId) {
         requirePermission(requesterId, projectId);
@@ -40,7 +45,9 @@ public class SprintService {
         requireProject(projectId);
         Sprint sprint = new Sprint(
                 projectId, request.name(), request.goal(), request.startDate(), request.endDate());
-        return toResponse(sprintRepository.save(sprint));
+            SprintResponse response = toResponse(sprintRepository.save(sprint));
+            if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.SPRINT_CREATED, "Sprint created", "{}");
+            return response;
     }
 
     public List<SprintResponse> list(Long projectId, Long requesterId) {
@@ -59,6 +66,7 @@ public class SprintService {
         }
         validateDates(request.startDate(), request.endDate());
         sprint.update(request.name(), request.goal(), request.startDate(), request.endDate());
+            if (activityService != null) activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_UPDATED, "Sprint updated", "{}");
         return toResponse(sprint);
     }
 
@@ -71,6 +79,7 @@ public class SprintService {
         }
         try {
             sprint.start();
+            if (activityService != null) activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_STARTED, "Sprint started", "{}");
         } catch (IllegalStateException ex) {
             throw new InvalidSprintException(ex.getMessage());
         }
@@ -83,6 +92,7 @@ public class SprintService {
         requirePermission(requesterId, sprint.getProjectId());
         try {
             sprint.complete();
+            if (activityService != null) activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_COMPLETED, "Sprint completed", "{}");
         } catch (IllegalStateException ex) {
             throw new InvalidSprintException(ex.getMessage());
         }

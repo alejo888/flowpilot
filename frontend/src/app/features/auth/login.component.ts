@@ -46,7 +46,7 @@ import { FpInputComponent } from '../../shared/ui/input.component';
             [required]="true"
             (valueChange)="password.set($event)"
           />
-          <fp-button type="submit" testId="login-submit" [disabled]="submitting()">
+          <fp-button type="submit" icon="key" testId="login-submit" [disabled]="submitting()">
             Ingresar
           </fp-button>
           <div class="login-links">

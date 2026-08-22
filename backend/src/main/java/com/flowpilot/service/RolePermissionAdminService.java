@@ -64,7 +64,10 @@ public class RolePermissionAdminService {
                     "Eliminar una tarea del proyecto"),
             new RolePermissionCatalogEntry(
                     Permission.WORKITEM_MOVE, "Mover tareas",
-                    "Mover una tarea entre columnas del tablero"));
+                    "Mover una tarea entre columnas del tablero"),
+            new RolePermissionCatalogEntry(
+                    Permission.COMMENT_CREATE, "Crear comentarios",
+                    "Crear comentarios en proyectos y tareas"));
 
     private final UserRepository userRepository;
     private final RolePermissionRepository rolePermissionRepository;

@@ -109,3 +109,36 @@ body {
   border: 0;
 }
 /* You can add global styles to this file, and also import other style files */
+
+.project-back-link,
+.project-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fp-space-2);
+  width: fit-content;
+  padding: var(--fp-space-2) var(--fp-space-3);
+  border: 1px solid var(--fp-border);
+  border-radius: var(--fp-radius-sm);
+  color: var(--fp-accent);
+  text-decoration: none;
+  font-weight: 600;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.project-back-link:hover,
+.project-link:hover {
+  background: color-mix(in srgb, var(--fp-accent) 8%, transparent);
+  border-color: var(--fp-accent);
+}
+
+.project-back-link:focus-visible,
+.project-link:focus-visible {
+  outline: 2px solid var(--fp-focus);
+  outline-offset: 2px;
+}
+
+.project-back-link .fp-icon,
+.project-link .fp-icon {
+  width: 1rem;
+  height: 1rem;
+}

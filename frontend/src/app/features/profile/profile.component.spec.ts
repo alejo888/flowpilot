@@ -71,6 +71,14 @@ describe('ProfileComponent', () => {
     expect(compiled.querySelector('[data-testid="profile-email"]')?.textContent).toContain('ada@flowpilot.local');
   });
 
+  it('keeps identity and password sections in a responsive profile layout', async () => {
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('.profile-sections')).not.toBeNull();
+    expect(compiled.querySelector('.profile-password-card')).not.toBeNull();
+  });
+
   it('shows a load error when the profile fetch fails', async () => {
     apiStub.getCurrentUser.mockReturnValue(throwError(() => ({ error: { detail: 'boom' } })));
     await setup();

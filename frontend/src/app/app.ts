@@ -4,6 +4,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { AuthStore } from './core/auth/auth.store';
 import { decodeEmail } from './core/auth/jwt-claims';
 import { FpButtonComponent } from './shared/ui/button.component';
+import { FpIconComponent } from './shared/ui/icon.component';
 
 /**
  * Root app shell: fixed sidebar (spec: app-shell-navigation; design D4) at
@@ -15,7 +16,7 @@ import { FpButtonComponent } from './shared/ui/button.component';
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, FpButtonComponent],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, FpButtonComponent, FpIconComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

@@ -52,7 +52,7 @@ import { AdminUsersStore } from './admin-users.store';
                   }
                 </td>
                 <td class="admin-users-actions" data-label="Acciones">
-                  <fp-button variant="secondary" testId="toggle-status" (click)="toggleStatus(user)">
+                  <fp-button variant="secondary" icon="user-off" testId="toggle-status" (click)="toggleStatus(user)">
                     {{ user.active ? 'Desactivar' : 'Activar' }}
                   </fp-button>
                   <fp-select

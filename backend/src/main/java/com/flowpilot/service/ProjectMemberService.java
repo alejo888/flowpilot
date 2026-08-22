@@ -4,6 +4,7 @@ import com.flowpilot.dto.ProjectMemberAddRequest;
 import com.flowpilot.dto.ProjectMemberResponse;
 import com.flowpilot.dto.ProjectMemberRoleUpdateRequest;
 import com.flowpilot.entity.Permission;
+import com.flowpilot.entity.ActivityEventType;
 import com.flowpilot.entity.ProjectMember;
 import com.flowpilot.exception.DuplicateMemberException;
 import com.flowpilot.exception.ProjectMemberNotFoundException;
@@ -28,12 +29,16 @@ public class ProjectMemberService {
 
     private final ProjectMemberRepository projectMemberRepository;
     private final ProjectAuthorizationService authorizationService;
+    private ProjectActivityService activityService;
 
     public ProjectMemberService(
             ProjectMemberRepository projectMemberRepository, ProjectAuthorizationService authorizationService) {
         this.projectMemberRepository = projectMemberRepository;
         this.authorizationService = authorizationService;
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setActivityService(ProjectActivityService service) { this.activityService = service; }
 
     @Transactional
     public ProjectMemberResponse addMember(Long projectId, ProjectMemberAddRequest request, Long requesterId) {
@@ -43,6 +48,7 @@ public class ProjectMemberService {
         }
         ProjectMember saved = projectMemberRepository.save(
                 new ProjectMember(projectId, request.userId(), request.role()));
+            if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.MEMBER_ADDED, "Member added", "{}");
         return toResponse(saved);
     }
 
@@ -50,6 +56,7 @@ public class ProjectMemberService {
     public void removeMember(Long projectId, Long userId, Long requesterId) {
         requirePermission(requesterId, projectId, Permission.MEMBER_REMOVE);
         ProjectMember member = getOrThrow(projectId, userId);
+            if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.MEMBER_REMOVED, "Member removed", "{}");
         projectMemberRepository.delete(member);
     }
 
@@ -59,6 +66,7 @@ public class ProjectMemberService {
         requirePermission(requesterId, projectId, Permission.MEMBER_CHANGE_ROLE);
         ProjectMember member = getOrThrow(projectId, userId);
         member.setRole(request.role());
+            if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.MEMBER_ROLE_CHANGED, "Member role changed", "{}");
         return toResponse(member);
     }
 

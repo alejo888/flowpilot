@@ -1,10 +1,11 @@
 import { Component, effect, inject, input, numberAttribute } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { FpCardComponent } from '../../shared/ui/card.component';
+    import { FpIconComponent } from '../../shared/ui/icon.component';
 import { ProjectDashboardStore } from './project-dashboard.store';
 
-@Component({ selector: 'app-project-dashboard', standalone: true, imports: [RouterLink, FpCardComponent], template: `
-<main class="dashboard"><header><a [routerLink]="['/projects', projectId()]">← Proyecto</a><p class="eyebrow">Project pulse</p><h1>Dashboard</h1><p class="lede">La señal esencial del trabajo, en un solo vistazo.</p></header>
+@Component({ selector: 'app-project-dashboard', standalone: true, imports: [RouterLink, FpCardComponent, FpIconComponent], template: `
+<main class="dashboard"><header><a class="project-back-link" routerLink="/projects"><fp-icon name="arrow-left" /> Volver a proyectos</a><p class="eyebrow">Project pulse</p><h1>Dashboard</h1><p class="lede">La señal esencial del trabajo, en un solo vistazo.</p></header>
 @if (store.loading()) { <p aria-live="polite">Cargando métricas…</p> } @if (store.error(); as error) { <p class="error" role="alert">{{ error }}</p> }
 @if (store.dashboard(); as d) { <section class="hero-metrics" aria-label="Resumen"><fp-card><strong>{{ d.totalItems }}</strong><span>Ítems totales</span></fp-card><fp-card><strong>{{ d.completedItems }}</strong><span>Completados</span></fp-card><fp-card><strong>{{ d.backlogPendingCount }}</strong><span>En backlog</span></fp-card></section>
 <section class="grid"><fp-card><h2>Flujo por columna</h2><ul>@for (column of d.columnCounts; track column.columnId) { <li><span>{{ column.name }}</span><b>{{ column.count }}</b></li>}</ul></fp-card><fp-card><h2>Prioridad</h2><ul>@for (priority of priorityEntries(d); track priority[0]) { <li><span>{{ priority[0] }}</span><b>{{ priority[1] }}</b></li>}</ul></fp-card><fp-card><h2>Sprint activo</h2>@if (d.activeSprint; as sprint) { <h3>{{ sprint.name }}</h3><p>{{ d.activeSprintCompletedItems }} de {{ d.activeSprintTotalItems }} completados</p> } @else { <p>No hay sprint activo.</p> }</fp-card><fp-card><h2>Carga por responsable</h2><ul>@for (person of d.workload; track person.assigneeId) { <li><span>{{ person.assigneeName }}</span><b>{{ person.count }}</b></li>} @empty { <li>Sin asignaciones</li> }</ul></fp-card></section>}

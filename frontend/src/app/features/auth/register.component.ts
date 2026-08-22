@@ -62,7 +62,7 @@ interface ProblemDetailLike {
             [error]="passwordError()"
             (valueChange)="password.set($event)"
           />
-          <fp-button type="submit" testId="register-submit" [disabled]="submitting()">
+          <fp-button type="submit" icon="add" testId="register-submit" [disabled]="submitting()">
             Crear cuenta
           </fp-button>
           <div class="register-links">

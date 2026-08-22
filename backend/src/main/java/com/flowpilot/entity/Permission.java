@@ -31,5 +31,6 @@ public enum Permission {
     WORKITEM_CREATE,
     WORKITEM_EDIT,
     WORKITEM_DELETE,
-    WORKITEM_MOVE
+    WORKITEM_MOVE,
+        COMMENT_CREATE
 }

@@ -7,6 +7,7 @@ import { FpButtonComponent } from '../../shared/ui/button.component';
 import { FpCardComponent } from '../../shared/ui/card.component';
 import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { FpInputComponent } from '../../shared/ui/input.component';
+import { FpIconComponent } from '../../shared/ui/icon.component';
 import { projectStatusBadgeVariant } from './project-status';
 import { ProjectsStore } from './projects.store';
 
@@ -31,12 +32,13 @@ import { ProjectsStore } from './projects.store';
     FpCardComponent,
     FpDialogComponent,
     FpInputComponent,
+    FpIconComponent,
   ],
   template: `
     <div class="projects">
       <div class="projects-header">
         <h1 class="projects-title">Proyectos</h1>
-        <fp-button testId="project-create-trigger" (click)="showCreateDialog.set(true)">
+        <fp-button icon="add" testId="project-create-trigger" (click)="showCreateDialog.set(true)">
           Crear proyecto
         </fp-button>
       </div>
@@ -105,7 +107,7 @@ import { ProjectsStore } from './projects.store';
               (valueChange)="repositoryUrl.set($event)"
             />
             <div class="project-create-actions">
-              <fp-button type="submit" testId="project-create-submit" [disabled]="creating()">
+              <fp-button type="submit" icon="save" testId="project-create-submit" [disabled]="creating()">
                 Crear proyecto
               </fp-button>
               <fp-button
@@ -167,7 +169,7 @@ import { ProjectsStore } from './projects.store';
                         rel="noopener noreferrer"
                         data-testid="project-repository-link"
                         class="project-row-link"
-                        >Repositorio</a
+                        ><fp-icon name="external-link" /> Repositorio</a
                       >
                     }
                   </div>
@@ -179,14 +181,14 @@ import { ProjectsStore } from './projects.store';
                       [routerLink]="['/projects', project.id, 'board']"
                       data-testid="project-board-link"
                       class="project-row-link"
-                      >Tablero</a
+                      ><fp-icon name="board" /> Tablero</a
                     >
-                    <a [routerLink]="['/projects', project.id, 'backlog']" data-testid="project-backlog-link" class="project-row-link">Backlog</a>
+                    <a [routerLink]="['/projects', project.id, 'backlog']" data-testid="project-backlog-link" class="project-row-link"><fp-icon name="list" /> Backlog</a>
                     <a
                       [routerLink]="['/projects', project.id, 'members']"
                       data-testid="project-members-link"
                       class="project-row-link"
-                      >Miembros</a
+                      ><fp-icon name="users" /> Miembros</a
                     >
                   </div>
                 </div>

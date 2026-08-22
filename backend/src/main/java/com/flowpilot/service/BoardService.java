@@ -4,6 +4,7 @@ import com.flowpilot.dto.WorkItemMoveRequest;
 import com.flowpilot.dto.WorkItemResponse;
 import com.flowpilot.entity.BoardColumn;
 import com.flowpilot.entity.Permission;
+import com.flowpilot.entity.ActivityEventType;
 import com.flowpilot.entity.User;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.exception.BoardColumnNotFoundException;
@@ -39,6 +40,7 @@ public class BoardService {
     private final BoardColumnRepository boardColumnRepository;
     private final UserRepository userRepository;
     private final ProjectAuthorizationService authorizationService;
+    private ProjectActivityService activityService;
 
     public BoardService(
             WorkItemRepository workItemRepository,
@@ -50,6 +52,9 @@ public class BoardService {
         this.userRepository = userRepository;
         this.authorizationService = authorizationService;
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setActivityService(ProjectActivityService service) { this.activityService = service; }
 
     @Transactional
     public WorkItemResponse move(Long itemId, WorkItemMoveRequest request, Long requesterId) {
@@ -84,6 +89,7 @@ public class BoardService {
         }
 
         item.moveTo(targetColumn.getId(), newPosition);
+            if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_MOVED, "Work item moved", "{}");
         return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
     }
 

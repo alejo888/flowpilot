@@ -59,11 +59,9 @@ describe('ProjectDetailComponent', () => {
     fixture.detectChanges();
   });
 
-  it('keeps its local .eyebrow font-weight independent of the global utility (PR6a verify WARNING 7)', () => {
+  it('does not render a redundant project eyebrow above the title', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    const eyebrow = compiled.querySelector('.eyebrow') as HTMLElement;
-    const style = getComputedStyle(eyebrow);
-    expect(style.fontWeight).toBe('400');
+    expect(compiled.querySelector('.eyebrow')).toBeNull();
   });
 
   it('renders the status badge with the same variant as the projects list (PR6b verify WARNING 9)', () => {
@@ -73,6 +71,16 @@ describe('ProjectDetailComponent', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const badge = compiled.querySelector('[data-testid="project-detail-status"] .fp-badge') as HTMLElement;
     expect(badge.classList.contains('fp-badge--success')).toBe(true);
+  });
+
+  it('orders project navigation with the projects link first', () => {
+    const links = Array.from(fixture.nativeElement.querySelectorAll('.project-context-links a')) as HTMLAnchorElement[];
+    expect(links.map((link) => link.textContent?.trim())).toEqual([
+      'Volver a proyectos',
+      'Backlog y sprints',
+      'Dashboard',
+    ]);
+    expect(links[0].getAttribute('href')).toBe('/projects');
   });
 
   it('loads the requested project and renders its detail fields', () => {

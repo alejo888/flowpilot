@@ -50,4 +50,16 @@ describe('HomeComponent', () => {
     const link = compiled.querySelector('[data-testid="home-projects-link"]');
     expect(link?.getAttribute('href')).toBe('/projects');
   });
+
+  it('renders a useful welcome panel with intentional quick actions', () => {
+    accessNoticeStub.consume.mockReturnValue(null);
+
+    fixture = TestBed.createComponent(HomeComponent);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('[data-testid="home-welcome-panel"]')).not.toBeNull();
+    expect(compiled.querySelector('[data-testid="home-quick-actions"]')).not.toBeNull();
+    expect(compiled.querySelector('[data-testid="home-projects-link"]')?.textContent).toContain('Mis proyectos');
+  });
 });

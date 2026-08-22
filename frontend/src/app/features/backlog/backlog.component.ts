@@ -6,6 +6,7 @@ import { WorkItem } from '../board/board.model';
 import { FpBadgeComponent } from '../../shared/ui/badge.component';
 import { FpButtonComponent } from '../../shared/ui/button.component';
 import { FpCardComponent } from '../../shared/ui/card.component';
+import { FpIconComponent } from '../../shared/ui/icon.component';
 import { FpInputComponent } from '../../shared/ui/input.component';
 import { FpSelectComponent } from '../../shared/ui/select.component';
 import { BacklogStore } from './backlog.store';
@@ -19,7 +20,7 @@ import { Sprint } from './backlog.model';
     NgTemplateOutlet,
     FpBadgeComponent,
     FpButtonComponent,
-    FpCardComponent,
+    FpCardComponent, FpIconComponent,
     FpInputComponent,
     FpSelectComponent,
   ],
@@ -27,7 +28,7 @@ import { Sprint } from './backlog.model';
     <main class="backlog">
       <header class="backlog-header">
         <div>
-          <a [routerLink]="['/projects', projectId()]">← Proyecto</a>
+          <a class="project-back-link" routerLink="/projects"><fp-icon name="arrow-left" /> Volver a proyectos</a>
           <p class="eyebrow">Planificación</p>
           <h1>Backlog y sprints</h1>
         </div>
@@ -60,7 +61,7 @@ import { Sprint } from './backlog.model';
             />
             <label>Inicio <input data-testid="sprint-start" type="date" [value]="startDate()" (input)="startDate.set(inputValue($event))" required /></label>
             <label>Fin <input data-testid="sprint-end" type="date" [value]="endDate()" (input)="endDate.set(inputValue($event))" required /></label>
-            <fp-button type="submit" [disabled]="store.mutating()">Crear sprint</fp-button>
+            <fp-button type="submit" icon="add" [disabled]="store.mutating()">Crear sprint</fp-button>
           </form>
         </fp-card>
 
@@ -88,10 +89,10 @@ import { Sprint } from './backlog.model';
               </div>
               <p>{{ sprint.goal || 'Sin objetivo definido' }}</p>
               @if (sprint.status === 'PLANNED') {
-                <fp-button (click)="store.startSprint(sprint)" [disabled]="store.mutating()">Iniciar sprint</fp-button>
+                <fp-button icon="play" (click)="store.startSprint(sprint)" [disabled]="store.mutating()">Iniciar sprint</fp-button>
               }
               @if (sprint.status === 'ACTIVE') {
-                <fp-button (click)="store.completeSprint(sprint)" [disabled]="store.mutating()">Completar sprint</fp-button>
+                <fp-button icon="check-circle" (click)="store.completeSprint(sprint)" [disabled]="store.mutating()">Completar sprint</fp-button>
               }
               <div class="items">
                 @for (item of itemsFor(sprint); track item.id) {

@@ -42,7 +42,7 @@ import { FpInputComponent } from '../../shared/ui/input.component';
               [required]="true"
               (valueChange)="email.set($event)"
             />
-            <fp-button type="submit" testId="forgot-password-submit" [disabled]="submitting()">
+            <fp-button type="submit" icon="external-link" testId="forgot-password-submit" [disabled]="submitting()">
               Enviar enlace
             </fp-button>
             <div class="forgot-password-links">

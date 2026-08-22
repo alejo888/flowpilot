@@ -1,10 +1,12 @@
 import { DatePipe } from '@angular/common';
 import { Component, OnInit, computed, effect, inject, input, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 import { AuthStore } from '../../../core/auth/auth.store';
 import { FpBadgeComponent } from '../../../shared/ui/badge.component';
 import { FpButtonComponent } from '../../../shared/ui/button.component';
 import { FpCardComponent } from '../../../shared/ui/card.component';
+import { FpIconComponent } from '../../../shared/ui/icon.component';
 import { FpDialogComponent } from '../../../shared/ui/dialog.component';
 import { FpInputComponent } from '../../../shared/ui/input.component';
 import { FpSelectComponent } from '../../../shared/ui/select.component';
@@ -30,15 +32,17 @@ import { ProjectMembersStore } from './project-members.store';
   standalone: true,
   imports: [
     DatePipe,
+        RouterLink,
     FpBadgeComponent,
     FpButtonComponent,
+        FpIconComponent,
     FpCardComponent,
     FpDialogComponent,
     FpInputComponent,
     FpSelectComponent,
   ],
   template: `
-    <div class="project-members">
+    <div class="project-members"><a class="project-back-link" routerLink="/projects"><fp-icon name="arrow-left" /> Volver a proyectos</a>
       <h1 class="project-members-title">Miembros del proyecto</h1>
 
       @if (error(); as message) {

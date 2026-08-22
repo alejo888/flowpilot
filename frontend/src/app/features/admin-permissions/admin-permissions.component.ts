@@ -34,7 +34,7 @@ import { RolePermissionsStore } from './role-permissions.store';
             La matriz de permisos fue modificada por otro administrador desde que la cargaste.
             Tus cambios locales se perderán si recargas.
           </p>
-          <fp-button variant="secondary" testId="conflict-reload" (click)="onReload()">
+          <fp-button variant="secondary" icon="refresh" testId="conflict-reload" (click)="onReload()">
             Recargar
           </fp-button>
         </fp-card>
@@ -71,7 +71,7 @@ import { RolePermissionsStore } from './role-permissions.store';
         </table>
       </fp-card>
 
-      <fp-button testId="save-button" [disabled]="!hasDirtyChanges() || saving()" (click)="onSave()">
+      <fp-button icon="save" testId="save-button" [disabled]="!hasDirtyChanges() || saving()" (click)="onSave()">
         Guardar
       </fp-button>
     </div>

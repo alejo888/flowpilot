@@ -27,6 +27,18 @@ describe('FpButtonComponent', () => {
     expect(button().getAttribute('aria-label')).toBeNull();
   });
 
+  it('renders an optional local SVG icon without ligature text or replacing visible button text', () => {
+    fixture.componentRef.setInput('icon', 'save');
+    fixture.detectChanges();
+
+    const icon = button().querySelector('svg');
+    expect(icon).not.toBeNull();
+    expect(icon?.querySelector('path')?.getAttribute('d')).toContain('M17');
+    expect(icon?.getAttribute('aria-hidden')).toBe('true');
+    expect(icon?.textContent?.trim()).toBe('');
+    expect(button().textContent).not.toContain('save');
+  });
+
   it('forwards ariaLabel onto the native button, not the host element', () => {
     fixture.componentRef.setInput('ariaLabel', 'Cerrar detalle');
     fixture.detectChanges();

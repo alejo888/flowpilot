@@ -6,6 +6,7 @@ import com.flowpilot.dto.ProjectResponse;
 import com.flowpilot.dto.ProjectStatusUpdateRequest;
 import com.flowpilot.dto.ProjectUpdateRequest;
 import com.flowpilot.entity.BoardColumn;
+import com.flowpilot.entity.ActivityEventType;
 import com.flowpilot.entity.GlobalRole;
 import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.Project;
@@ -42,6 +43,7 @@ public class ProjectService {
     private final BoardColumnRepository boardColumnRepository;
     private final UserRepository userRepository;
     private final ProjectAuthorizationService authorizationService;
+        private ProjectActivityService activityService;
 
     public ProjectService(
             ProjectRepository projectRepository,
@@ -52,7 +54,13 @@ public class ProjectService {
         this.boardColumnRepository = boardColumnRepository;
         this.userRepository = userRepository;
         this.authorizationService = authorizationService;
-    }
+            this.activityService = null;
+        }
+
+        @org.springframework.beans.factory.annotation.Autowired
+        public ProjectService(ProjectRepository projectRepository, BoardColumnRepository boardColumnRepository, UserRepository userRepository, ProjectAuthorizationService authorizationService, ProjectActivityService activityService) {
+            this.projectRepository = projectRepository; this.boardColumnRepository = boardColumnRepository; this.userRepository = userRepository; this.authorizationService = authorizationService; this.activityService = activityService;
+        }
 
     @Transactional
     public ProjectResponse create(ProjectCreateRequest request, Long ownerId) {
@@ -66,6 +74,7 @@ public class ProjectService {
 
         project = projectRepository.save(project);
         seedDefaultColumns(project.getId());
+        record(project.getId(), ownerId, ActivityEventType.PROJECT_CREATED, "Project created");
         return toResponse(project);
     }
 
@@ -104,6 +113,7 @@ public class ProjectService {
         applyRichFields(project, code, request.startDate(), request.estimatedEndDate(),
                 request.technologies(), request.repositoryUrl());
         project.touch();
+        record(id, userId, ActivityEventType.PROJECT_UPDATED, "Project updated");
         return toResponse(project);
     }
 
@@ -113,6 +123,7 @@ public class ProjectService {
         Project project = getOrThrow(id);
         project.setStatus(request.status());
         project.touch();
+        record(id, userId, ActivityEventType.PROJECT_STATUS_CHANGED, "Project status changed");
         return toResponse(project);
     }
 
@@ -204,6 +215,11 @@ public class ProjectService {
         project.setTechnologies(trimToNull(technologies));
         project.setRepositoryUrl(trimToNull(repositoryUrl));
     }
+
+    private void record(Long projectId, Long actorId, ActivityEventType type, String text) {
+        if (activityService != null) activityService.record(projectId, actorId, type, text, "{}");
+    }
+
 
     private Project getOrThrow(Long id) {
         return projectRepository.findById(id)

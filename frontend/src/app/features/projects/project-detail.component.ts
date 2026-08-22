@@ -1,9 +1,10 @@
 import { DatePipe } from '@angular/common';
-import { Component, effect, inject, input, numberAttribute, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, numberAttribute, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 
 import { FpBadgeComponent } from '../../shared/ui/badge.component';
 import { FpButtonComponent } from '../../shared/ui/button.component';
+    import { FpIconComponent } from '../../shared/ui/icon.component';
 import { FpCardComponent } from '../../shared/ui/card.component';
 import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { FpInputComponent } from '../../shared/ui/input.component';
@@ -11,6 +12,8 @@ import { FpSelectComponent } from '../../shared/ui/select.component';
 import { ProjectStatus } from './project.model';
 import { projectStatusBadgeVariant } from './project-status';
 import { ProjectsStore } from './projects.store';
+import { CommentsStore } from '../comments/comments.store';
+import { Comment } from '../comments/comments.model';
 
 const STATUS_OPTIONS = [
   { value: 'PLANIFICACION', label: 'Planificación' },
@@ -23,14 +26,14 @@ const STATUS_OPTIONS = [
 @Component({
   selector: 'app-project-detail',
   standalone: true,
-  imports: [RouterLink, DatePipe, FpBadgeComponent, FpButtonComponent, FpCardComponent, FpDialogComponent, FpInputComponent, FpSelectComponent],
+  imports: [RouterLink, DatePipe, FpBadgeComponent, FpButtonComponent, FpIconComponent, FpCardComponent, FpDialogComponent, FpInputComponent, FpSelectComponent],
   template: `
     <main class="project-detail">
       @if (loading()) { <p data-testid="project-detail-loading">Cargando proyecto…</p> }
       @if (error(); as message) { <p data-testid="project-detail-error" class="error">{{ message }}</p> }
       @if (project(); as current) {
         <header class="detail-header">
-          <div><a [routerLink]="['/projects', projectId(), 'backlog']" class="project-link">Backlog y sprints</a> <a [routerLink]="['/projects', projectId(), 'dashboard']" class="project-link">Dashboard</a><p class="eyebrow">Proyecto</p><h1 data-testid="project-detail-name">{{ current.name }}</h1></div>
+          <div class="project-context-links"><a routerLink="/projects" class="project-back-link"><fp-icon name="arrow-left" /> Volver a proyectos</a><a [routerLink]="['/projects', projectId(), 'backlog']" class="project-link"><fp-icon name="list" /> Backlog y sprints</a><a [routerLink]="['/projects', projectId(), 'dashboard']" class="project-link"><fp-icon name="dashboard" /> Dashboard</a><h1 data-testid="project-detail-name">{{ current.name }}</h1></div>
           <fp-badge [variant]="statusBadgeVariant(current.status)" data-testid="project-detail-status">{{ current.status }}</fp-badge>
         </header>
         <fp-card><div class="summary">
@@ -48,19 +51,24 @@ const STATUS_OPTIONS = [
           <fp-input label="Fecha estimada de fin" type="date" testId="project-edit-estimated-end-date" [value]="estimatedEndDate()" (valueChange)="estimatedEndDate.set($event)" />
           <fp-input label="Tecnologías" testId="project-edit-technologies" [value]="technologies()" (valueChange)="technologies.set($event)" />
           <fp-input label="URL del repositorio" type="url" testId="project-edit-repository-url" [value]="repositoryUrl()" (valueChange)="repositoryUrl.set($event)" />
-          <fp-button type="submit" testId="project-edit-submit" [disabled]="saving()">Guardar cambios</fp-button>
+          <fp-button type="submit" icon="save" testId="project-edit-submit" [disabled]="saving()">Guardar cambios</fp-button>
         </form></fp-card>
         <fp-card><div class="actions">
-          <fp-select label="Estado" testId="project-status-select" [value]="current.status" [options]="statusOptions" [disabled]="saving()" (valueChange)="onStatusChange($event)" />
-          <fp-button variant="danger" testId="project-delete" [disabled]="deleting()" (click)="confirmingDelete.set(true)">Eliminar proyecto</fp-button>
+          <section class="comments-section" aria-labelledby="project-comments-title"><h2 id="project-comments-title">Comentarios</h2><form data-testid="project-comment-form" (submit)="submitComment($event)"><label for="project-comment">Agregar comentario</label><textarea id="project-comment" rows="3" maxlength="4000" [value]="commentDraft()" (input)="commentDraft.set($any($event.target).value)" [disabled]="commentSubmitting()"></textarea><fp-button type="submit" icon="comment" [disabled]="commentSubmitting() || !commentDraft().trim()">Comentar</fp-button></form>@if (commentLoading()) { <p role="status">Cargando comentarios...</p> } @for (comment of projectComments(); track comment.id) { <article class="project-comment"><strong>{{ comment.authorName || 'Usuario' }}</strong><span>{{ comment.createdAt | date:'d MMM y, HH:mm' }}</span>@if (editingCommentId() === comment.id) { <textarea rows="3" aria-label="Editar comentario" [value]="editingContent()" (input)="editingContent.set($any($event.target).value)"></textarea><fp-button type="button" icon="save" ariaLabel="Guardar comentario" (click)="saveComment(comment.id)">Guardar</fp-button> } @else { <p>{{ comment.content }}</p>@if (canEdit(comment)) { <fp-button type="button" variant="secondary" icon="edit" ariaLabel="Editar comentario" (click)="startEdit(comment)">Editar</fp-button> } }</article> }</section><section class="activity-section" aria-labelledby="project-activity-title"><h2 id="project-activity-title">Actividad</h2>@for (event of activity(); track event.id) { <article class="activity-event"><span>{{ event.createdAt | date:'d MMM y, HH:mm' }}</span><p>{{ event.displayText }}</p></article> }</section>
+              <fp-select label="Estado" testId="project-status-select" [value]="current.status" [options]="statusOptions" [disabled]="saving()" (valueChange)="onStatusChange($event)" />
+          <fp-button variant="danger" icon="delete" testId="project-delete" [disabled]="deleting()" (click)="confirmingDelete.set(true)">Eliminar proyecto</fp-button>
         </div></fp-card>
       }
-      @if (confirmingDelete()) { <fp-dialog data-testid="project-delete-dialog" label="project-delete-dialog-title" describedById="project-delete-dialog-description" (closed)="confirmingDelete.set(false)"><h2 id="project-delete-dialog-title">Eliminar proyecto</h2><p id="project-delete-dialog-description">¿Seguro que querés eliminar este proyecto? Esta acción no se puede deshacer.</p><div class="actions"><fp-button variant="danger" testId="project-delete-confirm" (click)="onDelete()">Sí, eliminar</fp-button><fp-button variant="secondary" testId="project-delete-cancel" (click)="confirmingDelete.set(false)">Cancelar</fp-button></div></fp-dialog> }
+      @if (confirmingDelete()) { <fp-dialog data-testid="project-delete-dialog" label="project-delete-dialog-title" describedById="project-delete-dialog-description" (closed)="confirmingDelete.set(false)"><h2 id="project-delete-dialog-title">Eliminar proyecto</h2><p id="project-delete-dialog-description">¿Seguro que querés eliminar este proyecto? Esta acción no se puede deshacer.</p><div class="actions"><fp-button variant="danger" icon="delete" testId="project-delete-confirm" (click)="onDelete()">Sí, eliminar</fp-button><fp-button variant="secondary" icon="close" testId="project-delete-cancel" (click)="confirmingDelete.set(false)">Cancelar</fp-button></div></fp-dialog> }
     </main>
   `,
   styles: `
-    .project-detail { display:flex; flex-direction:column; gap:var(--fp-space-6); padding:var(--fp-space-8); max-width:900px; }
-    .detail-header,.actions { display:flex; align-items:center; justify-content:space-between; gap:var(--fp-space-4); }
+    .project-detail { display:flex; flex-direction:column; gap:var(--fp-space-6); width:100%; max-width:1120px; margin:0 auto; padding:clamp(var(--fp-space-6), 5vw, var(--fp-space-12)) clamp(var(--fp-space-4), 4vw, var(--fp-space-8)); }
+    .detail-header { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--fp-space-6); }
+    .project-context-links { display:flex; flex-wrap:wrap; gap:var(--fp-space-3); margin-bottom:var(--fp-space-3); }
+    .project-link,.project-back-link { display:inline-flex; align-items:center; gap:var(--fp-space-2); color:var(--fp-accent); text-decoration:none; }
+    .project-context-links a { flex:0 1 auto; }
+    .detail-header > fp-badge { flex-shrink:0; }
     h1,h2,.eyebrow { margin:0; font-family:var(--fp-font-display); color:var(--fp-text); } h1 { font-size:2rem; } h2 { font-size:1.25rem; margin-bottom:var(--fp-space-4); }
     /* Explicit font-weight (kept at the pre-redesign normal weight) so this
        accent-colored local variant stays independent of the global
@@ -68,7 +76,8 @@ const STATUS_OPTIONS = [
        see PR6a verify-report WARNING 7. This is a deliberate "stay normal"
        decision, not an accident. */
     .eyebrow { color:var(--fp-accent); text-transform:uppercase; letter-spacing:.12em; font-size:.75rem; font-weight:400; }
-    form,.summary { display:flex; flex-direction:column; gap:var(--fp-space-4); } .summary span { color:var(--fp-text-muted); font-size:.875rem; } .error { color:var(--fp-danger); }
+    form,.summary,.comments-section,.activity-section { display:flex; flex-direction:column; gap:var(--fp-space-4); } .summary span,.project-comment span,.activity-event span { color:var(--fp-text-muted); font-size:.875rem; } .project-comment,.activity-event { border-top:1px solid var(--fp-border); padding-top:var(--fp-space-3); } .project-comment p,.activity-event p { margin:0; } .project-comment button { align-self:flex-start; border:0; background:none; color:var(--fp-accent); cursor:pointer; padding:.25rem 0; } .error { color:var(--fp-danger); }
+        @media (max-width: 700px) { .project-detail { padding:var(--fp-space-4); } .detail-header,.actions { align-items:stretch; flex-direction:column; } .project-context-links { align-items:stretch; flex-direction:column; } .project-context-links a { width:100%; } }
   `,
 })
 export class ProjectDetailComponent {
@@ -81,6 +90,14 @@ export class ProjectDetailComponent {
   readonly deleting = this.store.deleting;
   readonly error = this.store.error;
   readonly statusOptions = STATUS_OPTIONS;
+      private readonly commentsStore = inject(CommentsStore);
+      readonly projectComments = this.commentsStore.projectComments;
+      readonly activity = this.commentsStore.activity;
+      readonly commentLoading = this.commentsStore.loading;
+      readonly commentSubmitting = this.commentsStore.submitting;
+      readonly commentDraft = signal('');
+      readonly editingCommentId = signal<number | null>(null);
+      readonly editingContent = signal('');
   protected readonly statusBadgeVariant = projectStatusBadgeVariant;
   readonly name = signal(''); readonly description = signal(''); readonly code = signal(''); readonly startDate = signal(''); readonly estimatedEndDate = signal(''); readonly technologies = signal(''); readonly repositoryUrl = signal('');
   readonly confirmingDelete = signal(false);
@@ -91,6 +108,7 @@ export class ProjectDetailComponent {
       this.resetEditState();
       this.confirmingDelete.set(false);
       this.store.loadProject(this.projectId());
+          this.commentsStore.loadProject(this.projectId());
     });
     effect(() => {
       const p = this.project();
@@ -103,7 +121,12 @@ export class ProjectDetailComponent {
   }
   onSubmit(event: Event): void { event.preventDefault(); const name = this.name().trim(); if (!name) return; this.store.updateProject(this.projectId(), { name, description: blank(this.description()), code: blank(this.code()), startDate: blank(this.startDate()), estimatedEndDate: blank(this.estimatedEndDate()), technologies: blank(this.technologies()), repositoryUrl: blank(this.repositoryUrl()) }); }
   onStatusChange(value: string): void { if (value) this.store.updateProjectStatus(this.projectId(), value as ProjectStatus); }
-  async onDelete(): Promise<void> {
+  submitComment(event: Event): void { event.preventDefault(); const content = this.commentDraft().trim(); if (!content) return; this.commentsStore.createProject(this.projectId(), content); this.commentDraft.set(''); }
+      canEdit(comment: Comment): boolean { return comment.authorId === this.commentsStore.currentUserId(); }
+      startEdit(comment: Comment): void { this.editingCommentId.set(comment.id); this.editingContent.set(comment.content); }
+      saveComment(id: number): void { const content = this.editingContent().trim(); if (!content) return; this.commentsStore.update(id, content, 'project'); this.editingCommentId.set(null); }
+
+      async onDelete(): Promise<void> {
     const deleted = await this.store.deleteProject(this.projectId());
     if (!deleted) return;
     this.confirmingDelete.set(false);
