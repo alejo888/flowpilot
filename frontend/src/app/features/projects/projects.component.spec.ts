@@ -60,6 +60,13 @@ describe('ProjectsComponent', () => {
     fixture.detectChanges();
   }
 
+  function openCreateDialog(): void {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const trigger = compiled.querySelector('[data-testid="project-create-trigger"]') as HTMLButtonElement;
+    trigger.click();
+    fixture.detectChanges();
+  }
+
   beforeEach(() => {
     storeStub = {
       projects: signal([]),
@@ -138,8 +145,39 @@ describe('ProjectsComponent', () => {
     );
   });
 
+  it('does not render the create form until the trigger button is clicked', async () => {
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('[data-testid="project-create-trigger"]')).toBeTruthy();
+    expect(compiled.querySelector('[data-testid="project-create-dialog"]')).toBeFalsy();
+    expect(compiled.querySelector('[data-testid="project-create-name"]')).toBeFalsy();
+  });
+
+  it('opens the create dialog when the trigger button is clicked', async () => {
+    await setup();
+
+    openCreateDialog();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('[data-testid="project-create-dialog"]')).toBeTruthy();
+    expect(compiled.querySelector('[data-testid="project-create-name"]')).toBeTruthy();
+  });
+
+  it('closes the create dialog when cancel is clicked', async () => {
+    await setup();
+
+    openCreateDialog();
+    const compiled = fixture.nativeElement as HTMLElement;
+    (compiled.querySelector('[data-testid="project-create-cancel"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(compiled.querySelector('[data-testid="project-create-dialog"]')).toBeFalsy();
+  });
+
   it('blocks submission client-side when the name is blank and does not call the store', async () => {
     await setup();
+    openCreateDialog();
 
     setInput('project-create-name', '   ');
     submitForm();
@@ -153,6 +191,7 @@ describe('ProjectsComponent', () => {
 
   it('calls store.createProject with the trimmed name and description on submit', async () => {
     await setup();
+    openCreateDialog();
 
     setInput('project-create-name', '  Nuevo proyecto  ');
     setInput('project-create-description', '  Detalle  ');
@@ -171,6 +210,7 @@ describe('ProjectsComponent', () => {
 
   it('sends a null description when the description field is left blank', async () => {
     await setup();
+    openCreateDialog();
 
     setInput('project-create-name', 'Nuevo proyecto');
     submitForm();
@@ -188,6 +228,7 @@ describe('ProjectsComponent', () => {
 
   it('sends the five optional rich fields when populated, and null when left blank', async () => {
     await setup();
+    openCreateDialog();
 
     setInput('project-create-name', 'Proyecto rico');
     setInput('project-create-code', '  PRJ1  ');
@@ -275,8 +316,9 @@ describe('ProjectsComponent', () => {
     );
   });
 
-  it('clears the form when the store reports a newly created project', async () => {
+  it('clears the form and closes the dialog when the store reports a newly created project', async () => {
     await setup();
+    openCreateDialog();
 
     setInput('project-create-name', 'Nuevo proyecto');
     setInput('project-create-description', 'Detalle');
@@ -285,6 +327,9 @@ describe('ProjectsComponent', () => {
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('[data-testid="project-create-dialog"]')).toBeFalsy();
+
+    openCreateDialog();
     const nameInput = compiled.querySelector('[data-testid="project-create-name"]') as HTMLInputElement;
     const descriptionInput = compiled.querySelector(
       '[data-testid="project-create-description"]',
@@ -296,6 +341,7 @@ describe('ProjectsComponent', () => {
   it('disables the submit button while creating is in flight', async () => {
     storeStub.creating.set(true);
     await setup();
+    openCreateDialog();
 
     const compiled = fixture.nativeElement as HTMLElement;
     const submitButton = compiled.querySelector('[data-testid="project-create-submit"]') as HTMLButtonElement;

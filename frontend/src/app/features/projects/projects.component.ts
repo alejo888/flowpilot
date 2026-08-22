@@ -5,19 +5,20 @@ import { RouterLink } from '@angular/router';
 import { FpBadgeComponent } from '../../shared/ui/badge.component';
 import { FpButtonComponent } from '../../shared/ui/button.component';
 import { FpCardComponent } from '../../shared/ui/card.component';
+import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { FpInputComponent } from '../../shared/ui/input.component';
 import { projectStatusBadgeVariant } from './project-status';
 import { ProjectsStore } from './projects.store';
 
 /**
  * Projects list + create form (spec: projects-ui; design D4). ONE component
- * with an inline create form — no presentational-child split, matching
- * `AdminUsersComponent`/`BoardComponent` precedent. Loading/empty/error
- * states, a row-level link into each project's board, and a create form
- * with client-side required-name validation (design D6) that still surfaces
- * server errors, plus a reset-on-success effect (design D7). Visual layer
- * uses the FlowPilot shared/ui kit (fp-card/fp-input/fp-button/fp-badge) —
- * behavior is unchanged from the raw-HTML version this replaces.
+ * with the create form behind a trigger button + `fp-dialog` — no
+ * presentational-child split, matching `AdminUsersComponent`/`BoardComponent`
+ * precedent. Loading/empty/error states, a row-level link into each
+ * project's board, and a create form with client-side required-name
+ * validation (design D6) that still surfaces server errors, plus a
+ * reset-and-close-on-success effect (design D7). Visual layer uses the
+ * FlowPilot shared/ui kit (fp-card/fp-dialog/fp-input/fp-button/fp-badge).
  */
 @Component({
   selector: 'app-projects',
@@ -28,72 +29,97 @@ import { ProjectsStore } from './projects.store';
     FpBadgeComponent,
     FpButtonComponent,
     FpCardComponent,
+    FpDialogComponent,
     FpInputComponent,
   ],
   template: `
     <div class="projects">
-      <h1 class="projects-title">Proyectos</h1>
+      <div class="projects-header">
+        <h1 class="projects-title">Proyectos</h1>
+        <fp-button testId="project-create-trigger" (click)="showCreateDialog.set(true)">
+          Crear proyecto
+        </fp-button>
+      </div>
 
       @if (error(); as message) {
         <p data-testid="projects-error" class="projects-error">{{ message }}</p>
       }
 
-      <fp-card class="project-create-card">
-        <form class="project-create" (submit)="onSubmit($event)">
-          @if (formError(); as message) {
-            <p data-testid="project-create-error" class="project-create-error">{{ message }}</p>
-          }
-          <fp-input
-            label="Nombre"
-            testId="project-create-name"
-            [value]="name()"
-            [required]="true"
-            (valueChange)="name.set($event)"
-          />
-          <fp-input
-            label="Descripción"
-            testId="project-create-description"
-            [value]="description()"
-            (valueChange)="description.set($event)"
-          />
-          <fp-input
-            label="Código"
-            testId="project-create-code"
-            [value]="code()"
-            (valueChange)="code.set($event)"
-          />
-          <fp-input
-            label="Fecha de inicio"
-            type="date"
-            testId="project-create-start-date"
-            [value]="startDate()"
-            (valueChange)="startDate.set($event)"
-          />
-          <fp-input
-            label="Fecha estimada de fin"
-            type="date"
-            testId="project-create-estimated-end-date"
-            [value]="estimatedEndDate()"
-            (valueChange)="estimatedEndDate.set($event)"
-          />
-          <fp-input
-            label="Tecnologías"
-            testId="project-create-technologies"
-            [value]="technologies()"
-            (valueChange)="technologies.set($event)"
-          />
-          <fp-input
-            label="URL del repositorio"
-            type="url"
-            testId="project-create-repository-url"
-            [value]="repositoryUrl()"
-            (valueChange)="repositoryUrl.set($event)"
-          />
-          <fp-button type="submit" testId="project-create-submit" [disabled]="creating()">
-            Crear proyecto
-          </fp-button>
-        </form>
-      </fp-card>
+      @if (showCreateDialog()) {
+        <fp-dialog
+          data-testid="project-create-dialog"
+          label="project-create-dialog-title"
+          describedById="project-create-dialog-description"
+          (closed)="closeCreateDialog()"
+        >
+          <h2 id="project-create-dialog-title">Crear proyecto</h2>
+          <p id="project-create-dialog-description">Completá los datos del nuevo proyecto.</p>
+          <form class="project-create" (submit)="onSubmit($event)">
+            @if (formError(); as message) {
+              <p data-testid="project-create-error" class="project-create-error">{{ message }}</p>
+            }
+            <fp-input
+              label="Nombre"
+              testId="project-create-name"
+              [value]="name()"
+              [required]="true"
+              (valueChange)="name.set($event)"
+            />
+            <fp-input
+              label="Descripción"
+              testId="project-create-description"
+              [value]="description()"
+              (valueChange)="description.set($event)"
+            />
+            <fp-input
+              label="Código"
+              testId="project-create-code"
+              [value]="code()"
+              (valueChange)="code.set($event)"
+            />
+            <fp-input
+              label="Fecha de inicio"
+              type="date"
+              testId="project-create-start-date"
+              [value]="startDate()"
+              (valueChange)="startDate.set($event)"
+            />
+            <fp-input
+              label="Fecha estimada de fin"
+              type="date"
+              testId="project-create-estimated-end-date"
+              [value]="estimatedEndDate()"
+              (valueChange)="estimatedEndDate.set($event)"
+            />
+            <fp-input
+              label="Tecnologías"
+              testId="project-create-technologies"
+              [value]="technologies()"
+              (valueChange)="technologies.set($event)"
+            />
+            <fp-input
+              label="URL del repositorio"
+              type="url"
+              testId="project-create-repository-url"
+              [value]="repositoryUrl()"
+              (valueChange)="repositoryUrl.set($event)"
+            />
+            <div class="project-create-actions">
+              <fp-button type="submit" testId="project-create-submit" [disabled]="creating()">
+                Crear proyecto
+              </fp-button>
+              <fp-button
+                type="button"
+                variant="secondary"
+                testId="project-create-cancel"
+                (click)="closeCreateDialog()"
+              >
+                Cancelar
+              </fp-button>
+            </div>
+          </form>
+        </fp-dialog>
+      }
 
       @if (loading()) {
         <p data-testid="projects-loading">Cargando proyectos…</p>
@@ -179,6 +205,13 @@ import { ProjectsStore } from './projects.store';
       padding: var(--fp-space-8);
     }
 
+    .projects-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--fp-space-4);
+    }
+
     .projects-title {
       margin: 0;
       font-family: var(--fp-font-display);
@@ -195,14 +228,11 @@ import { ProjectsStore } from './projects.store';
       color: var(--fp-danger);
     }
 
-    .project-create-card {
-      max-width: 480px;
-    }
-
     .project-create {
       display: flex;
       flex-direction: column;
       gap: var(--fp-space-4);
+      width: min(90vw, 420px);
     }
 
     .project-create-error {
@@ -210,6 +240,11 @@ import { ProjectsStore } from './projects.store';
       font-family: var(--fp-font-body);
       font-size: 0.875rem;
       color: var(--fp-danger);
+    }
+
+    .project-create-actions {
+      display: flex;
+      gap: var(--fp-space-3);
     }
 
     .projects-list {
@@ -314,6 +349,7 @@ export class ProjectsComponent implements OnInit {
   readonly technologies = signal('');
   readonly repositoryUrl = signal('');
   readonly formError = signal<string | null>(null);
+  readonly showCreateDialog = signal(false);
 
   protected readonly statusBadgeVariant = projectStatusBadgeVariant;
 
@@ -328,8 +364,14 @@ export class ProjectsComponent implements OnInit {
         this.technologies.set('');
         this.repositoryUrl.set('');
         this.formError.set(null);
+        this.showCreateDialog.set(false);
       }
     });
+  }
+
+  closeCreateDialog(): void {
+    this.showCreateDialog.set(false);
+    this.formError.set(null);
   }
 
   ngOnInit(): void {
