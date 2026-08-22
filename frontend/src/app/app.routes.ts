@@ -13,6 +13,21 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent)
   },
   {
+    path: 'register',
+    loadComponent: () =>
+      import('./features/auth/register.component').then((m) => m.RegisterComponent)
+  },
+  {
+    path: 'forgot-password',
+    loadComponent: () =>
+      import('./features/auth/forgot-password.component').then((m) => m.ForgotPasswordComponent)
+  },
+  {
+    path: 'reset-password',
+    loadComponent: () =>
+      import('./features/auth/reset-password.component').then((m) => m.ResetPasswordComponent)
+  },
+  {
     path: 'projects',
     canActivate: [authGuard],
     loadComponent: () =>
@@ -23,6 +38,19 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/projects/project-detail.component').then((m) => m.ProjectDetailComponent)
+  },
+  {
+    path: 'projects/:projectId/dashboard',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/projects/project-dashboard.component').then(
+        (m) => m.ProjectDashboardComponent
+      )
+  },
+  {
+    path: 'projects/:projectId/backlog',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/backlog/backlog.component').then((m) => m.BacklogComponent)
   },
   {
     path: 'projects/:projectId/board',
@@ -36,6 +64,12 @@ export const routes: Routes = [
       import('./features/projects/members/project-members.component').then(
         (m) => m.ProjectMembersComponent
       )
+  },
+  {
+    path: 'profile',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/profile/profile.component').then((m) => m.ProfileComponent)
   },
   {
     path: 'admin/users',

@@ -7,6 +7,6 @@ package com.flowpilot.exception;
 public class LastAdministratorException extends RuntimeException {
 
     public LastAdministratorException() {
-        super("Cannot deactivate or demote the last active Administrador");
+        super("No se puede desactivar ni degradar al último administrador activo");
     }
 }

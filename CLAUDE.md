@@ -11,24 +11,26 @@ FlowPilot — an AI-assisted agile project management platform intended as a per
 Implemented and covered by backend/frontend tests at a high level:
 
 - Auth/session backend: register, login, refresh-token rotation, logout, forgot-password, reset-password.
-- Auth/session frontend: login screen, refresh-cookie hydration, JWT interceptor, route guards, admin guard.
+- Auth/session frontend: login/register/forgot-password/reset-password screens, refresh-cookie hydration, JWT interceptor, route guards, admin guard.
 - User directory backend: authenticated user list and user detail.
 - Admin users: admin-only user list, activation/deactivation, global role changes, last-active-admin guard; frontend screen is wired.
 - Projects: backend list/create/get/update/status/delete with rich fields and default board columns; frontend supports list/create/detail navigation, edit, status change, and delete with accessible confirmation, plus links to board/members.
 - Project members: backend and frontend list/add/change role/remove, including self-removal confirmation.
 - Work items / Kanban: backend CRUD plus move between/within columns; frontend board lists cards, supports drag/drop move, and create/edit/delete via an overlay detail panel.
+- Backlog and sprints: project backlog browsing and sprint planning with work-item assignment.
 - Role-permission matrix: backend dense role/permission seed, admin read/update, optimistic concurrency, authorization cache reload; frontend matrix screen is wired.
+- Own profile: backend `GET /api/users/me` and `PUT /api/users/me/password` (verifies the current password, re-hashes, revokes all of the caller's active refresh tokens — mirrors `PasswordResetService`); frontend `/profile` screen shows name/email and a change-password form, reachable from a "Perfil" nav link for any authenticated user.
 - API contract: `api/openapi.yaml` covers the implemented path families at a high level.
+- Demo data: `V9__seed_demo_data.sql` seeds 4 demo users (`Demo1234!`) plus 3 projects with members and work items, so a fresh `docker compose up --build` isn't empty. Root `README.md` has screenshots, the demo credential table, and a feature tour.
 
 Pending or partial for portfolio readiness:
 
-- Frontend UI for registration, forgot password, and reset password.
-- Backlog, sprints, dashboard/metrics, comments/activity feed, profile/change-password, and AI-assisted planning features.
-- Demo polish: seeded/demo data, screenshots/GIFs, portfolio-friendly feature tour, and deployment notes.
+- Dashboard/metrics, comments/activity feed, and AI-assisted planning features.
 - OpenAPI drift cleanup before making contract drift checks blocking in CI.
 - E2E responsive-overflow coverage (`frontend/e2e/`) only guards horizontal-overflow regressions on the routes/viewport it checks — not a general accessibility or cross-browser suite.
+- Error/success message translation to Spanish now covers auth (login, register, forgot-password, reset-password) plus projects, project members, work-items/board, admin (users, role-permissions), and profile/change-password. Refresh-token/logout error details (`RefreshTokenService`) and the CSRF-filter error still relay English text and remain pending, along with the Jakarta-default validation-message path in `GlobalExceptionHandler.handleConstraintViolation` for any constraint without an explicit `message=`.
 
-Frontend validation: 304 tests pass. The production build passes cleanly, with no `anyComponentStyle` warnings.
+Frontend validation: 341 tests pass. The production build passes cleanly, with no `anyComponentStyle` warnings.
 
 ## Commands
 
@@ -37,7 +39,8 @@ Backend (from `backend/`):
 - `./mvnw test -Dtest=ClassName` — single test class
 - `./mvnw spring-boot:run` — run the app locally
 - No `.mvn/jvm.config` pins the JDK. If your machine's default `JAVA_HOME` resolves to an older JDK (e.g. 17), export a JDK 25 `JAVA_HOME` before invoking `./mvnw` — there is no repo-level workaround yet.
-- Two backend tests (`FlowpilotApplicationTests`, `AuthFlowIntegrationTest`) require Testcontainers/Docker and won't run in a Docker-less sandbox; exclude with `-Dtest='!FlowpilotApplicationTests,!AuthFlowIntegrationTest'` when Docker isn't available.
+- Integration tests use Testcontainers 1.21.2 and require Docker. The full suite includes `FlowpilotApplicationTests`, `AuthFlowIntegrationTest`, `OpenApiSpecExportTest`, and `RolePermissionSeedIntegrationTest`; they won't run in a Docker-less sandbox. Exclude them with `-Dtest='!FlowpilotApplicationTests,!AuthFlowIntegrationTest,!OpenApiSpecExportTest,!RolePermissionSeedIntegrationTest'` when Docker isn't available.
+- If Testcontainers cannot discover Docker on a Windows developer machine, use the local configuration files `~/.testcontainers.properties` (with `docker.host`) and `~/.docker-java.properties` (with `api.version`) as troubleshooting overrides. Create them only when discovery fails; do not commit machine-specific named-pipe or API-version settings to the repository.
 
 Frontend (from `frontend/`):
 - `npm ci`
@@ -68,8 +71,8 @@ Flyway requires the `spring-boot-starter-flyway` dependency (not just `flyway-co
 
 **Config profiles**: base `application.yml` holds shared defaults; `application-dev.yml`, `application-docker.yml` (datasource host `db`, the Compose service name), `application-prod.yml`, and test's `application-test.yml` override only what differs (datasource, JWT secret, logging). The `docker` profile has no insecure JWT-secret fallback — Compose fails fast if `FLOWPILOT_JWT_SECRET` isn't set. The `prod` profile requires `FLOWPILOT_DATASOURCE_URL`, `FLOWPILOT_DATASOURCE_USERNAME`, `FLOWPILOT_DATASOURCE_PASSWORD`, and `FLOWPILOT_JWT_SECRET` as env vars with no defaults — Spring fails fast at startup if any are missing.
 
-**Frontend**: standalone Angular app with implemented routes for `/`, `/login`, `/projects`, `/projects/:projectId/board`, `/projects/:projectId/members`, `/admin/users`, and `/admin/permissions`. Core auth/API code lives under `frontend/src/app/core/`; feature slices live under `frontend/src/app/features/`; shared UI components live under `frontend/src/app/shared/ui/`. Current frontend gaps are mostly screens for backend capabilities that already exist: auth recovery/register and project mutation/detail.
+**Frontend**: standalone Angular app with implemented routes for `/`, `/login`, `/projects`, `/projects/:projectId/board`, `/projects/:projectId/backlog`, `/projects/:projectId/members`, `/profile`, `/admin/users`, and `/admin/permissions`. Core auth/API code lives under `frontend/src/app/core/`; feature slices live under `frontend/src/app/features/`; shared UI components live under `frontend/src/app/shared/ui/`. Current frontend gaps are mostly screens for backend capabilities that already exist: dashboard/metrics.
 
-**API contract**: `api/openapi.yaml` is the hand-authored, contract-first source of truth — write the spec before the controller, not the other way around. The contract is currently monolithic; `api/components/` and `api/paths/` are not populated. CI exports the live Springdoc spec during backend tests and runs a non-blocking `oasdiff` breaking-change report. Known DTO/schema drift remains pending; make the gate blocking only after those gaps are resolved.
+**API contract**: `api/openapi.yaml` is the hand-authored, contract-first source of truth — write the spec before the controller, not the other way around. The contract is currently monolithic; `api/components/` and `api/paths/` are not populated. CI exports the live Springdoc spec during backend tests and runs a non-blocking `oasdiff` breaking-change report. Keep the gate non-blocking until the remaining DTO/schema drift gaps are resolved.
 
-**Delivery model**: one Git branch/PR per SDD task-slice, stacked toward `main` where practical. CI (`.github/workflows/ci.yml`) runs backend (`./mvnw -B test`, JDK 25) and frontend (`npm ci && ng test --watch=false && ng build`, Node 22) as separate parallel jobs on every PR and push to `main`.
+**Delivery model**: one Git branch/PR per SDD task-slice, stacked toward `main` where practical. CI (`.github/workflows/ci.yml`) runs backend (`./mvnw -B test`, JDK 25) and frontend (`npm ci && ng test --watch=false && ng build`, Node 24) as separate parallel jobs on every PR and push to `main`.

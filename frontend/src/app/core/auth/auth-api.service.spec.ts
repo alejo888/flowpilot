@@ -70,4 +70,54 @@ describe('AuthApiService', () => {
 
     expect(completed).toBe(true);
   });
+
+  it('posts registration details to /api/auth/register without a CSRF header', () => {
+    let completed = false;
+
+    service
+      .register({ name: 'Ada Lovelace', email: 'ada@flowpilot.local', password: 'secret123' })
+      .subscribe(() => (completed = true));
+
+    const req = httpMock.expectOne('/api/auth/register');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({
+      name: 'Ada Lovelace',
+      email: 'ada@flowpilot.local',
+      password: 'secret123',
+    });
+    expect(req.request.headers.has('X-XSRF-TOKEN')).toBe(false);
+    req.flush(null);
+
+    expect(completed).toBe(true);
+  });
+
+  it('posts an email to /api/auth/forgot-password without a CSRF header', () => {
+    let completed = false;
+
+    service.forgotPassword({ email: 'ada@flowpilot.local' }).subscribe(() => (completed = true));
+
+    const req = httpMock.expectOne('/api/auth/forgot-password');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ email: 'ada@flowpilot.local' });
+    expect(req.request.headers.has('X-XSRF-TOKEN')).toBe(false);
+    req.flush(null);
+
+    expect(completed).toBe(true);
+  });
+
+  it('posts a token and new password to /api/auth/reset-password without a CSRF header', () => {
+    let completed = false;
+
+    service
+      .resetPassword({ token: 'reset-token-1', newPassword: 'newSecret123' })
+      .subscribe(() => (completed = true));
+
+    const req = httpMock.expectOne('/api/auth/reset-password');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ token: 'reset-token-1', newPassword: 'newSecret123' });
+    expect(req.request.headers.has('X-XSRF-TOKEN')).toBe(false);
+    req.flush(null);
+
+    expect(completed).toBe(true);
+  });
 });

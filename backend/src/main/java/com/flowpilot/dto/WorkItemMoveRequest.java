@@ -12,6 +12,7 @@ import jakarta.validation.constraints.NotNull;
  * gap-based {@code WorkItem.position} (design D10).
  */
 public record WorkItemMoveRequest(
-        @NotNull Long columnId,
-        @NotNull @Min(0) Integer position) {
+        @NotNull(message = "La columna no puede estar vacía") Long columnId,
+        @NotNull(message = "La posición no puede estar vacía")
+        @Min(value = 0, message = "La posición no puede ser negativa") Integer position) {
 }

@@ -116,7 +116,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                       <span data-testid="work-item-title">{{ item.title }}</span>
                     </button>
                     @if (item.assignedUserId !== null) {
-                      <span class="assignee">Asignado a #{{ item.assignedUserId }}</span>
+                      <span class="assignee">Asignado a {{ item.assignedUserName ?? '#' + item.assignedUserId }}</span>
                     }
                   </fp-card>
                 }

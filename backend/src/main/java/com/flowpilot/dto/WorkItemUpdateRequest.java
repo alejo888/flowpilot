@@ -1,14 +1,10 @@
 package com.flowpilot.dto;
 
+import com.flowpilot.entity.WorkItemPriority;
 import jakarta.validation.constraints.NotBlank;
 
-/**
- * Update payload for {@code PUT /api/work-items/{id}}. Deliberately excludes
- * {@code columnId}/{@code position} — those are mutated only by the slice-6
- * move endpoint ({@code PUT /api/work-items/{id}/move}), not this one.
- */
-public record WorkItemUpdateRequest(
-        @NotBlank String title,
-        String description,
-        Long assignedUserId) {
+public record WorkItemUpdateRequest(@NotBlank(message = "El título no puede estar vacío") String title,
+        String description, Long assignedUserId, Long sprintId, WorkItemPriority priority) {
+    public WorkItemUpdateRequest(String title, String description, Long assignedUserId) { this(title, description, assignedUserId, null, null); }
+    public WorkItemUpdateRequest(String title, String description, Long assignedUserId, Long sprintId) { this(title, description, assignedUserId, sprintId, null); }
 }

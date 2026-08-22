@@ -215,6 +215,56 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/users/me:
+    get:
+      summary: Get the authenticated caller's own profile
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Caller's profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAdminResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/users/me/password:
+    put:
+      summary: Change the authenticated caller's own password
+      operationId: changePassword
+      description: >-
+        Verifies currentPassword against the stored hash before re-hashing.
+        On success, revokes all of the caller's active refresh tokens (same
+        as /api/auth/reset-password).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password updated; all refresh tokens revoked
+        '400':
+          description: Validation failed, or current password is incorrect
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/admin/users:
     get:
       summary: List all users with full admin projection (role, active) — admin-only
@@ -787,6 +837,47 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/projects/{projectId}/sprints:
+    get:
+      summary: List project sprints
+      operationId: listSprints
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/NestedProjectId' }]
+      responses:
+        '200': { description: Project sprints, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SprintResponse' } } } } }
+        '403': { description: Forbidden }
+    post:
+      summary: Create a planned sprint
+      operationId: createSprint
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/NestedProjectId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SprintCreateRequest' } } } }
+      responses:
+        '201': { description: Sprint created, content: { application/json: { schema: { $ref: '#/components/schemas/SprintResponse' } } } }
+        '400': { description: Invalid dates }
+        '403': { description: Forbidden }
+  /api/sprints/{id}:
+    put:
+      summary: Update a planned sprint
+      operationId: updateSprint
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/SprintId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SprintUpdateRequest' } } } }
+      responses: { '200': { description: Sprint updated, content: { application/json: { schema: { $ref: '#/components/schemas/SprintResponse' } } } } }
+  /api/sprints/{id}/start:
+    post:
+      summary: Start a planned sprint
+      operationId: startSprint
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/SprintId' }]
+      responses: { '200': { description: Sprint activated }, '400': { description: Invalid transition or active sprint already exists } }
+  /api/sprints/{id}/complete:
+    post:
+      summary: Complete an active sprint
+      operationId: completeSprint
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/SprintId' }]
+      responses: { '200': { description: Sprint completed }, '400': { description: Invalid transition } }
   /api/projects/{projectId}/work-items:
     get:
       summary: List a project's work items
@@ -988,6 +1079,22 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+/api/projects/{projectId}/dashboard:
+  get:
+        summary: Get project dashboard aggregates
+        operationId: getProjectDashboard
+        parameters:
+          - in: path
+            name: projectId
+            required: true
+            schema: {type: integer, format: int64}
+        responses:
+          '200':
+            description: Dashboard metrics
+            content:
+              application/json:
+                schema: {$ref: '#/components/schemas/ProjectDashboardResponse'}
+          '403': {description: Not authorized}
 components:
   parameters:
     ProjectId:
@@ -1016,6 +1123,13 @@ components:
       schema:
         type: integer
         format: int64
+    SprintId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
     WorkItemId:
       name: id
       in: path
@@ -1030,9 +1144,12 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
         email:
           type: string
           format: email
+          minLength: 1
+          pattern: '^[^\s@]+@[^\s@]+\.[^\s@]+$'
         password:
           type: string
           minLength: 8
@@ -1043,8 +1160,10 @@ components:
         email:
           type: string
           format: email
+          minLength: 1
         password:
           type: string
+          minLength: 1
     AccessTokenResponse:
       type: object
       properties:
@@ -1060,12 +1179,14 @@ components:
         email:
           type: string
           format: email
+          minLength: 1
     ResetPasswordRequest:
       type: object
       required: [token, newPassword]
       properties:
         token:
           type: string
+          minLength: 1
         newPassword:
           type: string
           minLength: 8
@@ -1096,6 +1217,16 @@ components:
         email:
           type: string
           format: email
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          minLength: 8
     GlobalRole:
       type: string
       enum: [ADMINISTRADOR, MIEMBRO_EQUIPO]
@@ -1138,6 +1269,7 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
         description:
           type: string
         code:
@@ -1163,6 +1295,7 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
         description:
           type: string
         code:
@@ -1236,6 +1369,7 @@ components:
           type: string
         position:
           type: integer
+          format: int32
     ProjectRole:
       type: string
       description: >-
@@ -1310,9 +1444,8 @@ components:
           items:
             $ref: '#/components/schemas/RolePermissionGrant'
         expectedUpdatedAt:
-          type: string
+          type: [string, 'null']
           format: date-time
-          nullable: true
     ProjectMemberAddRequest:
       type: object
       required: [userId, role]
@@ -1345,6 +1478,46 @@ components:
         joinedAt:
           type: string
           format: date-time
+    SprintStatus:
+      type: string
+      enum: [PLANNED, ACTIVE, COMPLETED]
+    SprintCreateRequest:
+      type: object
+      required: [name, startDate, endDate]
+      properties:
+        name: { type: string, minLength: 1 }
+        goal: { type: string, nullable: true }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+    SprintUpdateRequest:
+      $ref: '#/components/schemas/SprintCreateRequest'
+    SprintResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        projectId: { type: integer, format: int64 }
+        name: { type: string }
+        goal: { type: string, nullable: true }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        status: { $ref: '#/components/schemas/SprintStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    WorkItemPriority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, URGENT]
+    ProjectDashboardResponse:
+      type: object
+      properties:
+        totalItems: {type: integer, format: int64}
+        completedItems: {type: integer, format: int64}
+        columnCounts: {type: array, items: {type: object}}
+        activeSprint: {type: object, nullable: true}
+        activeSprintTotalItems: {type: integer, format: int64}
+        activeSprintCompletedItems: {type: integer, format: int64}
+        backlogPendingCount: {type: integer, format: int64}
+        workload: {type: array, items: {type: object}}
+        priorityDistribution: {type: object, additionalProperties: {type: integer, format: int64}}
     WorkItemCreateRequest:
       type: object
       description: >-
@@ -1354,11 +1527,14 @@ components:
       properties:
         title:
           type: string
+          minLength: 1
         description:
           type: string
         assignedUserId:
           type: integer
           format: int64
+        priority:
+          $ref: '#/components/schemas/WorkItemPriority'
     WorkItemUpdateRequest:
       type: object
       description: >-
@@ -1368,11 +1544,14 @@ components:
       properties:
         title:
           type: string
+          minLength: 1
         description:
           type: string
         assignedUserId:
           type: integer
           format: int64
+        priority:
+          $ref: '#/components/schemas/WorkItemPriority'
     WorkItemResponse:
       type: object
       properties:
@@ -1392,6 +1571,9 @@ components:
         assignedUserId:
           type: integer
           format: int64
+        assignedUserName:
+          type: string
+          nullable: true
         position:
           type: integer
         createdAt:
@@ -1400,6 +1582,12 @@ components:
         updatedAt:
           type: string
           format: date-time
+        sprintId:
+          type: integer
+          format: int64
+          nullable: true
+        priority:
+          $ref: '#/components/schemas/WorkItemPriority'
     WorkItemMoveRequest:
       type: object
       description: >-
@@ -1413,6 +1601,7 @@ components:
           format: int64
         position:
           type: integer
+          format: int32
           minimum: 0
   responses: {}
   securitySchemes:

@@ -64,7 +64,7 @@ public class ProjectMemberService {
 
     public List<ProjectMemberResponse> listMembers(Long projectId, Long requesterId) {
         if (!authorizationService.canView(requesterId, projectId)) {
-            throw new AccessDeniedException("Not authorized to view members of this project");
+            throw new AccessDeniedException("No autorizado para ver los miembros de este proyecto");
         }
         return projectMemberRepository.findByProjectId(projectId).stream()
                 .map(ProjectMemberService::toResponse)
@@ -73,7 +73,7 @@ public class ProjectMemberService {
 
     private void requirePermission(Long requesterId, Long projectId, Permission permission) {
         if (!authorizationService.hasPermission(requesterId, projectId, permission)) {
-            throw new AccessDeniedException("Missing permission " + permission + " on project " + projectId);
+            throw new AccessDeniedException("Falta el permiso " + permission + " en el proyecto " + projectId);
         }
     }
 

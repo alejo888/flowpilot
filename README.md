@@ -1,92 +1,117 @@
 # FlowPilot
 
-FlowPilot is a portfolio-oriented agile project management MVP. The current build demonstrates a secured Spring Boot 4 / Java 25 backend, an Angular 21 frontend, PostgreSQL persistence, Docker Compose packaging, and an OpenAPI contract workflow. It is not the full AI-assisted product vision yet; this README focuses on what is implemented and what remains pending.
+FlowPilot is an AI-assisted agile project management platform — a personal portfolio project built to demonstrate a production-shaped full-stack setup: a layered Spring Boot backend, a standalone Angular frontend, contract-first API design, and a CI pipeline that actually runs the test suites.
 
-## Quick demo path
+Full product vision: [`FlowPilot_Gestor_Proyectos_IA.md`](FlowPilot_Gestor_Proyectos_IA.md) (broader than the current MVP below).
 
-1. Start the stack:
+## Screenshots
 
-   ```bash
-   # Set a strong local secret first; do not commit it.
-   export FLOWPILOT_JWT_SECRET="replace-with-a-long-local-secret"
-   docker compose up --build
-   ```
+| | |
+|---|---|
+| **Login** | **Home** |
+| ![Login screen](docs/screenshots/login.png) | ![Home screen](docs/screenshots/00-home.png) |
+| **Projects** | **Kanban board** |
+| ![Projects list](docs/screenshots/01-projects.png) | ![Kanban board](docs/screenshots/02-board.png) |
+| **Project members** | **Admin — users** |
+| ![Project members](docs/screenshots/03-members.png) | ![Admin users](docs/screenshots/04-admin-users.png) |
+| **Admin — role/permission matrix** | **Profile** |
+| ![Admin role-permission matrix](docs/screenshots/05-admin-permissions.png) | ![Profile screen](docs/screenshots/06-profile.png) |
 
-2. Open the frontend at `http://localhost:80`.
-3. Sign in with the local seeded admin account: `admin@flowpilot.local` / `ChangeMe123!`.
-4. Review the implemented flows:
-   - Admin users: list users, activate/deactivate, change global roles.
-   - Role permissions: update the project role-permission matrix.
-   - Projects: list, create, open details, edit, change status, and delete projects with accessible confirmation.
-   - Project members: add/remove members and change project roles.
-   - Kanban board: view columns/cards, create/edit/delete work items, inspect details, and drag cards between/within columns.
+## What's implemented
 
-Backend is also exposed at `http://localhost:8080`; the frontend nginx container proxies API calls under `/api`.
+- **Auth & session**: register, login, refresh-token rotation with reuse detection, logout, forgot-password, reset-password — backed by short-lived JWT access tokens plus an `HttpOnly` refresh cookie, and a double-submit CSRF filter protecting the refresh/logout endpoints.
+- **User directory & admin**: authenticated user listing, admin-only user management (activate/deactivate, global role changes, last-active-admin guard).
+- **Projects**: full CRUD with rich fields (code, dates, technologies, repository URL), status transitions, and per-project default Kanban columns.
+- **Project members**: add/remove/change role, including a confirmed self-removal flow.
+- **Kanban board**: work-item CRUD, drag-and-drop move between and within columns.
+- **Backlog and sprints**: project backlog browsing and sprint planning with work-item assignment.
+- **Role-permission matrix**: a dense, project-role × permission grid, editable by admins with optimistic-concurrency protection.
+- **Profile**: view your own name/email and change your password, which revokes your other active sessions.
+- **Spanish-localized errors**: auth, projects, members, board, admin, and profile error/validation messages are translated end-to-end (see [`CLAUDE.md`](CLAUDE.md) for the few remaining English-only paths).
+- **API contract**: [`api/openapi.yaml`](api/openapi.yaml) is hand-authored and contract-first, with a CI job that diffs it against the live-generated spec for breaking changes.
 
-## Current MVP status
+See [`CLAUDE.md`](CLAUDE.md) for the full current-status breakdown and what remains toward a complete MVP (dashboard/metrics, AI-assisted planning, etc.).
 
-| Area | Implemented now | Partial / pending |
-|------|-----------------|-------------------|
-| Auth/session | Backend register, login, refresh-token rotation, logout, forgot/reset password. Frontend login, refresh-cookie hydration, JWT interceptor, route guards, admin guard. | Frontend register, forgot password, and reset password screens. |
-| Users/admin | Authenticated backend user list/detail. Admin user list, activate/deactivate, role changes, and last-active-admin protection with frontend screens. | Profile and change-password UI. |
-| Projects | Backend list/create/get/update/status/delete with rich fields and default board columns. Frontend supports list/create/detail navigation, edit, status change, and delete with accessible confirmation. | — |
-| Project members | Backend and frontend list/add/change role/remove, including self-removal confirmation. | Portfolio polish around empty states/demo data. |
-| Work items/Kanban | Backend and frontend work-item CRUD, detail view, accessible delete confirmation, and move with drag/drop or manual position preservation. | — |
-| Permissions | Backend and frontend admin role-permission matrix with optimistic concurrency and authorization cache reload. | Broader audit/activity history. |
-| API contract/CI | `api/openapi.yaml` covers implemented path families. CI exports live Springdoc spec and runs non-blocking `oasdiff`. | Clean up known OpenAPI drift before making the drift gate blocking. |
-| Product vision | Agile project management foundation is underway. | Backlog, sprints, dashboard/metrics, comments/activity feed, AI-assisted planning, screenshots, deployment polish. |
+## Tech stack
 
-Frontend validation: 242 tests pass. The production build passes with a pre-existing `board.component.ts` stylesheet budget warning.
+- **Backend**: Spring Boot 4, Java 25, Spring Security, jjwt, Flyway, PostgreSQL
+- **Frontend**: Angular 21 (standalone components), Vitest for unit tests, Playwright for e2e
+- **Infra**: Docker Compose (Postgres + backend + nginx-served frontend), GitHub Actions CI (backend tests, frontend tests + build, e2e)
+
+## Running it locally
+
+Requires Docker and Docker Compose.
+
+```bash
+# Create the ignored local environment file and replace every placeholder with local values.
+cp .env.example .env
+$EDITOR .env
+docker compose up --build
+```
+
+- Frontend: http://localhost
+- Backend API (proxied under `/api` by the frontend, or directly): http://localhost:8080
+- Postgres: `localhost:5432`
+
+For production deployment, configuration, backups, rollback, and operational checks, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). The Compose instructions above remain the local quick start.
+
+On first boot, Flyway seeds the database with demo data so the app isn't empty:
+
+| Email | Password | Role |
+|---|---|---|
+| `admin@flowpilot.local` | `ChangeMe123!` | Administrador |
+| `ana.garcia@flowpilot.local` | `Demo1234!` | Miembro del equipo |
+| `carlos.fernandez@flowpilot.local` | `Demo1234!` | Miembro del equipo |
+| `lucia.martinez@flowpilot.local` | `Demo1234!` | Miembro del equipo |
+| `diego.torres@flowpilot.local` | `Demo1234!` | Miembro del equipo |
+
+These are local/dev-only bootstrap credentials — rotate them before any real deployment.
+
+### Running the backend or frontend on their own
+
+Backend (from `backend/`):
+
+```bash
+./mvnw spring-boot:run   # requires JAVA_HOME pointed at a JDK 25
+./mvnw -B test           # full test suite
+```
+
+Frontend (from `frontend/`):
+
+```bash
+npm ci
+ng serve   # dev server
+ng test --watch=false   # unit tests
+ng build   # production build
+```
+
+### Backend test troubleshooting
+
+From `backend/`, the normal full-suite command is:
+
+```bash
+./mvnw -B test
+```
+
+The integration tests use Testcontainers 1.21.2 and require a running Docker daemon (Docker Desktop is supported). If Testcontainers cannot discover Docker on a Windows developer machine, configure the local machine rather than the repository: `~/.testcontainers.properties` may define `docker.host`, and `~/.docker-java.properties` may define `api.version`. Add these files only when discovery fails; do not commit machine-specific named-pipe or API-version settings. Without Docker, run the non-container tests with the project-specific exclusions documented in `CLAUDE.md`.
 
 ## Repository layout
 
 | Path | Purpose |
-|------|---------|
+|---|---|
 | `backend/` | Spring Boot 4 layered monolith, Maven, Flyway migrations, Testcontainers-backed integration coverage. |
 | `frontend/` | Angular 21 standalone-components app with auth, admin, projects, members, and board slices. |
 | `api/openapi.yaml` | Hand-authored OpenAPI contract for implemented API path families. |
 | `docker-compose.yml` | Local stack: PostgreSQL, backend, frontend/nginx. |
-| `.github/workflows/ci.yml` | CI for backend tests, frontend tests/build, and OpenAPI lint/drift reporting. |
+| `.github/workflows/ci.yml` | CI for backend tests, frontend tests/build, and e2e. |
+| `docs/screenshots/` | Screenshots used in this README. |
 | `FlowPilot_Gestor_Proyectos_IA.md` | Full Spanish product vision; broader than the current MVP. |
 
-## Local development
+## Architecture notes
 
-### Full stack
+- **Layered backend**, not hexagonal: `config`, `controller`, `dto`, `entity`, `exception`, `mapper`, `repository`, `security`, `service`.
+- **Auth flow**: `AuthenticationManager`-based login issues a 15-minute stateless JWT (body) plus a 7-day opaque, DB-backed refresh token (`HttpOnly` cookie). Refresh-token rotation detects reuse and revokes all of a user's active tokens if it happens. All errors funnel through a global `@RestControllerAdvice` as RFC 7807 `ProblemDetail` responses.
+- **Authorization**: project role permissions are enforced through `ProjectAuthorizationService` against a dense role/permission matrix; admin screens use separate admin-only endpoints for global user and permission-matrix management.
+- **Migrations**: `backend/src/main/resources/db/migration/` — see `CLAUDE.md` for the migration-by-migration breakdown.
 
-```bash
-export FLOWPILOT_JWT_SECRET="replace-with-a-long-local-secret"
-docker compose up --build
-```
-
-### Backend
-
-```bash
-cd backend
-./mvnw -B test
-./mvnw spring-boot:run
-```
-
-Notes:
-- Java 25 is required.
-- Some integration tests require Docker/Testcontainers.
-
-### Frontend
-
-```bash
-cd frontend
-npm ci
-npm start
-npm test -- --watch=false
-npm run build
-```
-
-## Portfolio-readiness backlog
-
-- Add frontend screens for registration and password recovery/reset.
-- Add product modules that are still vision-only: backlog, sprints, dashboard/metrics, comments/activity feed, profile/change-password, and AI-assisted planning.
-- Add demo seed data, screenshots/GIFs, a short feature tour, and deployment notes.
-- Resolve OpenAPI schema/DTO drift and make the drift check blocking in CI.
-
-## Scope note
-
-FlowPilot is an MVP intended to show end-to-end product engineering practices. It currently emphasizes secure auth/session handling, role-based administration, project membership, Kanban movement, API contracts, and CI. Production hardening, real email delivery, public deployment, and AI features remain future work.
+For the deeper contributor-facing guide (commands, config profiles, delivery model), see [`CLAUDE.md`](CLAUDE.md).

@@ -10,6 +10,6 @@ package com.flowpilot.exception;
 public class RolePermissionConcurrencyException extends RuntimeException {
 
     public RolePermissionConcurrencyException() {
-        super("Role permission matrix was updated by someone else; reload and retry");
+        super("La matriz de permisos de roles fue actualizada por otra persona; recárguela e inténtelo de nuevo");
     }
 }

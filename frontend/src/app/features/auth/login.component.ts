@@ -1,5 +1,5 @@
 import { Component, effect, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AuthStore } from '../../core/auth/auth.store';
 import { sanitizeReturnUrl } from '../../core/auth/return-url';
@@ -21,7 +21,7 @@ import { FpInputComponent } from '../../shared/ui/input.component';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FpButtonComponent, FpCardComponent, FpInputComponent],
+  imports: [FpButtonComponent, FpCardComponent, FpInputComponent, RouterLink],
   template: `
     <div class="login-page">
       <fp-card class="login-card">
@@ -49,6 +49,10 @@ import { FpInputComponent } from '../../shared/ui/input.component';
           <fp-button type="submit" testId="login-submit" [disabled]="submitting()">
             Ingresar
           </fp-button>
+          <div class="login-links">
+            <a routerLink="/register">¿No tenés cuenta? Registrate</a>
+            <a routerLink="/forgot-password">¿Olvidaste tu contraseña?</a>
+          </div>
         </form>
       </fp-card>
     </div>
@@ -88,6 +92,18 @@ import { FpInputComponent } from '../../shared/ui/input.component';
       font-family: var(--fp-font-body);
       font-size: 0.875rem;
       color: var(--fp-danger);
+    }
+
+    .login-links {
+      display: flex;
+      flex-direction: column;
+      gap: var(--fp-space-1);
+      font-family: var(--fp-font-body);
+      font-size: 0.8125rem;
+    }
+
+    .login-links a {
+      color: var(--fp-accent);
     }
   `,
 })

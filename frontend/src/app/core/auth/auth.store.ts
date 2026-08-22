@@ -90,6 +90,6 @@ export class AuthStore {
 
   private extractDetail(err: unknown): string {
     const problem = err as ProblemDetailLike;
-    return problem?.error?.detail ?? 'Login failed';
+    return problem?.error?.detail ?? 'No se pudo iniciar sesión';
   }
 }

@@ -66,6 +66,16 @@ class PasswordResetServiceTest {
     }
 
     @Test
+    void forgotPasswordNormalizesEmailCaseBeforeLookup() {
+        User user = new User("Ada", "ada@flowpilot.local", "hash", GlobalRole.MIEMBRO_EQUIPO, true);
+        when(userRepository.findByEmail("ada@flowpilot.local")).thenReturn(Optional.of(user));
+
+        passwordResetService.forgotPassword("  Ada@FlowPilot.Local ");
+
+        verify(passwordResetTokenRepository).save(any(PasswordResetToken.class));
+    }
+
+    @Test
     void resetPasswordWithValidTokenUpdatesPasswordAndRevokesAllRefreshTokens() {
         User user = new User("Ada", "ada@flowpilot.local", "old-hash", GlobalRole.MIEMBRO_EQUIPO, true);
         PasswordResetToken token = new PasswordResetToken(user, "hashed-token", OffsetDateTime.now().plusMinutes(10));

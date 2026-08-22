@@ -66,23 +66,6 @@ html {
   --fp-shadow-md: 0 4px 12px rgba(36, 31, 28, 0.1);
 }
 
-// Compact density (spec: ui-density; design D5). Applied to
-// `document.documentElement` (not the app-shell host) by `DensityService`
-// so overlays rendered outside the shell — e.g. `fp-dialog` — inherit it
-// too. Redeclares ONLY spacing tokens; colors, fonts, and radii are
-// intentionally absent here and must never be added (see
-// `styles.density.spec.ts`).
-html[data-fp-density='compact'] {
-  --fp-space-1: 4px;
-  --fp-space-2: 6px;
-  --fp-space-3: 8px;
-  --fp-space-4: 12px;
-  --fp-space-6: 16px;
-  --fp-space-8: 24px;
-  --fp-space-12: 32px;
-  --fp-space-16: 48px;
-}
-
 body {
   // Default the application to a light color theme. This can be changed to
   // `dark` to enable the dark color theme, or to `light dark` to defer to the

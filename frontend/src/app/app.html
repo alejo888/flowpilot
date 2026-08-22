@@ -38,6 +38,14 @@
         (click)="closeDrawer()"
         >Proyectos</a
       >
+      <a
+        routerLink="/profile"
+        routerLinkActive="app-sidebar__link--active"
+        class="app-sidebar__link"
+        data-testid="nav-profile"
+        (click)="closeDrawer()"
+        >Perfil</a
+      >
       @if (authStore.isAdmin()) {
         <a
           routerLink="/admin/users"
@@ -64,28 +72,6 @@
           currentUserInitial()
         }}</span>
         <span class="app-sidebar__user-email" data-testid="sidebar-user-email">{{ currentUserEmail() }}</span>
-      </div>
-      <div class="app-sidebar__density-toggle" data-testid="density-slot" role="group" aria-label="Densidad">
-        <button
-          type="button"
-          class="app-sidebar__density-button"
-          data-testid="density-comfortable-button"
-          [attr.aria-pressed]="densityService.density() === 'comfortable'"
-          [class.app-sidebar__density-button--active]="densityService.density() === 'comfortable'"
-          (click)="setDensity('comfortable')"
-        >
-          Cómoda
-        </button>
-        <button
-          type="button"
-          class="app-sidebar__density-button"
-          data-testid="density-compact-button"
-          [attr.aria-pressed]="densityService.density() === 'compact'"
-          [class.app-sidebar__density-button--active]="densityService.density() === 'compact'"
-          (click)="setDensity('compact')"
-        >
-          Compacta
-        </button>
       </div>
       <fp-button variant="secondary" testId="logout-button" (click)="onLogout()">Cerrar sesión</fp-button>
     </div>

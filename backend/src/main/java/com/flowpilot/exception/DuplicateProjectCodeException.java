@@ -9,6 +9,6 @@ package com.flowpilot.exception;
 public class DuplicateProjectCodeException extends RuntimeException {
 
     public DuplicateProjectCodeException(String code) {
-        super("A project with code '" + code + "' already exists");
+        super("Ya existe un proyecto con el código '" + code + "'");
     }
 }

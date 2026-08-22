@@ -22,14 +22,18 @@ public class AuthService {
     /**
      * Self-service registration. Creates a User with the default global role
      * "Miembro del equipo" and {@code active=true}. Never auto-logs the user in.
+     * The email is normalized (trimmed + lower-cased) before the uniqueness check
+     * and before persisting, so casing can never split one person into two
+     * accounts.
      */
     public User register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.email())) {
-            throw new DuplicateEmailException(request.email());
+        String email = EmailNormalizer.normalize(request.email());
+        if (userRepository.existsByEmail(email)) {
+            throw new DuplicateEmailException();
         }
 
         String hashedPassword = passwordEncoder.encode(request.password());
-        User user = new User(request.name(), request.email(), hashedPassword, GlobalRole.MIEMBRO_EQUIPO, true);
+        User user = new User(request.name(), email, hashedPassword, GlobalRole.MIEMBRO_EQUIPO, true);
         return userRepository.save(user);
     }
 }

@@ -3,11 +3,15 @@ package com.flowpilot.controller;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.flowpilot.dto.UserAdminResponse;
 import com.flowpilot.dto.UserSummaryResponse;
+import com.flowpilot.entity.GlobalRole;
 import com.flowpilot.exception.GlobalExceptionHandler;
+import com.flowpilot.exception.InvalidCurrentPasswordException;
 import com.flowpilot.exception.UserNotFoundException;
 import com.flowpilot.service.UserService;
 import java.util.List;
@@ -16,6 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -68,5 +74,52 @@ class UserControllerTest {
 
         mockMvc.perform(get("/api/users/99"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getCurrentUserReturns200WithOwnProfile() throws Exception {
+        when(userService.getProfile(eq(42L)))
+                .thenReturn(new UserAdminResponse(42L, "Ada Lovelace", "ada@flowpilot.local", GlobalRole.MIEMBRO_EQUIPO, true));
+
+        mockMvc.perform(get("/api/users/me").principal(authenticatedAs(42L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(42))
+                .andExpect(jsonPath("$.name").value("Ada Lovelace"))
+                .andExpect(jsonPath("$.email").value("ada@flowpilot.local"))
+                .andExpect(jsonPath("$.role").value("MIEMBRO_EQUIPO"));
+    }
+
+    @Test
+    void changePasswordReturns200OnSuccess() throws Exception {
+        mockMvc.perform(put("/api/users/me/password")
+                        .principal(authenticatedAs(42L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"oldSecret1\",\"newPassword\":\"newSecret1\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void changePasswordReturns400WhenCurrentPasswordIsWrong() throws Exception {
+        org.mockito.Mockito.doThrow(new InvalidCurrentPasswordException("La contraseña actual no es correcta"))
+                .when(userService).changePassword(eq(42L), eq("wrongSecret"), eq("newSecret1"));
+
+        mockMvc.perform(put("/api/users/me/password")
+                        .principal(authenticatedAs(42L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"wrongSecret\",\"newPassword\":\"newSecret1\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void changePasswordReturns400WhenNewPasswordIsTooShort() throws Exception {
+        mockMvc.perform(put("/api/users/me/password")
+                        .principal(authenticatedAs(42L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"oldSecret1\",\"newPassword\":\"short\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    private UsernamePasswordAuthenticationToken authenticatedAs(Long userId) {
+        return new UsernamePasswordAuthenticationToken(String.valueOf(userId), null, List.of());
     }
 }

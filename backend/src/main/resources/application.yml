@@ -15,6 +15,15 @@ server:
 springdoc:
   default-produces-media-type: application/json
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
 flowpilot:
   jwt:
     secret: ${FLOWPILOT_JWT_SECRET:}

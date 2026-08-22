@@ -15,9 +15,11 @@ export interface WorkItem {
   title: string;
   description: string | null;
   assignedUserId: number | null;
+  assignedUserName: string | null;
   position: number;
   createdAt: string;
   updatedAt: string;
+      sprintId?: number | null;
 }
 
 /** Request body for POST /api/projects/{projectId}/work-items. */
@@ -25,6 +27,7 @@ export interface WorkItemCreateRequest {
   title: string;
   description?: string | null;
   assignedUserId?: number | null;
+      sprintId?: number | null;
 }
 
 /** Request body for PUT /api/work-items/{id}. */
@@ -32,6 +35,7 @@ export interface WorkItemUpdateRequest {
   title: string;
   description?: string | null;
   assignedUserId?: number | null;
+      sprintId?: number | null;
 }
 
 /**

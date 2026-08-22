@@ -18,27 +18,21 @@ jobs:
           distribution: temurin
           java-version: "25"
           cache: maven
+      - name: Verify Java runtime
+        run: java -version 2>&1 | grep -q 'version "25'
       - name: Run backend tests
         run: ./mvnw -B test
       - name: Report breaking changes between api/openapi.yaml and the live-generated spec
-        # Non-blocking for now (no fail-on): a full run already surfaced 23
-        # real errors + 6 warnings — legitimate contract gaps (e.g. request
-        # fields the hand-authored spec allows blank but @NotBlank actually
-        # rejects, response fields marked required that the DTO doesn't
-        # guarantee, missing email format) that need dedicated DTO-level
-        # annotation work and hand-authored spec corrections, tracked as a
-        # follow-up rather than fixed blind here. Once that backlog is
-        # cleared, add `fail-on: ERR` to make this gate the build.
-        #
+        # The hand-authored contract is checked against the live-generated spec.
         # Uses oasdiff's `breaking` mode rather than `diff`: plain `diff`
         # compares everything byte-for-byte (descriptions, operationIds,
         # tags, schema `format` metadata), which is far too strict for two
-        # independently-authored documents and was almost entirely cosmetic
-        # noise, not real drift, when tried here.
+        # independently-authored documents and creates cosmetic noise.
         uses: oasdiff/oasdiff-action/breaking@v0
         with:
           base: api/openapi.yaml
           revision: backend/target/openapi-generated.json
+          fail-on: ERR
           # Default is true: uploads the comparison to oasdiff.com and posts
           # a review link as a PR comment. Opt out — no third-party upload of
           # the API spec without explicit sign-off.
@@ -53,9 +47,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Verify Node runtime
+        run: node --version | grep -q '^v24\.'
       - name: Install dependencies
         run: npm ci
       - name: Run frontend tests
@@ -66,11 +62,16 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     env:
-      # CI-only ephemeral secret for a stack that's destroyed at the end of
-      # the job — not a real credential, no rotation/secrecy requirement.
+      # CI-only ephemeral values for a stack that's destroyed at the end of
+      # the job — not real credentials, no rotation/secrecy requirement.
+      FLOWPILOT_DB_NAME: flowpilot
+      FLOWPILOT_DB_USERNAME: flowpilot
+      FLOWPILOT_DB_PASSWORD: ci-ephemeral-db-password
       FLOWPILOT_JWT_SECRET: ci-ephemeral-jwt-secret-flowpilot-e2e
     steps:
       - uses: actions/checkout@v4
+      - name: Validate Docker Compose configuration
+        run: docker compose config --quiet
       - name: Start the full stack
         run: docker compose up -d --build
       - name: Wait for the backend to accept requests
@@ -89,7 +90,7 @@ jobs:
           exit 1
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install frontend dependencies
