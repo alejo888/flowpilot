@@ -300,6 +300,7 @@ import { ProjectsStore } from './projects.store';
 
     .project-row-meta {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: var(--fp-space-4);
     }
