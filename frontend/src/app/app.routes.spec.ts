@@ -27,6 +27,12 @@ describe('routes', () => {
     expect(detailRoute.loadComponent).toBeTypeOf('function');
   });
 
+  it('guards the backlog route with authGuard only and lazy-loads it', () => {
+    const backlogRoute = findRoute('projects/:projectId/backlog');
+    expect(backlogRoute.canActivate).toEqual([authGuard]);
+    expect(backlogRoute.loadComponent).toBeTypeOf('function');
+  });
+
   it('guards the board route with authGuard only', () => {
     const boardRoute = findRoute('projects/:projectId/board');
     expect(boardRoute.canActivate).toEqual([authGuard]);

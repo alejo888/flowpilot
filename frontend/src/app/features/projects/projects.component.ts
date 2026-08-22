@@ -155,6 +155,7 @@ import { ProjectsStore } from './projects.store';
                       class="project-row-link"
                       >Tablero</a
                     >
+                    <a [routerLink]="['/projects', project.id, 'backlog']" data-testid="project-backlog-link" class="project-row-link">Backlog</a>
                     <a
                       [routerLink]="['/projects', project.id, 'members']"
                       data-testid="project-members-link"

@@ -123,6 +123,8 @@ describe('ProjectsComponent', () => {
     expect(detailLink.getAttribute('href')).toBe('/projects/1');
     expect(boardLinks).toHaveLength(1);
     expect(boardLinks[0].getAttribute('href')).toBe('/projects/1/board');
+    const backlogLink = row.querySelector('[data-testid="project-backlog-link"]') as HTMLAnchorElement;
+    expect(backlogLink.getAttribute('href')).toBe('/projects/1/backlog');
     expect(membersLink.getAttribute('href')).toBe('/projects/1/members');
   });
 

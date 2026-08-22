@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { Component, effect, inject, input, numberAttribute, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { FpBadgeComponent } from '../../shared/ui/badge.component';
 import { FpButtonComponent } from '../../shared/ui/button.component';
@@ -23,14 +23,14 @@ const STATUS_OPTIONS = [
 @Component({
   selector: 'app-project-detail',
   standalone: true,
-  imports: [DatePipe, FpBadgeComponent, FpButtonComponent, FpCardComponent, FpDialogComponent, FpInputComponent, FpSelectComponent],
+  imports: [RouterLink, DatePipe, FpBadgeComponent, FpButtonComponent, FpCardComponent, FpDialogComponent, FpInputComponent, FpSelectComponent],
   template: `
     <main class="project-detail">
       @if (loading()) { <p data-testid="project-detail-loading">Cargando proyecto…</p> }
       @if (error(); as message) { <p data-testid="project-detail-error" class="error">{{ message }}</p> }
       @if (project(); as current) {
         <header class="detail-header">
-          <div><p class="eyebrow">Proyecto</p><h1 data-testid="project-detail-name">{{ current.name }}</h1></div>
+          <div><a [routerLink]="['/projects', projectId(), 'backlog']" class="project-link">Backlog y sprints</a><p class="eyebrow">Proyecto</p><h1 data-testid="project-detail-name">{{ current.name }}</h1></div>
           <fp-badge [variant]="statusBadgeVariant(current.status)" data-testid="project-detail-status">{{ current.status }}</fp-badge>
         </header>
         <fp-card><div class="summary">

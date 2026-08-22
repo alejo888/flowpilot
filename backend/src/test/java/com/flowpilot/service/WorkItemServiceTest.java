@@ -12,9 +12,12 @@ import com.flowpilot.dto.WorkItemResponse;
 import com.flowpilot.dto.WorkItemUpdateRequest;
 import com.flowpilot.entity.BoardColumn;
 import com.flowpilot.entity.Permission;
+import com.flowpilot.entity.Sprint;
 import com.flowpilot.entity.WorkItem;
-import com.flowpilot.exception.WorkItemNotFoundException;
+import com.flowpilot.exception.SprintNotFoundException;
+    import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.repository.BoardColumnRepository;
+    import com.flowpilot.repository.SprintRepository;
 import com.flowpilot.repository.UserRepository;
 import com.flowpilot.repository.WorkItemRepository;
 import java.lang.reflect.Field;
@@ -48,6 +51,9 @@ class WorkItemServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private SprintRepository sprintRepository;
+
     private ProjectAuthorizationService authorizationService;
 
     private WorkItemService workItemService;
@@ -55,8 +61,12 @@ class WorkItemServiceTest {
     @BeforeEach
     void setUp() {
         authorizationService = mock(ProjectAuthorizationService.class);
-        workItemService =
-                new WorkItemService(workItemRepository, boardColumnRepository, userRepository, authorizationService);
+        workItemService = new WorkItemService(
+                workItemRepository,
+                boardColumnRepository,
+                userRepository,
+                authorizationService,
+                sprintRepository);
     }
 
     @Test
@@ -202,6 +212,52 @@ class WorkItemServiceTest {
         assertThatThrownBy(() -> workItemService.update(
                 500L, new WorkItemUpdateRequest("New title", null, null), 2L))
                 .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void createAssignsItemToSprintInSameProject() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        BoardColumn firstColumn = column(200L, 10L, 1024);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(firstColumn));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(sprintRepository.findByIdAndProjectId(7L, 10L))
+                .thenReturn(Optional.of(new Sprint(10L, "Sprint", null,
+                        java.time.LocalDate.now(), java.time.LocalDate.now().plusDays(7))));
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WorkItemResponse response = workItemService.create(
+                10L, new WorkItemCreateRequest("Sprint task", null, null, 7L), 1L);
+
+        assertThat(response.sprintId()).isEqualTo(7L);
+    }
+
+    @Test
+    void createRejectsSprintFromAnotherProject() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        BoardColumn firstColumn = column(200L, 10L, 1024);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(firstColumn));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(sprintRepository.findByIdAndProjectId(7L, 10L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> workItemService.create(
+                10L, new WorkItemCreateRequest("Sprint task", null, null, 7L), 1L))
+                .isInstanceOf(SprintNotFoundException.class);
+    }
+
+    @Test
+    void updateWithNullSprintMovesItemToBacklog() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Sprint task", 1024);
+        item.setSprintId(7L);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+
+        WorkItemResponse response = workItemService.update(
+                500L, new WorkItemUpdateRequest("Backlog task", null, null, null), 1L);
+
+        assertThat(response.sprintId()).isNull();
+        assertThat(item.getSprintId()).isNull();
     }
 
     @Test
