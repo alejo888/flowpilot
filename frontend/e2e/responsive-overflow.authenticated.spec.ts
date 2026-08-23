@@ -4,15 +4,14 @@ import path from 'node:path';
 
 import { loginAsAdmin } from './admin-session';
 import { expectNoHorizontalOverflow } from './assert-no-overflow';
+import { staticAuthenticatedRoutes } from './routes';
 
 function seededProjectId(): number {
   const raw = readFileSync(path.join(__dirname, '.auth', 'project.json'), 'utf-8');
   return (JSON.parse(raw) as { id: number }).id;
 }
 
-const staticRoutes = ['/', '/projects', '/profile', '/admin/users', '/admin/permissions'];
-
-for (const route of staticRoutes) {
+for (const route of staticAuthenticatedRoutes) {
   test(`stays within viewport width: ${route}`, async ({ page }) => {
     await page.goto(route);
     await expectNoHorizontalOverflow(page);
@@ -21,6 +20,16 @@ for (const route of staticRoutes) {
 
 test('stays within viewport width: board', async ({ page }) => {
   await page.goto(`/projects/${seededProjectId()}/board`);
+  await expectNoHorizontalOverflow(page);
+});
+
+test('stays within viewport width: project dashboard', async ({ page }) => {
+  await page.goto(`/projects/${seededProjectId()}/dashboard`);
+  await expectNoHorizontalOverflow(page);
+});
+
+test('stays within viewport width: project backlog', async ({ page }) => {
+  await page.goto(`/projects/${seededProjectId()}/backlog`);
   await expectNoHorizontalOverflow(page);
 });
 

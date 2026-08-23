@@ -1,8 +1,11 @@
 import { test } from '@playwright/test';
 
 import { expectNoHorizontalOverflow } from './assert-no-overflow';
+import { guestRoutes } from './routes';
 
-test('stays within viewport width: login', async ({ page }) => {
-  await page.goto('/login');
-  await expectNoHorizontalOverflow(page);
-});
+for (const route of guestRoutes) {
+  test(`stays within viewport width: ${route}`, async ({ page }) => {
+    await page.goto(route);
+    await expectNoHorizontalOverflow(page);
+  });
+}

@@ -72,5 +72,24 @@ export default defineConfig({
       dependencies: ['mobile-authenticated', 'mobile-guest', 'mobile-focus-trap'],
       use: { browserName: 'chromium', viewport: DESKTOP_VIEWPORT },
     },
+    // Cross-browser coverage is scoped to the guest-only specs
+    // (responsive-overflow.guest / accessibility.guest): those routes need
+    // no login, so they carry none of the refresh-token reuse-detection
+    // concurrency risk documented on `mobile-focus-trap` and
+    // `desktop-sidebar` above. Duplicating the authenticated matrix across
+    // engines would need the same storageState reused concurrently across
+    // browser processes, which is out of scope here.
+    {
+      name: 'firefox-guest',
+      testMatch: /\.guest\.spec\.ts$/,
+      testIgnore: /dialog-focus-trap\.guest\.spec\.ts$/,
+      use: { browserName: 'firefox', viewport: MOBILE_VIEWPORT },
+    },
+    {
+      name: 'webkit-guest',
+      testMatch: /\.guest\.spec\.ts$/,
+      testIgnore: /dialog-focus-trap\.guest\.spec\.ts$/,
+      use: { browserName: 'webkit', viewport: MOBILE_VIEWPORT },
+    },
   ],
 });

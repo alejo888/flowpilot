@@ -98,7 +98,7 @@ jobs:
         run: npm ci
       - name: Install Playwright browsers
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox webkit
       - name: Run responsive e2e suite
         working-directory: frontend
         run: npm run e2e
