@@ -13,7 +13,7 @@ import {
 /**
  * Signals-based admin-permissions state (design D6 — signals + injectable
  * services, no NgRx; mirrors `features/admin-users/admin-users.store.ts`).
- * Holds a working copy of the 6x9 grid distinct from the last-loaded
+ * Holds a working copy of the 6x10 grid distinct from the last-loaded
  * baseline so individual cells can be dirty-tracked before an explicit bulk
  * save (spec: role-permissions — "the admin grid uses an explicit Save
  * button, so bulk PUT is the only editing shape").

@@ -416,11 +416,11 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
   /api/admin/role-permissions:
     get:
-      summary: Get the full 6x9 role/permission matrix — admin-only
+      summary: Get the full 6x10 role/permission matrix — admin-only
       operationId: getRolePermissions
       description: >-
         Returns the fixed role/permission catalogs (for rendering the admin
-        grid) plus all 54 grant rows and MAX(role_permissions.updated_at),
+        grid) plus all 60 grant rows and MAX(role_permissions.updated_at),
         which the caller must echo back as expectedUpdatedAt on PUT
         (optimistic concurrency, spec: role-permissions).
       security:
@@ -1530,6 +1530,7 @@ components:
         - WORKITEM_EDIT
         - WORKITEM_DELETE
         - WORKITEM_MOVE
+        - COMMENT_CREATE
     RolePermissionCatalogEntry:
       type: object
       description: Rendering metadata for one fixed catalog Permission. UI copy in Spanish.
@@ -1554,7 +1555,7 @@ components:
     RolePermissionMatrixResponse:
       type: object
       description: >-
-        Full 6x9 permission matrix (spec: role-permissions). updatedAt is
+        Full 6x10 permission matrix (spec: role-permissions). updatedAt is
         MAX(role_permissions.updated_at) — echo it back as
         expectedUpdatedAt on PUT.
       properties:
