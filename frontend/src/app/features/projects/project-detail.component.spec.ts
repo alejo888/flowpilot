@@ -154,6 +154,20 @@ describe('ProjectDetailComponent', () => {
     expect(storeStub.updateProjectStatus).toHaveBeenCalledWith(4, 'ACTIVO');
   });
 
+  it('bumps the status reset token on a failed status change, but not on success', async () => {
+    storeStub.updateProjectStatus.mockResolvedValueOnce(false);
+    const before = fixture.componentInstance.statusResetToken();
+
+    await fixture.componentInstance.onStatusChange('ACTIVO');
+
+    expect(fixture.componentInstance.statusResetToken()).toBe(before + 1);
+
+    storeStub.updateProjectStatus.mockResolvedValueOnce(true);
+    await fixture.componentInstance.onStatusChange('PAUSADO');
+
+    expect(fixture.componentInstance.statusResetToken()).toBe(before + 1);
+  });
+
     it('exposes dialog semantics and an accessible label for delete confirmation', () => {
     fixture.componentInstance.confirmingDelete.set(true);
     fixture.detectChanges();

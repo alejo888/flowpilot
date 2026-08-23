@@ -208,12 +208,50 @@ class ProjectAuthorizationServiceTest {
         assertThat(authorizationService.canView(5L, 10L)).isFalse();
     }
 
+    @Test
+    void deactivatedAdminIsDeniedByHasPermissionAndCanView() throws Exception {
+        // A deactivated caller's already-issued JWT must not keep granting
+        // project-scoped authority, not even through the global-admin bypass.
+        setUp(List.of(rolePermission(ProjectRole.DEVELOPER, Permission.WORKITEM_CREATE, true)));
+        User admin = inactiveUser(3L, GlobalRole.ADMINISTRADOR);
+        when(userRepository.findById(3L)).thenReturn(Optional.of(admin));
+
+        assertThat(authorizationService.hasPermission(3L, 10L, Permission.WORKITEM_CREATE)).isFalse();
+        assertThat(authorizationService.canView(3L, 10L)).isFalse();
+    }
+
+    @Test
+    void deactivatedOwnerIsDeniedByHasPermissionAndCanView() throws Exception {
+        setUp(List.of());
+        User owner = inactiveUser(1L, GlobalRole.MIEMBRO_EQUIPO);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+
+        assertThat(authorizationService.hasPermission(1L, 10L, Permission.PROJECT_DELETE)).isFalse();
+        assertThat(authorizationService.canView(1L, 10L)).isFalse();
+    }
+
+    @Test
+    void deactivatedProjectMemberIsDeniedByHasPermissionAndCanView() throws Exception {
+        setUp(List.of(rolePermission(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, true)));
+        User member = inactiveUser(4L, GlobalRole.MIEMBRO_EQUIPO);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(member));
+
+        assertThat(authorizationService.hasPermission(4L, 10L, Permission.MEMBER_ADD)).isFalse();
+        assertThat(authorizationService.canView(4L, 10L)).isFalse();
+    }
+
     private RolePermission rolePermission(ProjectRole role, Permission permission, boolean granted) {
         return new RolePermission(role, permission, granted);
     }
 
     private User user(Long id, GlobalRole role) throws Exception {
         User user = new User("Name", "user" + id + "@flowpilot.local", "hash", role, true);
+        setId(user, User.class, id);
+        return user;
+    }
+
+    private User inactiveUser(Long id, GlobalRole role) throws Exception {
+        User user = new User("Name", "user" + id + "@flowpilot.local", "hash", role, false);
         setId(user, User.class, id);
         return user;
     }

@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
@@ -15,6 +16,11 @@ import java.time.OffsetDateTime;
  * Project entity per design's data model (V3 migration). {@code ownerId} is a
  * plain FK column (not a JPA relation) to match {@code
  * ProjectAuthorizationService}'s pseudocode ({@code pr.getOwnerId().equals(userId)}).
+ *
+ * <p>{@code version} (V14 migration) backs JPA's built-in optimistic locking:
+ * two concurrent {@code PUT /api/projects/{id}} requests loaded from the same
+ * row now fail the second one with {@code ObjectOptimisticLockingFailureException}
+ * (mapped to 409) instead of the last write silently clobbering the first.
  */
 @Entity
 @Table(name = "projects")
@@ -23,6 +29,10 @@ public class Project {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     @Column(nullable = false)
     private String name;

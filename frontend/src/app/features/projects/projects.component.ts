@@ -43,7 +43,7 @@ import { ProjectsStore } from './projects.store';
         </fp-button>
       </div>
 
-      @if (error(); as message) {
+      @if (!showCreateDialog() && error(); as message) {
         <p data-testid="projects-error" class="projects-error">{{ message }}</p>
       }
 
@@ -57,7 +57,7 @@ import { ProjectsStore } from './projects.store';
           <h2 id="project-create-dialog-title">Crear proyecto</h2>
           <p id="project-create-dialog-description">Completá los datos del nuevo proyecto.</p>
           <form class="project-create" (submit)="onSubmit($event)">
-            @if (formError(); as message) {
+            @if (formError() ?? error(); as message) {
               <p data-testid="project-create-error" class="project-create-error">{{ message }}</p>
             }
             <fp-input

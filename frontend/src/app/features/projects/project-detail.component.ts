@@ -55,7 +55,9 @@ const STATUS_OPTIONS = [
         </form></fp-card>
         <fp-card><div class="actions">
           <section class="comments-section" aria-labelledby="project-comments-title"><h2 id="project-comments-title">Comentarios</h2><form data-testid="project-comment-form" (submit)="submitComment($event)"><label for="project-comment">Agregar comentario</label><textarea id="project-comment" rows="3" maxlength="4000" [value]="commentDraft()" (input)="commentDraft.set($any($event.target).value)" [disabled]="commentSubmitting()"></textarea><fp-button type="submit" icon="comment" [disabled]="commentSubmitting() || !commentDraft().trim()">Comentar</fp-button></form>@if (commentLoading()) { <p role="status">Cargando comentarios...</p> } @for (comment of projectComments(); track comment.id) { <article class="project-comment"><div class="comment-meta"><strong>{{ comment.authorName || 'Usuario' }}</strong><span>{{ comment.createdAt | date:'d MMM y, HH:mm' }}</span></div>@if (editingCommentId() === comment.id) { <textarea rows="3" aria-label="Editar comentario" [value]="editingContent()" (input)="editingContent.set($any($event.target).value)"></textarea><fp-button type="button" icon="save" ariaLabel="Guardar comentario" (click)="saveComment(comment.id)">Guardar</fp-button> } @else { <p>{{ comment.content }}</p>@if (canEdit(comment)) { <div class="comment-actions"><fp-button type="button" variant="secondary" icon="edit" ariaLabel="Editar comentario" (click)="startEdit(comment)">Editar</fp-button><fp-button type="button" variant="danger" icon="delete" ariaLabel="Eliminar comentario" (click)="confirmDeleteComment(comment.id)">Eliminar</fp-button></div> } }</article> }</section><section class="activity-section" aria-labelledby="project-activity-title"><h2 id="project-activity-title">Actividad</h2>@for (event of activity(); track event.id) { <article class="activity-event"><span>{{ event.createdAt | date:'d MMM y, HH:mm' }}</span><p>{{ event.displayText }}</p></article> }</section>
-              <fp-select label="Estado" testId="project-status-select" [value]="current.status" [options]="statusOptions" [disabled]="saving()" (valueChange)="onStatusChange($event)" />
+              @for (resetToken of [statusResetToken()]; track resetToken) {
+                <fp-select label="Estado" testId="project-status-select" [value]="current.status" [options]="statusOptions" [disabled]="saving()" (valueChange)="onStatusChange($event)" />
+              }
           <fp-button variant="danger" icon="delete" testId="project-delete" [disabled]="deleting()" (click)="confirmingDelete.set(true)">Eliminar proyecto</fp-button>
         </div></fp-card>
       }
@@ -103,6 +105,16 @@ export class ProjectDetailComponent {
   protected readonly statusBadgeVariant = projectStatusBadgeVariant;
   readonly name = signal(''); readonly description = signal(''); readonly code = signal(''); readonly startDate = signal(''); readonly estimatedEndDate = signal(''); readonly technologies = signal(''); readonly repositoryUrl = signal('');
   readonly confirmingDelete = signal(false);
+  /**
+   * Bumped on a failed status update to force `@for`'s `track` to recreate
+   * the `<fp-select>` (and its native `<select>`). Angular's property-binding
+   * diffing skips re-applying `[selected]` when `current.status` itself
+   * hasn't changed (the update failed, so the store's project is unchanged),
+   * but the browser already moved its own live selection to whatever the
+   * user just clicked — recreating the element is what actually discards
+   * that stale native selection and shows the real persisted status again.
+   */
+  readonly statusResetToken = signal(0);
 
   constructor() {
     effect(() => {
@@ -122,7 +134,11 @@ export class ProjectDetailComponent {
     });
   }
   onSubmit(event: Event): void { event.preventDefault(); const name = this.name().trim(); if (!name) return; this.store.updateProject(this.projectId(), { name, description: blank(this.description()), code: blank(this.code()), startDate: blank(this.startDate()), estimatedEndDate: blank(this.estimatedEndDate()), technologies: blank(this.technologies()), repositoryUrl: blank(this.repositoryUrl()) }); }
-  onStatusChange(value: string): void { if (value) this.store.updateProjectStatus(this.projectId(), value as ProjectStatus); }
+  async onStatusChange(value: string): Promise<void> {
+    if (!value) return;
+    const succeeded = await this.store.updateProjectStatus(this.projectId(), value as ProjectStatus);
+    if (!succeeded) this.statusResetToken.update((token) => token + 1);
+  }
   submitComment(event: Event): void { event.preventDefault(); const content = this.commentDraft().trim(); if (!content) return; this.commentsStore.createProject(this.projectId(), content); this.commentDraft.set(''); }
       canEdit(comment: Comment): boolean { return comment.authorId === this.commentsStore.currentUserId(); }
       startEdit(comment: Comment): void { this.editingCommentId.set(comment.id); this.editingContent.set(comment.content); }

@@ -6,7 +6,8 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 
 public record ProjectUpdateRequest(
-        @NotBlank(message = "El nombre no puede estar vacío") String name,
+        @NotBlank(message = "El nombre no puede estar vacío")
+        @Size(max = 255, message = "El nombre no puede superar los 255 caracteres") String name,
         String description,
         @Size(max = 50, message = "El código no puede superar los 50 caracteres")
         @Pattern(regexp = "^[A-Za-z0-9_-]*$",

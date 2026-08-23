@@ -58,12 +58,16 @@ export class ProjectsStore {
     });
   }
 
-  updateProjectStatus(id: number, status: ProjectStatus): void {
+  updateProjectStatus(id: number, status: ProjectStatus): Promise<boolean> {
     this.errorSignal.set(null); this.savingSignal.set(true);
-    this.api.updateProjectStatus(id, { status }).subscribe({
-      next: (project) => { this.selectedProjectSignal.set(project); this.replaceProject(project); this.savingSignal.set(false); },
-      error: (err: unknown) => { this.errorSignal.set(errorMessage(err, 'No se pudo actualizar el estado')); this.savingSignal.set(false); },
-    });
+    return new Promise((resolve) => this.api.updateProjectStatus(id, { status }).subscribe({
+      next: (project) => {
+        this.selectedProjectSignal.set(project); this.replaceProject(project); this.savingSignal.set(false); resolve(true);
+      },
+      error: (err: unknown) => {
+        this.errorSignal.set(errorMessage(err, 'No se pudo actualizar el estado')); this.savingSignal.set(false); resolve(false);
+      },
+    }));
   }
 
   deleteProject(id: number): Promise<boolean> {

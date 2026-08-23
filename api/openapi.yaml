@@ -589,8 +589,10 @@ paths:
       summary: Update a project's name/description
       operationId: updateProject
       description: >-
-        Only the project's owner or a global administrator may edit
-        (interim owner rule, design's ProjectAuthorizationService).
+        Requires the PROJECT_EDIT_SETTINGS permission (role-permission
+        matrix): a global administrator or the project's owner always has
+        it, and by default so does the PROJECT_MANAGER project role
+        (design's ProjectAuthorizationService).
       security:
         - bearerAuth: []
       parameters:
@@ -615,7 +617,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
         '403':
-          description: Caller is not the owner or an administrator
+          description: Caller lacks the required permission for this project (admin, owner, or a matrix-granted role)
           content:
             application/problem+json:
               schema:
@@ -627,7 +629,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
         '409':
-          description: Code already belongs to another project
+          description: Code already belongs to another project, or the project was modified concurrently
           content:
             application/problem+json:
               schema:
@@ -636,9 +638,10 @@ paths:
       summary: Delete a project
       operationId: deleteProject
       description: >-
-        Only the project's owner or a global administrator may delete
-        (PROJECT_DELETE is granted to no role in the future permission
-        matrix; owner/admin coverage is interim + permanent per the design).
+        Requires the PROJECT_DELETE permission (role-permission matrix): a
+        global administrator or the project's owner always has it;
+        PROJECT_DELETE is granted to no project role by default, but an
+        administrator may grant it to any role via the matrix.
       security:
         - bearerAuth: []
       parameters:
@@ -647,7 +650,7 @@ paths:
         '204':
           description: Project deleted
         '403':
-          description: Caller is not the owner or an administrator
+          description: Caller lacks the required permission for this project (admin, owner, or a matrix-granted role)
           content:
             application/problem+json:
               schema:
@@ -662,6 +665,9 @@ paths:
     patch:
       summary: Transition a project's lifecycle status
       operationId: updateProjectStatus
+      description: >-
+        Requires the PROJECT_EDIT_SETTINGS permission (role-permission
+        matrix), the same gate as updating the project itself.
       security:
         - bearerAuth: []
       parameters:
@@ -680,7 +686,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProjectResponse'
         '403':
-          description: Caller is not the owner or an administrator
+          description: Caller lacks the required permission for this project (admin, owner, or a matrix-granted role)
           content:
             application/problem+json:
               schema:

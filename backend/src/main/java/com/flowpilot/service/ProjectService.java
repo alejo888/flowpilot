@@ -43,24 +43,20 @@ public class ProjectService {
     private final BoardColumnRepository boardColumnRepository;
     private final UserRepository userRepository;
     private final ProjectAuthorizationService authorizationService;
-        private ProjectActivityService activityService;
+    private final ProjectActivityService activityService;
 
     public ProjectService(
             ProjectRepository projectRepository,
             BoardColumnRepository boardColumnRepository,
             UserRepository userRepository,
-            ProjectAuthorizationService authorizationService) {
+            ProjectAuthorizationService authorizationService,
+            ProjectActivityService activityService) {
         this.projectRepository = projectRepository;
         this.boardColumnRepository = boardColumnRepository;
         this.userRepository = userRepository;
         this.authorizationService = authorizationService;
-            this.activityService = null;
-        }
-
-        @org.springframework.beans.factory.annotation.Autowired
-        public ProjectService(ProjectRepository projectRepository, BoardColumnRepository boardColumnRepository, UserRepository userRepository, ProjectAuthorizationService authorizationService, ProjectActivityService activityService) {
-            this.projectRepository = projectRepository; this.boardColumnRepository = boardColumnRepository; this.userRepository = userRepository; this.authorizationService = authorizationService; this.activityService = activityService;
-        }
+        this.activityService = activityService;
+    }
 
     @Transactional
     public ProjectResponse create(ProjectCreateRequest request, Long ownerId) {
@@ -88,9 +84,12 @@ public class ProjectService {
     public List<ProjectResponse> list(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
+        if (!user.isActive()) {
+            throw new AccessDeniedException("La cuenta está desactivada");
+        }
         List<Project> projects = user.getRole() == GlobalRole.ADMINISTRADOR
                 ? projectRepository.findAll()
-                : projectRepository.findByOwnerId(userId);
+                : projectRepository.findVisibleToUser(userId);
         return projects.stream().map(ProjectService::toResponse).toList();
     }
 
@@ -217,7 +216,7 @@ public class ProjectService {
     }
 
     private void record(Long projectId, Long actorId, ActivityEventType type, String text) {
-        if (activityService != null) activityService.record(projectId, actorId, type, text, "{}");
+        activityService.record(projectId, actorId, type, text, "{}");
     }
 
 

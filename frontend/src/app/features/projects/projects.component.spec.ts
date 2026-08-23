@@ -316,6 +316,20 @@ describe('ProjectsComponent', () => {
     );
   });
 
+  it('shows a server-side create failure inside the open dialog, not behind it', async () => {
+    await setup();
+    openCreateDialog();
+
+    storeStub.error.set('El código ya pertenece a otro proyecto');
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('[data-testid="project-create-error"]')?.textContent).toContain(
+      'El código ya pertenece a otro proyecto',
+    );
+    expect(compiled.querySelector('[data-testid="projects-error"]')).toBeFalsy();
+  });
+
   it('clears the form and closes the dialog when the store reports a newly created project', async () => {
     await setup();
     openCreateDialog();
