@@ -16,6 +16,8 @@ Full product vision: [`FlowPilot_Gestor_Proyectos_IA.md`](FlowPilot_Gestor_Proye
 | ![Project members](docs/screenshots/03-members.png) | ![Admin users](docs/screenshots/04-admin-users.png) |
 | **Admin — role/permission matrix** | **Profile** |
 | ![Admin role-permission matrix](docs/screenshots/05-admin-permissions.png) | ![Profile screen](docs/screenshots/06-profile.png) |
+| **Project dashboard** | **Comments & activity feed** |
+| ![Project dashboard](docs/screenshots/07-dashboard.png) | ![Comments and activity feed](docs/screenshots/08-comments-activity.png) |
 
 ## What's implemented
 
@@ -27,10 +29,12 @@ Full product vision: [`FlowPilot_Gestor_Proyectos_IA.md`](FlowPilot_Gestor_Proye
 - **Backlog and sprints**: project backlog browsing and sprint planning with work-item assignment.
 - **Role-permission matrix**: a dense, project-role × permission grid, editable by admins with optimistic-concurrency protection.
 - **Profile**: view your own name/email and change your password, which revokes your other active sessions.
+- **Project dashboard**: per-project metrics — item totals, completion and backlog counts, per-column flow, priority distribution, active sprint progress, and per-assignee workload.
+- **Comments & activity feed**: threaded comments on projects and individual work items (create/read/update), plus an authorization-checked project activity feed surfacing membership, status, sprint, and comment events.
 - **Spanish-localized errors**: auth, projects, members, board, admin, and profile error/validation messages are translated end-to-end (see [`CLAUDE.md`](CLAUDE.md) for the few remaining English-only paths).
 - **API contract**: [`api/openapi.yaml`](api/openapi.yaml) is hand-authored and contract-first, with a CI job that diffs it against the live-generated spec for breaking changes.
 
-See [`CLAUDE.md`](CLAUDE.md) for the full current-status breakdown and what remains toward a complete MVP (dashboard/metrics, AI-assisted planning, etc.).
+See [`CLAUDE.md`](CLAUDE.md) for the full current-status breakdown and what remains toward a complete MVP (AI-assisted planning, comment deletion, etc.).
 
 ## Tech stack
 
@@ -100,7 +104,7 @@ The integration tests use Testcontainers 1.21.2 and require a running Docker dae
 | Path | Purpose |
 |---|---|
 | `backend/` | Spring Boot 4 layered monolith, Maven, Flyway migrations, Testcontainers-backed integration coverage. |
-| `frontend/` | Angular 21 standalone-components app with auth, admin, projects, members, and board slices. |
+| `frontend/` | Angular 21 standalone-components app with auth, admin, projects, members, board, dashboard, and comments/activity slices. |
 | `api/openapi.yaml` | Hand-authored OpenAPI contract for implemented API path families. |
 | `docker-compose.yml` | Local stack: PostgreSQL, backend, frontend/nginx. |
 | `.github/workflows/ci.yml` | CI for backend tests, frontend tests/build, and e2e. |
