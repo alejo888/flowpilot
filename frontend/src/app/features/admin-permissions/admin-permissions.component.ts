@@ -59,6 +59,7 @@ import { RolePermissionsStore } from './role-permissions.store';
                     <input
                       type="checkbox"
                       [attr.data-testid]="'cell-' + role + '-' + permission.key"
+                      [attr.aria-label]="role + ': ' + permission.label"
                       [class.dirty]="isDirty(role, permission.key)"
                       [checked]="isGranted(role, permission.key)"
                       (click)="onToggle(role, permission.key)"

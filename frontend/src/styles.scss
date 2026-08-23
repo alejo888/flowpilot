@@ -39,7 +39,13 @@ html {
   --fp-text: #241f1c;
   --fp-text-muted: #6b625b;
   --fp-border: #e5ded4;
-  --fp-accent: #d3572a;
+  // WCAG 2.1 AA requires 4.5:1 for normal text. #d3572a only reached 4.06:1
+  // against white; the first fix (#c14f26, 4.67:1 against white) still fell
+  // to 4.45:1 against --fp-bg (#faf7f2, the page background text like
+  // .eyebrow actually sits on) — found by the e2e accessibility suite
+  // (frontend/e2e/accessibility.*.spec.ts) once it covered more routes.
+  // #bd4c24 clears both: 4.97:1 against white, 4.65:1 against --fp-bg.
+  --fp-accent: #bd4c24;
   --fp-accent-hover: #b8461e;
   --fp-accent-contrast: #ffffff;
   --fp-focus: #2a6f8c;
