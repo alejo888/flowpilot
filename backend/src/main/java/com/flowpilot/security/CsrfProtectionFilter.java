@@ -39,7 +39,7 @@ public class CsrfProtectionFilter extends OncePerRequestFilter {
             String headerValue = request.getHeader(HEADER_NAME);
 
             if (cookieValue == null || headerValue == null || !cookieValue.equals(headerValue)) {
-                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Missing or invalid CSRF token");
+                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Token CSRF ausente o inválido");
                 return;
             }
         }

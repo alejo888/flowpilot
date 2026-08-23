@@ -48,20 +48,20 @@ public class RefreshTokenService {
      */
     public RotationResult rotate(String rawToken) {
         RefreshToken stored = refreshTokenRepository.findByTokenHash(hash(rawToken))
-                .orElseThrow(() -> new InvalidRefreshTokenException("Unknown refresh token"));
+                .orElseThrow(() -> new InvalidRefreshTokenException("Token de actualización desconocido"));
 
         if (stored.isRevoked()) {
             revokeAllActiveTokensFor(stored.getUser());
-            throw new InvalidRefreshTokenException("Refresh token reuse detected");
+            throw new InvalidRefreshTokenException("Se detectó una reutilización del token de actualización");
         }
 
         if (stored.isExpired()) {
-            throw new InvalidRefreshTokenException("Refresh token expired");
+            throw new InvalidRefreshTokenException("El token de actualización expiró");
         }
 
         User user = stored.getUser();
         if (!user.isActive()) {
-            throw new InvalidRefreshTokenException("User is deactivated");
+            throw new InvalidRefreshTokenException("El usuario está desactivado");
         }
 
         stored.setRevokedAt(OffsetDateTime.now());
