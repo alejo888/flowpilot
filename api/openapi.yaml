@@ -1161,6 +1161,13 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CommentResponse'}
+    delete:
+      summary: Delete own comment
+      operationId: deleteComment
+      parameters: [{name: commentId, in: path, required: true, schema: {type: integer, format: int64}}]
+      responses:
+        '204':
+          description: Comment deleted
   /api/projects/{projectId}/activity:
     get:
       summary: List project activity, newest first

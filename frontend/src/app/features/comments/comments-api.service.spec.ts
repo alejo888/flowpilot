@@ -55,4 +55,11 @@ describe('CommentsApiService', () => {
     expect(update.request.body).toEqual(request);
     update.flush({});
   });
+
+  it('sends a delete request for a comment', () => {
+    service.delete(7).subscribe();
+    const del = httpMock.expectOne('/api/comments/7');
+    expect(del.request.method).toBe('DELETE');
+    del.flush(null);
+  });
 });

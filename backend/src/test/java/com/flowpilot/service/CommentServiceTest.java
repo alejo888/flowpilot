@@ -107,6 +107,28 @@ class CommentServiceTest {
         verify(activity, org.mockito.Mockito.never()).record(any(), any(), any(), any(), any());
     }
 
+    @Test
+    void onlyAuthorMayDeleteAndDeleteRecordsActivity() throws Exception {
+        Comment comment = comment(7L, 10L, null, 4L, "old");
+        when(comments.findById(7L)).thenReturn(Optional.of(comment));
+        when(auth.canView(9L, 10L)).thenReturn(true);
+        assertThatThrownBy(() -> service.delete(7L, 9L)).isInstanceOf(AccessDeniedException.class);
+        verify(comments, org.mockito.Mockito.never()).delete(any());
+
+        when(auth.canView(4L, 10L)).thenReturn(true);
+        service.delete(7L, 4L);
+        verify(comments).delete(comment);
+        verify(activity).record(10L, 4L, com.flowpilot.entity.ActivityEventType.COMMENT_DELETED,
+                "Comment deleted", "{\"commentId\":7}");
+    }
+
+    @Test
+    void deletingAMissingCommentThrowsNotFound() {
+        when(comments.findById(404L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.delete(404L, 1L))
+                .isInstanceOf(com.flowpilot.exception.CommentNotFoundException.class);
+    }
+
     private Comment comment(Long id, Long projectId, Long workItemId, Long authorId, String content) throws Exception {
         Comment value = new Comment(projectId, workItemId, authorId, content);
         Field field = Comment.class.getDeclaredField("id"); field.setAccessible(true); field.set(value, id);

@@ -23,6 +23,9 @@ export class CommentsApiService {
   update(commentId: number, request: CommentRequest): Observable<Comment> {
     return this.http.put<Comment>(`/api/comments/${commentId}`, request);
   }
+  delete(commentId: number): Observable<void> {
+    return this.http.delete<void>(`/api/comments/${commentId}`);
+  }
   listActivity(projectId: number, page: CommentPage = {}): Observable<ActivityEvent[]> {
     return this.http.get<ActivityEvent[]>(`/api/projects/${projectId}/activity`, { params: params(page) });
   }

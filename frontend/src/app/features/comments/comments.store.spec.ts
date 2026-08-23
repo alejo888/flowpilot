@@ -17,11 +17,12 @@ describe('CommentsStore', () => {
   let api: {
     listProject: ReturnType<typeof vi.fn>; listActivity: ReturnType<typeof vi.fn>; listWorkItem: ReturnType<typeof vi.fn>;
     createProject: ReturnType<typeof vi.fn>; createWorkItem: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
   };
   let store: CommentsStore;
 
   beforeEach(() => {
-    api = { listProject: vi.fn(), listActivity: vi.fn(), listWorkItem: vi.fn(), createProject: vi.fn(), createWorkItem: vi.fn(), update: vi.fn() };
+    api = { listProject: vi.fn(), listActivity: vi.fn(), listWorkItem: vi.fn(), createProject: vi.fn(), createWorkItem: vi.fn(), update: vi.fn(), delete: vi.fn() };
     TestBed.configureTestingModule({ providers: [CommentsStore, { provide: CommentsApiService, useValue: api }] });
     store = TestBed.inject(CommentsStore);
   });
@@ -57,5 +58,25 @@ describe('CommentsStore', () => {
     expect(api.update).toHaveBeenCalledWith(1, { content: 'Updated' });
     expect(store.projectComments()).toEqual([comment(1, 'Updated'), created]);
     expect(store.submitting()).toBe(false);
+  });
+
+  it('removes a deleted comment from the selected collection', () => {
+    const first = comment(1);
+    const second = comment(2);
+    api.delete.mockReturnValue(of(undefined));
+    store.projectComments.set([first, second]);
+    store.delete(1, 'project');
+    expect(api.delete).toHaveBeenCalledWith(1);
+    expect(store.projectComments()).toEqual([second]);
+    expect(store.submitting()).toBe(false);
+  });
+
+  it('surfaces the delete error without removing the comment', () => {
+    const first = comment(1);
+    api.delete.mockReturnValue(throwError(() => ({ error: { detail: 'Solo el autor puede eliminarlo' } })));
+    store.projectComments.set([first]);
+    store.delete(1, 'project');
+    expect(store.error()).toBe('Solo el autor puede eliminarlo');
+    expect(store.projectComments()).toEqual([first]);
   });
 });

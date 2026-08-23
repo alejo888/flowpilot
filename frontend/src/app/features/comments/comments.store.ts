@@ -43,6 +43,14 @@ export class CommentsStore {
   update(commentId: number, content: string, target: 'project' | 'workItem'): void {
     this.submit(this.api.update(commentId, { content }), target === 'project' ? this.projectComments : this.workItemComments);
   }
+  delete(commentId: number, target: 'project' | 'workItem'): void {
+    const list = target === 'project' ? this.projectComments : this.workItemComments;
+    const previous = list(); this.submitting.set(true); this.error.set(null);
+    this.api.delete(commentId).subscribe({
+      next: () => { list.set(previous.filter(item => item.id !== commentId)); this.submitting.set(false); },
+      error: err => { this.error.set(errorMessage(err, 'No se pudo eliminar el comentario')); this.submitting.set(false); },
+    });
+  }
 
   private submit(request: ReturnType<CommentsApiService['createProject']>, target: typeof this.projectComments): void {
     const previous = target(); this.submitting.set(true); this.error.set(null);
