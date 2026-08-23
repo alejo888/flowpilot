@@ -19,6 +19,7 @@ import com.flowpilot.exception.GlobalExceptionHandler;
 import com.flowpilot.exception.InvalidRefreshTokenException;
 import com.flowpilot.exception.InvalidResetTokenException;
 import com.flowpilot.repository.UserRepository;
+import com.flowpilot.security.AuthRateLimiter;
 import com.flowpilot.security.CookieService;
 import com.flowpilot.security.JwtService;
 import com.flowpilot.service.AuthService;
@@ -57,14 +58,16 @@ class AuthControllerTest {
 
     private final CookieService cookieService = new CookieService(7);
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private AuthRateLimiter authRateLimiter;
 
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
+        authRateLimiter = new AuthRateLimiter();
         AuthController controller = new AuthController(
                 authService, authenticationManager, userRepository, jwtService,
-                refreshTokenService, passwordResetService, cookieService);
+                refreshTokenService, passwordResetService, cookieService, authRateLimiter);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -245,6 +248,152 @@ class AuthControllerTest {
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsBytes(request)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void repeatedFailedLoginsAreThrottledWith429() throws Exception {
+        LoginRequest request = new LoginRequest("ada@flowpilot.local", "wrong-password");
+        when(authenticationManager.authenticate(any())).thenThrow(new BadCredentialsException("bad"));
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsBytes(request)))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.detail")
+                        .value("Demasiados intentos. Intenta nuevamente en unos minutos"));
+    }
+
+    @Test
+    void successfulLoginsAreNotThrottled() throws Exception {
+        LoginRequest request = new LoginRequest("ada@flowpilot.local", "supersecret1");
+        User user = activeUser(1L);
+        Authentication authenticated = new UsernamePasswordAuthenticationToken(user.getEmail(), null);
+        when(authenticationManager.authenticate(any())).thenReturn(authenticated);
+        when(userRepository.findByEmail("ada@flowpilot.local")).thenReturn(Optional.of(user));
+        when(jwtService.generateAccessToken(user)).thenReturn("signed-access-token");
+        when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);
+        when(refreshTokenService.issue(user)).thenReturn("raw-refresh-token");
+
+        for (int attempt = 0; attempt < 8; attempt++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsBytes(request)))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    void repeatedForgotPasswordRequestsAreThrottledWith429() throws Exception {
+        ForgotPasswordRequest request = new ForgotPasswordRequest("anyone@flowpilot.local");
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            mockMvc.perform(post("/api/auth/forgot-password")
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsBytes(request)))
+                    .andExpect(status().isOk());
+        }
+
+        mockMvc.perform(post("/api/auth/forgot-password")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    void malformedJsonBodyReturns400ThroughRealDispatch() throws Exception {
+        // Dispatched for real (not by calling the advice method directly) so this
+        // proves Spring resolves HttpMessageNotReadableException to the specific
+        // handler instead of the Exception.class catch-all, which would be a 500.
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType("application/json")
+                        .content("{\"email\": \"ada@flowpilot.local\", "))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void failedLoginsFromOneForwardedClientDoNotThrottleAnotherClient() throws Exception {
+        LoginRequest request = new LoginRequest("ada@flowpilot.local", "wrong-password");
+        when(authenticationManager.authenticate(any())).thenThrow(new BadCredentialsException("bad"));
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .header("X-Forwarded-For", "203.0.113.9")
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsBytes(request)))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mockMvc.perform(post("/api/auth/login")
+                        .header("X-Forwarded-For", "203.0.113.9")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isTooManyRequests());
+
+        // Behind nginx every user would otherwise share the proxy's IP; a real
+        // second client must keep its own budget.
+        mockMvc.perform(post("/api/auth/login")
+                        .header("X-Forwarded-For", "198.51.100.7")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void successfulLoginDoesNotClearTheSharedIpBudget() throws Exception {
+        User user = activeUser(4L);
+        when(authenticationManager.authenticate(any())).thenAnswer(invocation -> {
+            Authentication token = invocation.getArgument(0);
+            if ("attacker@flowpilot.local".equals(token.getName())) {
+                return new UsernamePasswordAuthenticationToken(token.getName(), null);
+            }
+            throw new BadCredentialsException("bad");
+        });
+        when(userRepository.findByEmail("attacker@flowpilot.local")).thenReturn(Optional.of(user));
+        when(jwtService.generateAccessToken(user)).thenReturn("signed-access-token");
+        when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);
+        when(refreshTokenService.issue(user)).thenReturn("raw-refresh-token");
+
+        // Spray a few victims, staying under the per-account ceiling each time.
+        for (int attempt = 0; attempt < 4; attempt++) {
+            LoginRequest spray = new LoginRequest("victim" + attempt + "@flowpilot.local", "guess");
+            mockMvc.perform(post("/api/auth/login")
+                            .header("X-Forwarded-For", "203.0.113.9")
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsBytes(spray)))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        // The attacker logs into their own valid account…
+        LoginRequest own = new LoginRequest("attacker@flowpilot.local", "supersecret1");
+        mockMvc.perform(post("/api/auth/login")
+                        .header("X-Forwarded-For", "203.0.113.9")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(own)))
+                .andExpect(status().isOk());
+
+        // …which must not wipe the IP-scoped counter: the 5th spray still fits the
+        // budget, the 6th is rejected. Had the success reset the IP key, both
+        // would have come back 401.
+        LoginRequest fifth = new LoginRequest("victim98@flowpilot.local", "guess");
+        mockMvc.perform(post("/api/auth/login")
+                        .header("X-Forwarded-For", "203.0.113.9")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(fifth)))
+                .andExpect(status().isUnauthorized());
+
+        LoginRequest sixth = new LoginRequest("victim99@flowpilot.local", "guess");
+        mockMvc.perform(post("/api/auth/login")
+                        .header("X-Forwarded-For", "203.0.113.9")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(sixth)))
+                .andExpect(status().isTooManyRequests());
     }
 
     @Test

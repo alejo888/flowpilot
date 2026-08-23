@@ -100,6 +100,45 @@ class CsrfProtectionFilterTest {
     }
 
     @Test
+    void percentEncodedProtectedPathStillRequiresCsrfCheck() throws Exception {
+        // Spring MVC routes on the decoded path, so /api/auth/refre%73h reaches
+        // the refresh controller; the filter must not be bypassable that way.
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/refre%73h");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain, never()).doFilter(request, response);
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void protectedPathUnderContextPathStillRequiresCsrfCheck() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/flowpilot/api/auth/logout");
+        request.setContextPath("/flowpilot");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain, never()).doFilter(request, response);
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void protectedPathUnderContextPathWithMatchingTokenContinuesChain() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/flowpilot/api/auth/refresh");
+        request.setContextPath("/flowpilot");
+        request.setCookies(new Cookie("XSRF-TOKEN", "matching-token"));
+        request.addHeader("X-XSRF-TOKEN", "matching-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test
     void getRequestToProtectedPathSkipsCsrfCheckAndContinuesChain() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/auth/refresh");
         MockHttpServletResponse response = new MockHttpServletResponse();

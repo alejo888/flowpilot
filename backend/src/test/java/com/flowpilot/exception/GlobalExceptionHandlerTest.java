@@ -2,13 +2,21 @@ package com.flowpilot.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpInputMessage;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 class GlobalExceptionHandlerTest {
 
@@ -126,5 +134,63 @@ class GlobalExceptionHandlerTest {
                 new DataIntegrityViolationException("duplicate key value violates unique constraint"));
 
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+    }
+
+    @Test
+    void unreadableBodyMapsTo400NotTo500() {
+        ProblemDetail detail = handler.handleNotReadable(
+                new HttpMessageNotReadableException("JSON parse error", emptyInputMessage()));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(detail.getDetail()).isEqualTo("El cuerpo de la petición es inválido o ilegible");
+    }
+
+    @Test
+    void unsupportedMediaTypeMapsTo415NotTo500() {
+        ProblemDetail detail = handler.handleMediaTypeNotSupported(
+                new HttpMediaTypeNotSupportedException(MediaType.TEXT_PLAIN, List.of(MediaType.APPLICATION_JSON)));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.UNSUPPORTED_MEDIA_TYPE.value());
+        assertThat(detail.getDetail()).isEqualTo("El tipo de contenido de la petición no está soportado");
+    }
+
+    @Test
+    void unsupportedMethodMapsTo405NotTo500() {
+        ProblemDetail detail = handler.handleMethodNotSupported(
+                new HttpRequestMethodNotSupportedException("DELETE", List.of("GET", "POST")));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED.value());
+        assertThat(detail.getDetail()).isEqualTo("El método HTTP no está permitido para este recurso");
+    }
+
+    @Test
+    void unknownRouteMapsTo404NotTo500() {
+        ProblemDetail detail = handler.handleNoResourceFound(
+                new NoResourceFoundException(HttpMethod.GET, "", "/api/does-not-exist"));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
+        assertThat(detail.getDetail()).isEqualTo("El recurso solicitado no existe");
+    }
+
+    private static HttpInputMessage emptyInputMessage() {
+        return new HttpInputMessage() {
+            @Override
+            public java.io.InputStream getBody() {
+                return java.io.InputStream.nullInputStream();
+            }
+
+            @Override
+            public org.springframework.http.HttpHeaders getHeaders() {
+                return new org.springframework.http.HttpHeaders();
+            }
+        };
+    }
+
+    @Test
+    void trulyUnexpectedErrorStillMapsTo500() {
+        ProblemDetail detail = handler.handleUnexpected(new IllegalStateException("boom"));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
+        assertThat(detail.getDetail()).isEqualTo("Ocurrió un error inesperado");
     }
 }

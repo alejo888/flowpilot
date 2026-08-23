@@ -8,6 +8,7 @@ import com.flowpilot.dto.ResetPasswordRequest;
 import com.flowpilot.entity.User;
 import com.flowpilot.exception.InvalidRefreshTokenException;
 import com.flowpilot.repository.UserRepository;
+import com.flowpilot.security.AuthRateLimiter;
 import com.flowpilot.security.CookieService;
 import com.flowpilot.security.JwtService;
 import com.flowpilot.service.AuthService;
@@ -19,6 +20,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -27,6 +29,7 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -44,6 +47,7 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
     private final PasswordResetService passwordResetService;
     private final CookieService cookieService;
+    private final AuthRateLimiter authRateLimiter;
 
     public AuthController(
             AuthService authService,
@@ -52,7 +56,8 @@ public class AuthController {
             JwtService jwtService,
             RefreshTokenService refreshTokenService,
             PasswordResetService passwordResetService,
-            CookieService cookieService) {
+            CookieService cookieService,
+            AuthRateLimiter authRateLimiter) {
         this.authService = authService;
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
@@ -60,6 +65,7 @@ public class AuthController {
         this.refreshTokenService = refreshTokenService;
         this.passwordResetService = passwordResetService;
         this.cookieService = cookieService;
+        this.authRateLimiter = authRateLimiter;
     }
 
     @Operation(summary = "Self-service registration")
@@ -88,12 +94,29 @@ public class AuthController {
                         + "X-XSRF-TOKEN header on subsequent /auth/refresh and /auth/logout calls."),
         @ApiResponse(responseCode = "401", description = "Invalid credentials or deactivated account",
                 content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "429", description = "Too many failed login attempts",
+                content = @Content(mediaType = "application/problem+json",
                         schema = @Schema(implementation = ProblemDetail.class)))
     })
     @PostMapping("/login")
-    public ResponseEntity<AccessTokenResponse> login(@Valid @RequestBody LoginRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+    public ResponseEntity<AccessTokenResponse> login(
+            @Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        String clientIp = AuthRateLimiter.resolveClientIp(httpRequest);
+        authRateLimiter.ensureWithinLimit(AuthRateLimiter.LOGIN, clientIp, request.email());
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+        } catch (AuthenticationException ex) {
+            // Only failed attempts count, so legitimate users are never throttled.
+            // Counting is atomic with its own limit check, so a concurrent burst
+            // that slipped past the pre-authentication gate is still rejected.
+            authRateLimiter.countAttemptOrReject(AuthRateLimiter.LOGIN, clientIp, request.email());
+            throw ex;
+        }
+        // Only the account-scoped counter is cleared; the shared IP budget must
+        // decay on its own window so one valid credential cannot wipe it.
+        authRateLimiter.resetAccount(AuthRateLimiter.LOGIN, request.email());
 
         String email = EmailNormalizer.normalize(request.email());
         User user = userRepository.findByEmail(email)
@@ -159,10 +182,17 @@ public class AuthController {
 
     @Operation(summary = "Request a password reset (always 200, no account enumeration)")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Always returned, regardless of whether the account exists")
+        @ApiResponse(responseCode = "200", description = "Always returned, regardless of whether the account exists"),
+        @ApiResponse(responseCode = "429", description = "Too many password-reset requests",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class)))
     })
     @PostMapping("/forgot-password")
-    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+    public ResponseEntity<Void> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request, HttpServletRequest httpRequest) {
+        String clientIp = AuthRateLimiter.resolveClientIp(httpRequest);
+        // Single atomic admit-or-reject: no check-then-record gap to race through.
+        authRateLimiter.countAttemptOrReject(AuthRateLimiter.FORGOT_PASSWORD, clientIp, request.email());
         passwordResetService.forgotPassword(request.email());
         return ResponseEntity.ok().build();
     }

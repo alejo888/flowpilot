@@ -6,12 +6,16 @@ import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * Central RFC 7807 ({@link ProblemDetail}) mapping per design's "Global
@@ -139,6 +143,11 @@ public class GlobalExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Email o contraseña inválidos");
     }
 
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ProblemDetail handleTooManyRequests(TooManyRequestsException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidation(MethodArgumentNotValidException ex) {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Error de validación");
@@ -152,6 +161,34 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    /**
+     * Standard Spring MVC dispatch failures. Without these, they would fall
+     * through to {@link #handleUnexpected} and be reported as 500, masking the
+     * correct client-error status (this class does not extend
+     * {@code ResponseEntityExceptionHandler}).
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleNotReadable(HttpMessageNotReadableException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "El cuerpo de la petición es inválido o ilegible");
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ProblemDetail handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
+        return ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE, "El tipo de contenido de la petición no está soportado");
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ProblemDetail handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        return ProblemDetail.forStatusAndDetail(
+                HttpStatus.METHOD_NOT_ALLOWED, "El método HTTP no está permitido para este recurso");
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ProblemDetail handleNoResourceFound(NoResourceFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "El recurso solicitado no existe");
     }
 
     @ExceptionHandler(Exception.class)

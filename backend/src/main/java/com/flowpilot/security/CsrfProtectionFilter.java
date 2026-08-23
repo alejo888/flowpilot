@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.util.Set;
 import org.springframework.lang.NonNull;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UrlPathHelper;
 
 /**
  * Enforces the double-submit CSRF pattern (design decision D8) on the two
@@ -27,6 +28,7 @@ public class CsrfProtectionFilter extends OncePerRequestFilter {
 
     private static final String HEADER_NAME = "X-XSRF-TOKEN";
     private static final Set<String> PROTECTED_PATHS = Set.of("/api/auth/refresh", "/api/auth/logout");
+    private static final UrlPathHelper PATH_HELPER = UrlPathHelper.defaultInstance;
 
     @Override
     protected void doFilterInternal(
@@ -47,8 +49,17 @@ public class CsrfProtectionFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    /**
+     * Matches on the decoded, context-path-relative path — never on the raw
+     * {@code getRequestURI()}. Spring MVC routes on the decoded path within the
+     * application, so comparing the raw URI would let a percent-encoded request
+     * (e.g. {@code /api/auth/refre%73h}) or any deployment with a non-empty
+     * {@code server.servlet.context-path} reach the controller while skipping
+     * this check — and this is the only CSRF defense in the app.
+     */
     private boolean requiresCsrfCheck(HttpServletRequest request) {
-        return "POST".equalsIgnoreCase(request.getMethod()) && PROTECTED_PATHS.contains(request.getRequestURI());
+        return "POST".equalsIgnoreCase(request.getMethod())
+                && PROTECTED_PATHS.contains(PATH_HELPER.getPathWithinApplication(request));
     }
 
     private String extractCsrfCookie(HttpServletRequest request) {

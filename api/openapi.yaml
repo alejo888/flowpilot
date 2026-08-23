@@ -71,6 +71,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+        '429':
+          description: Too many failed login attempts
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/auth/refresh:
     post:
       summary: Rotate refresh token and issue a new access token
@@ -139,6 +145,12 @@ paths:
       responses:
         '200':
           description: Always returned, regardless of whether the account exists
+        '429':
+          description: Too many password-reset requests
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/auth/reset-password:
     post:
       summary: Reset password using a valid reset token
