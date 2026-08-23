@@ -14,9 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Admin-only user management (spec: user-administration). The authorization
  * check here is a global-role check ({@code caller.role ==
- * GlobalRole.ADMINISTRADOR}) — a platform-wide concern, deliberately
+ * GlobalRole.ADMINISTRADOR}) plus an activeness check ({@code
+ * caller.isActive()}) — a platform-wide concern, deliberately
  * unrelated to {@link ProjectAuthorizationService}, which governs
- * project-scoped writes only.
+ * project-scoped writes only. The activeness check matters because access
+ * tokens stay valid for their full lifetime regardless of DB state, so a
+ * just-deactivated Administrador could otherwise keep using admin endpoints
+ * (e.g. reactivating themselves) until their token expired.
  *
  * <p>Self-deactivation and self-role-change ARE allowed (deviating from the
  * design doc's Cross-Cutting note, which said to reject them outright) —
@@ -84,7 +88,7 @@ public class AdminUserService {
     private void requireAdmin(Long callerId) {
         User caller = userRepository.findById(callerId)
                 .orElseThrow(() -> new UserNotFoundException(callerId));
-        if (caller.getRole() != GlobalRole.ADMINISTRADOR) {
+        if (caller.getRole() != GlobalRole.ADMINISTRADOR || !caller.isActive()) {
             throw new AccessDeniedException("Se requiere el rol de administrador");
         }
     }

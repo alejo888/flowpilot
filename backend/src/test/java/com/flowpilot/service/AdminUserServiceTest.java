@@ -178,6 +178,37 @@ class AdminUserServiceTest {
                 .isInstanceOf(AccessDeniedException.class);
     }
 
+    @Test
+    void setStatusRejectsDeactivatedAdministradorCaller() throws Exception {
+        User deactivatedAdmin = user(1L, GlobalRole.ADMINISTRADOR, false);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(deactivatedAdmin));
+
+        assertThatThrownBy(() -> adminUserService.setStatus(1L, 1L, true))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void changeRoleRejectsDeactivatedAdministradorCaller() throws Exception {
+        User deactivatedAdmin = user(1L, GlobalRole.ADMINISTRADOR, false);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(deactivatedAdmin));
+
+        assertThatThrownBy(() -> adminUserService.changeRole(1L, 5L, GlobalRole.MIEMBRO_EQUIPO))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void listUsersRejectsDeactivatedAdministradorCaller() throws Exception {
+        User deactivatedAdmin = user(1L, GlobalRole.ADMINISTRADOR, false);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(deactivatedAdmin));
+
+        assertThatThrownBy(() -> adminUserService.listUsers(1L))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
     private User user(Long id, GlobalRole role, boolean active) throws Exception {
         User user = new User("Name" + id, "user" + id + "@flowpilot.local", "hash", role, active);
         Field field = User.class.getDeclaredField("id");
