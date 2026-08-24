@@ -8,6 +8,9 @@ export interface BoardColumn {
   position: number;
 }
 
+/** Mirrors the backend's WorkItemPriority enum (LOW/MEDIUM/HIGH/URGENT). */
+export type WorkItemPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+
 export interface WorkItem {
   id: number;
   projectId: number;
@@ -20,6 +23,17 @@ export interface WorkItem {
   createdAt: string;
   updatedAt: string;
       sprintId?: number | null;
+      priority?: WorkItemPriority;
+      /**
+       * Populated ONLY on the response of PUT /api/work-items/{id}/move
+       * when the gap-based position strategy ran out of room and
+       * re-sequenced every sibling in the target column (design D10) —
+       * absent/null for every other response, including a move that didn't
+       * trigger a resequence. {@link BoardStore.moveItem} applies these to
+       * local state instead of just the moved item so siblings never go
+       * stale until a full reload.
+       */
+      affectedItems?: WorkItem[] | null;
 }
 
 /** Request body for POST /api/projects/{projectId}/work-items. */
@@ -28,6 +42,7 @@ export interface WorkItemCreateRequest {
   description?: string | null;
   assignedUserId?: number | null;
       sprintId?: number | null;
+      priority?: WorkItemPriority | null;
 }
 
 /** Request body for PUT /api/work-items/{id}. */
@@ -36,6 +51,7 @@ export interface WorkItemUpdateRequest {
   description?: string | null;
   assignedUserId?: number | null;
       sprintId?: number | null;
+      priority?: WorkItemPriority | null;
 }
 
 /**

@@ -87,6 +87,7 @@ class BoardServiceTest {
         assertThat(response.position()).isEqualTo(2048);
         assertThat(before.getPosition()).isEqualTo(1024);
         assertThat(after.getPosition()).isEqualTo(3072);
+        assertThat(response.affectedItems()).isNullOrEmpty();
     }
 
     @Test
@@ -123,6 +124,10 @@ class BoardServiceTest {
         assertThat(response.position()).isEqualTo(2048);
         assertThat(after.getPosition()).isEqualTo(3072);
         assertThat(tail.getPosition()).isEqualTo(4096);
+        assertThat(response.affectedItems()).extracting(WorkItemResponse::id)
+                .containsExactlyInAnyOrder(600L, 601L, 602L);
+        assertThat(response.affectedItems()).extracting(WorkItemResponse::position)
+                .containsExactlyInAnyOrder(1024, 3072, 4096);
     }
 
     @Test

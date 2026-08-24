@@ -165,6 +165,12 @@ export class BoardStore {
     this.api.moveWorkItem(itemId, { columnId: targetColumnId, position: index }).subscribe({
       next: (confirmed) => {
         this.upsertItem(confirmed);
+        // affectedItems is populated only when the target column's siblings
+        // were re-sequenced server-side (design D10) — apply the full set
+        // so they don't go stale in local state until a full reload.
+        for (const affected of confirmed.affectedItems ?? []) {
+          this.upsertItem(affected);
+        }
         if (this.selectedItemSignal()?.id === itemId) {
           this.selectedItemSignal.set(confirmed);
         }

@@ -287,6 +287,28 @@ describe('BoardStore', () => {
     expect(store.error()).toBe('cross-project column');
   });
 
+  it('applies resequenced sibling positions from the move response affectedItems', () => {
+    loadWith([item(500, 1, 1024, 'Moved'), item(501, 2, 1024, 'First'), item(502, 2, 1025, 'Second')]);
+    const moved = item(500, 2, 2048, 'Moved');
+    moved.affectedItems = [item(501, 2, 1024, 'First'), item(502, 2, 3072, 'Second')];
+    apiSpy.moveWorkItem.mockReturnValue(of(moved));
+
+    store.moveItem(500, 2, 1);
+
+    expect(store.itemsByColumn()[2]?.find((i) => i.id === 502)?.position).toBe(3072);
+    expect(store.itemsByColumn()[2]?.find((i) => i.id === 501)?.position).toBe(1024);
+    expect(store.itemsByColumn()[2]?.find((i) => i.id === 500)?.position).toBe(2048);
+  });
+
+  it('does not touch siblings when the move response has no affectedItems', () => {
+    loadWith([item(500, 1, 1024, 'Moved'), item(501, 2, 1024, 'First')]);
+    apiSpy.moveWorkItem.mockReturnValue(of(item(500, 2, 2048, 'Moved')));
+
+    store.moveItem(500, 2, 1);
+
+    expect(store.itemsByColumn()[2]?.find((i) => i.id === 501)?.position).toBe(1024);
+  });
+
   it('falls back to a generic message when the server error has no detail', () => {
     loadWith([item(500, 1, 1024, 'Task')]);
     apiSpy.moveWorkItem.mockReturnValue(throwError(() => ({})));

@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.OffsetDateTime;
 
 /**
@@ -21,6 +22,11 @@ import java.time.OffsetDateTime;
  * columnId}/{@code position} together is slice 6 (Kanban board) — this slice
  * only creates items into the project's first column and never changes either
  * field after creation.
+ *
+ * <p>{@code version} (V16 migration) backs JPA's built-in optimistic locking,
+ * same convention as {@code Project}/{@code ProjectMember}: two concurrent
+ * writes to the same row now fail the second with a 409 instead of silently
+ * last-write-wins.
  */
 @Entity
 @Table(name = "work_items")
@@ -29,6 +35,10 @@ public class WorkItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     @Column(name = "project_id", nullable = false)
     private Long projectId;

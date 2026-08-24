@@ -1099,7 +1099,10 @@ paths:
               $ref: '#/components/schemas/WorkItemMoveRequest'
       responses:
         '200':
-          description: Work item moved; columnId and position persisted
+          description: >-
+            Work item moved; columnId and position persisted. affectedItems
+            is populated only when the target column's siblings were
+            re-sequenced.
           content:
             application/json:
               schema:
@@ -1705,6 +1708,10 @@ components:
         assignedUserId:
           type: integer
           format: int64
+        sprintId:
+          type: integer
+          format: int64
+          nullable: true
         priority:
           $ref: '#/components/schemas/WorkItemPriority'
     WorkItemUpdateRequest:
@@ -1722,6 +1729,10 @@ components:
         assignedUserId:
           type: integer
           format: int64
+        sprintId:
+          type: integer
+          format: int64
+          nullable: true
         priority:
           $ref: '#/components/schemas/WorkItemPriority'
     WorkItemResponse:
@@ -1760,6 +1771,15 @@ components:
           nullable: true
         priority:
           $ref: '#/components/schemas/WorkItemPriority'
+        affectedItems:
+          type: array
+          nullable: true
+          description: >-
+            Populated only by PUT /api/work-items/{id}/move when the target
+            column's siblings were re-sequenced (design D10); null/absent
+            otherwise, including for every non-move response.
+          items:
+            $ref: '#/components/schemas/WorkItemResponse'
     WorkItemMoveRequest:
       type: object
       description: >-

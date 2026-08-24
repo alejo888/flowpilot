@@ -82,7 +82,8 @@ public class BoardService {
         Integer afterPosition = index < siblings.size() ? siblings.get(index).getPosition() : null;
 
         int newPosition;
-        if (needsResequence(beforePosition, afterPosition)) {
+        boolean resequenced = needsResequence(beforePosition, afterPosition);
+        if (resequenced) {
             newPosition = resequence(siblings, index);
         } else {
             newPosition = computeCandidate(beforePosition, afterPosition);
@@ -90,7 +91,14 @@ public class BoardService {
 
         item.moveTo(targetColumn.getId(), newPosition);
             if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_MOVED, "Work item moved", "{}");
-        return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
+        WorkItemResponse response = toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
+        if (resequenced && !siblings.isEmpty()) {
+            List<WorkItemResponse> affectedItems = siblings.stream()
+                    .map(sibling -> toResponse(sibling, resolveAssignedUserName(sibling.getAssignedUserId())))
+                    .toList();
+            response = response.withAffectedItems(affectedItems);
+        }
+        return response;
     }
 
     private String resolveAssignedUserName(Long assignedUserId) {
