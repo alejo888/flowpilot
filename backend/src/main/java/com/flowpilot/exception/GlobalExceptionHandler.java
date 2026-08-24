@@ -140,6 +140,11 @@ public class GlobalExceptionHandler {
                 HttpStatus.CONFLICT, "El proyecto fue modificado por otra persona; recárguelo e inténtelo de nuevo");
     }
 
+    @ExceptionHandler(SelfRoleChangeException.class)
+    public ProblemDetail handleSelfRoleChange(SelfRoleChangeException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
     @ExceptionHandler(RolePermissionConcurrencyException.class)
     public ProblemDetail handleRolePermissionConcurrency(RolePermissionConcurrencyException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());

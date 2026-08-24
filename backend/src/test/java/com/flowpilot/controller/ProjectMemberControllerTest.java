@@ -18,6 +18,7 @@ import com.flowpilot.dto.ProjectMemberRoleUpdateRequest;
 import com.flowpilot.entity.ProjectRole;
 import com.flowpilot.exception.DuplicateMemberException;
 import com.flowpilot.exception.GlobalExceptionHandler;
+import com.flowpilot.exception.SelfRoleChangeException;
 import com.flowpilot.service.ProjectMemberService;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -105,6 +106,19 @@ class ProjectMemberControllerTest {
                                 new ProjectMemberRoleUpdateRequest(ProjectRole.PROJECT_MANAGER))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.role").value("PROJECT_MANAGER"));
+    }
+
+    @Test
+    void changeOwnRoleReturns403() throws Exception {
+        when(projectMemberService.changeRole(eq(10L), eq(1L), any(ProjectMemberRoleUpdateRequest.class), eq(1L)))
+                .thenThrow(new SelfRoleChangeException());
+
+        mockMvc.perform(put("/api/projects/10/members/1")
+                        .principal(authenticatedAs(1L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(
+                                new ProjectMemberRoleUpdateRequest(ProjectRole.PROJECT_MANAGER))))
+                .andExpect(status().isForbidden());
     }
 
     @Test
