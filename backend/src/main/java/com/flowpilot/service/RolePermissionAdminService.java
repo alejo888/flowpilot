@@ -75,7 +75,10 @@ public class RolePermissionAdminService {
                     "Mover una tarea entre columnas del tablero"),
             new RolePermissionCatalogEntry(
                     Permission.COMMENT_CREATE, "Crear comentarios",
-                    "Crear comentarios en proyectos y tareas"));
+                    "Crear comentarios en proyectos y tareas"),
+            new RolePermissionCatalogEntry(
+                    Permission.SPRINT_MANAGE, "Gestionar sprints",
+                    "Crear, editar, iniciar y completar sprints del proyecto"));
 
     private final UserRepository userRepository;
     private final RolePermissionRepository rolePermissionRepository;

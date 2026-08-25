@@ -62,7 +62,7 @@ public class SprintService {
         Sprint sprint = get(id);
         requirePermission(requesterId, sprint.getProjectId());
         if (sprint.getStatus() != SprintStatus.PLANNED) {
-            throw new InvalidSprintException("Only planned sprints can be updated");
+            throw new InvalidSprintException("Solo los sprints planificados pueden actualizarse");
         }
         validateDates(request.startDate(), request.endDate());
         sprint.update(request.name(), request.goal(), request.startDate(), request.endDate());
@@ -75,7 +75,7 @@ public class SprintService {
         Sprint sprint = get(id);
         requirePermission(requesterId, sprint.getProjectId());
         if (sprintRepository.existsByProjectIdAndStatus(sprint.getProjectId(), SprintStatus.ACTIVE)) {
-            throw new InvalidSprintException("Project already has an active sprint");
+            throw new InvalidSprintException("El proyecto ya tiene un sprint activo");
         }
         try {
             sprint.start();
@@ -111,20 +111,21 @@ public class SprintService {
     }
 
     private void requirePermission(Long userId, Long projectId) {
-        if (!authorizationService.hasPermission(userId, projectId, Permission.WORKITEM_EDIT)) {
-            throw new AccessDeniedException("Missing WORKITEM_EDIT permission");
+        if (!authorizationService.hasPermission(userId, projectId, Permission.SPRINT_MANAGE)) {
+            throw new AccessDeniedException(
+                    "Falta el permiso " + Permission.SPRINT_MANAGE + " en el proyecto " + projectId);
         }
     }
 
     private void requireView(Long userId, Long projectId) {
         if (!authorizationService.canView(userId, projectId)) {
-            throw new AccessDeniedException("Not authorized to view project sprints");
+            throw new AccessDeniedException("No autorizado para ver los sprints de este proyecto");
         }
     }
 
     private static void validateDates(LocalDate start, LocalDate end) {
         if (start == null || end == null || end.isBefore(start)) {
-            throw new InvalidSprintException("Sprint end date must be on or after start date");
+            throw new InvalidSprintException("La fecha de fin debe ser posterior o igual a la fecha de inicio");
         }
     }
 

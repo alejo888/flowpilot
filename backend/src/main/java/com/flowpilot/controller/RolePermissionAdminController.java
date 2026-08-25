@@ -37,7 +37,7 @@ public class RolePermissionAdminController {
         this.rolePermissionAdminService = rolePermissionAdminService;
     }
 
-    @Operation(summary = "Get the full 6x9 role/permission matrix — admin-only")
+    @Operation(summary = "Get the full 6x11 role/permission matrix — admin-only")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Matrix"),
         @ApiResponse(responseCode = "401", description = "Missing or invalid access token",

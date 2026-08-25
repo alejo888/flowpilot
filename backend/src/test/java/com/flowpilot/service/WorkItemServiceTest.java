@@ -15,6 +15,7 @@ import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.Sprint;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.entity.WorkItemPriority;
+import com.flowpilot.exception.InvalidSprintException;
 import com.flowpilot.exception.ProjectMemberNotFoundException;
 import com.flowpilot.exception.SprintNotFoundException;
     import com.flowpilot.exception.UserNotFoundException;
@@ -260,6 +261,58 @@ class WorkItemServiceTest {
         assertThatThrownBy(() -> workItemService.create(
                 10L, new WorkItemCreateRequest("Sprint task", null, null, 7L), 1L))
                 .isInstanceOf(SprintNotFoundException.class);
+    }
+
+    @Test
+    void createRejectsAssignmentToCompletedSprint() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        BoardColumn firstColumn = column(200L, 10L, 1024);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(firstColumn));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(sprintRepository.findByIdAndProjectId(7L, 10L))
+                .thenReturn(Optional.of(completedSprint(10L)));
+
+        assertThatThrownBy(() -> workItemService.create(
+                10L, new WorkItemCreateRequest("Sprint task", null, null, 7L), 1L))
+                .isInstanceOf(InvalidSprintException.class);
+    }
+
+    @Test
+    void updateRejectsAssignmentToCompletedSprint() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+        when(sprintRepository.findByIdAndProjectId(7L, 10L))
+                .thenReturn(Optional.of(completedSprint(10L)));
+
+        assertThatThrownBy(() -> workItemService.update(
+                500L, new WorkItemUpdateRequest("New title", null, null, 7L), 1L))
+                .isInstanceOf(InvalidSprintException.class);
+    }
+
+    @Test
+    void updateAllowsAssignmentToPlannedOrActiveSprint() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+        Sprint activeSprint = new Sprint(10L, "Sprint", null,
+                java.time.LocalDate.now(), java.time.LocalDate.now().plusDays(7));
+        activeSprint.start();
+        when(sprintRepository.findByIdAndProjectId(7L, 10L)).thenReturn(Optional.of(activeSprint));
+
+        WorkItemResponse response = workItemService.update(
+                500L, new WorkItemUpdateRequest("New title", null, null, 7L), 1L);
+
+        assertThat(response.sprintId()).isEqualTo(7L);
+    }
+
+    private Sprint completedSprint(Long projectId) {
+        Sprint sprint = new Sprint(projectId, "Sprint", null,
+                java.time.LocalDate.now(), java.time.LocalDate.now().plusDays(7));
+        sprint.start();
+        sprint.complete();
+        return sprint;
     }
 
     @Test

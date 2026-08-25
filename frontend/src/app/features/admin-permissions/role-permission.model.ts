@@ -21,7 +21,8 @@ export type Permission =
   | 'WORKITEM_EDIT'
   | 'WORKITEM_DELETE'
   | 'WORKITEM_MOVE'
-  | 'COMMENT_CREATE';
+  | 'COMMENT_CREATE'
+  | 'SPRINT_MANAGE';
 
 export interface RolePermissionCatalogEntry {
   key: Permission;

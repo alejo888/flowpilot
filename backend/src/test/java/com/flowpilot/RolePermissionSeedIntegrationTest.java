@@ -68,6 +68,20 @@ class RolePermissionSeedIntegrationTest {
     }
 
     @Test
+    void sprintManageIsGrantedOnlyToTheTwoPlanningRoles() {
+        // V17: sprint lifecycle control is no longer piggy-backed on
+        // WORKITEM_EDIT (which every role holds).
+        var sprintManageGrants = rolePermissionRepository.findAll().stream()
+                .filter(row -> row.getPermission() == Permission.SPRINT_MANAGE)
+                .toList();
+
+        assertThat(sprintManageGrants).hasSize(ProjectRole.values().length);
+        assertThat(sprintManageGrants.stream().filter(row -> row.isGranted()))
+                .extracting(row -> row.getRole())
+                .containsExactlyInAnyOrder(ProjectRole.PROJECT_MANAGER, ProjectRole.PRODUCT_OWNER);
+    }
+
+    @Test
     void projectDeleteIsGrantedToNoRoleByDefault() {
         // Owner (5c) and global admin (6) already cover deletion.
         var projectDeleteGrants = rolePermissionRepository.findAll().stream()

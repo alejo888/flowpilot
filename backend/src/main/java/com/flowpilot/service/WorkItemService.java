@@ -6,9 +6,12 @@ import com.flowpilot.dto.WorkItemUpdateRequest;
 import com.flowpilot.entity.BoardColumn;
 import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.ActivityEventType;
+import com.flowpilot.entity.Sprint;
+import com.flowpilot.entity.SprintStatus;
 import com.flowpilot.entity.User;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.exception.BoardColumnNotFoundException;
+import com.flowpilot.exception.InvalidSprintException;
 import com.flowpilot.exception.ProjectMemberNotFoundException;
 import com.flowpilot.exception.SprintNotFoundException;
 import com.flowpilot.exception.WorkItemNotFoundException;
@@ -126,9 +129,23 @@ public class WorkItemService {
             if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_DELETED, "Work item deleted", "{}");
     }
 
+    /**
+     * No-op on {@code null}. Otherwise confirms the sprint belongs to the
+     * project and rejects assignment into a {@code COMPLETED} sprint: a
+     * completed sprint's own lifecycle is frozen against edits ({@link
+     * SprintService#update}), but a work item could still be moved into or
+     * out of it through this endpoint, retroactively mutating closed-sprint
+     * history that dashboard metrics depend on. PLANNED and ACTIVE sprints
+     * remain assignable — the normal sprint-planning workflow.
+     */
     private void validateSprint(Long projectId, Long sprintId) {
-        if (sprintId != null && sprintRepository.findByIdAndProjectId(sprintId, projectId).isEmpty()) {
-            throw new SprintNotFoundException(sprintId);
+        if (sprintId == null) {
+            return;
+        }
+        Sprint sprint = sprintRepository.findByIdAndProjectId(sprintId, projectId)
+                .orElseThrow(() -> new SprintNotFoundException(sprintId));
+        if (sprint.getStatus() == SprintStatus.COMPLETED) {
+            throw new InvalidSprintException("No se puede asignar un elemento a un sprint completado");
         }
     }
 

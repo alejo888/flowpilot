@@ -119,7 +119,7 @@ describe('BacklogStore', () => {
     expect(store.sprints()[0].status).toBe('COMPLETED');
   });
 
-  it('assigns and unassigns an item while preserving its update payload', () => {
+  it('assigns and unassigns an item while preserving its update payload', async () => {
     const original = item(1, null, 9);
     const updated = item(1, 7, 9);
     api.getWorkItems.mockReturnValue(of([original]));
@@ -127,7 +127,8 @@ describe('BacklogStore', () => {
     store.load(10);
     api.updateWorkItemSprint.mockReturnValue(of(updated));
 
-    store.assignItem(original, 7);
+    const succeeded = await store.assignItem(original, 7);
+    expect(succeeded).toBe(true);
     expect(api.updateWorkItemSprint).toHaveBeenCalledWith(1, {
       title: original.title,
       description: original.description,
@@ -138,7 +139,7 @@ describe('BacklogStore', () => {
 
     const unassigned = item(1, null, 9);
     api.updateWorkItemSprint.mockReturnValue(of(unassigned));
-    store.assignItem(updated, null);
+    await store.assignItem(updated, null);
 
     expect(api.updateWorkItemSprint).toHaveBeenLastCalledWith(1, {
       title: updated.title,
@@ -149,11 +150,44 @@ describe('BacklogStore', () => {
     expect(store.backlogItems()[0].sprintId).toBeNull();
   });
 
+  it('resolves false and leaves the item unchanged when assignment fails (e.g. COMPLETED sprint)', async () => {
+    const original = item(1, null, 9);
+    api.getWorkItems.mockReturnValue(of([original]));
+    api.listSprints.mockReturnValue(of([sprint(7, 'COMPLETED')]));
+    store.load(10);
+    api.updateWorkItemSprint.mockReturnValue(
+      throwError(() => ({ error: { detail: 'No se puede asignar un elemento a un sprint completado' } })),
+    );
+
+    const succeeded = await store.assignItem(original, 7);
+
+    expect(succeeded).toBe(false);
+    expect(store.items()[0].sprintId).toBeNull();
+    expect(store.error()).toBe('No se puede asignar un elemento a un sprint completado');
+    expect(store.mutating()).toBe(false);
+  });
+
   it('surfaces mutation errors and clears the busy flag', () => {
     api.startSprint.mockReturnValue(throwError(() => ({})));
     store.startSprint(sprint(7));
 
     expect(store.mutating()).toBe(false);
     expect(store.error()).toBe('No se pudo guardar el cambio');
+  });
+
+  it('clears stale items and sprints up front on a new load, not just on error', () => {
+    api.getWorkItems.mockReturnValue(of([item(1)]));
+    api.listSprints.mockReturnValue(of([sprint(7)]));
+    store.load(10);
+    expect(store.items()).toHaveLength(1);
+    expect(store.sprints()).toHaveLength(1);
+
+    api.getWorkItems.mockReturnValue(throwError(() => ({ error: { detail: 'No autorizado' } })));
+    api.listSprints.mockReturnValue(of([]));
+    store.load(20);
+
+    expect(store.items()).toEqual([]);
+    expect(store.sprints()).toEqual([]);
+    expect(store.error()).toBe('No autorizado');
   });
 });

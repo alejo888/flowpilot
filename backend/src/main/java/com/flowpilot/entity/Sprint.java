@@ -8,9 +8,17 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
+/**
+ * A sprint within a {@link com.flowpilot.entity.Project} (spec: backlog and
+ * sprints). {@code version} (V18 migration) backs JPA's built-in optimistic
+ * locking, same convention as {@code Project}/{@code ProjectMember}/{@code
+ * WorkItem}: two concurrent writes to the same row now fail the second with
+ * a 409 instead of silently last-write-wins.
+ */
 @Entity
 @Table(name = "sprints")
 public class Sprint {
@@ -18,6 +26,10 @@ public class Sprint {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     @Column(name = "project_id", nullable = false)
     private Long projectId;
@@ -106,7 +118,7 @@ public class Sprint {
 
     public void start() {
         if (status != SprintStatus.PLANNED) {
-            throw new IllegalStateException("Only planned sprints can start");
+            throw new IllegalStateException("Solo los sprints planificados pueden iniciarse");
         }
         status = SprintStatus.ACTIVE;
         touch();
@@ -114,7 +126,7 @@ public class Sprint {
 
     public void complete() {
         if (status != SprintStatus.ACTIVE) {
-            throw new IllegalStateException("Only active sprints can complete");
+            throw new IllegalStateException("Solo los sprints activos pueden completarse");
         }
         status = SprintStatus.COMPLETED;
         touch();
