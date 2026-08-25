@@ -36,7 +36,8 @@ public class ProjectService {
 
     /** Design D10: gap-based positions, 1024 step, so future inserts-between never re-sequence. */
     private static final int COLUMN_POSITION_STEP = 1024;
-    private static final List<String> DEFAULT_COLUMN_NAMES =
+    /** Package-private so {@link ProjectDashboardService} can reuse the canonical "done" column name. */
+    static final List<String> DEFAULT_COLUMN_NAMES =
             List.of("Por hacer", "En progreso", "En revisión", "Terminado");
 
     private final ProjectRepository projectRepository;
