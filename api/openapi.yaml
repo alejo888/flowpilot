@@ -175,9 +175,10 @@ paths:
       summary: List users (read-only directory, for member selection)
       operationId: listUsers
       description: >-
-        Requires a valid Bearer access token — no special global role or
-        project permission (interim rule until the slice 8 permission matrix
-        exists). Returns both active and inactive users.
+        Requires a valid Bearer access token from an active caller — no
+        special global role or project permission on the target (interim
+        rule until the slice 8 permission matrix exists). Returns both active
+        and inactive users.
       security:
         - bearerAuth: []
       responses:
@@ -191,6 +192,12 @@ paths:
                   $ref: '#/components/schemas/UserSummaryResponse'
         '401':
           description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller's account is deactivated
           content:
             application/problem+json:
               schema:
@@ -221,6 +228,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller's account is deactivated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: No user with that id
           content:
@@ -246,14 +259,23 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller's account is deactivated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/users/me/password:
     put:
       summary: Change the authenticated caller's own password
       operationId: changePassword
       description: >-
-        Verifies currentPassword against the stored hash before re-hashing.
-        On success, revokes all of the caller's active refresh tokens (same
-        as /api/auth/reset-password).
+        Verifies currentPassword against the stored hash before re-hashing
+        (rate-limited per caller). Rejects a newPassword equal to
+        currentPassword. On success, revokes all of the caller's active
+        refresh tokens (same as /api/auth/reset-password) and issues a fresh
+        one for the current session, set as the refreshToken cookie —
+        otherwise the browser would keep presenting a now-revoked cookie.
       security:
         - bearerAuth: []
       requestBody:
@@ -264,15 +286,29 @@ paths:
               $ref: '#/components/schemas/ChangePasswordRequest'
       responses:
         '200':
-          description: Password updated; all refresh tokens revoked
+          description: >-
+            Password updated; all refresh tokens revoked and a fresh one set
+            as the refreshToken cookie for the current session
         '400':
-          description: Validation failed, or current password is incorrect
+          description: Validation failed, current password is incorrect, or newPassword equals currentPassword
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
         '401':
           description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller's account is deactivated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '429':
+          description: Too many incorrect currentPassword attempts
           content:
             application/problem+json:
               schema:
@@ -1376,6 +1412,7 @@ components:
         newPassword:
           type: string
           minLength: 8
+          maxLength: 72
     ProblemDetail:
       type: object
       properties:
@@ -1413,6 +1450,7 @@ components:
         newPassword:
           type: string
           minLength: 8
+          maxLength: 72
     GlobalRole:
       type: string
       enum: [ADMINISTRADOR, MIEMBRO_EQUIPO]

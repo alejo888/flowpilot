@@ -408,6 +408,25 @@ class AuthControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    /**
+     * BCrypt only consumes a password's first 72 bytes; without an upper
+     * {@code @Size} bound, an oversized password either silently
+     * truncates-and-collides or throws an unhandled {@code
+     * IllegalArgumentException} that falls through to a 500 instead of a
+     * proper validation error.
+     */
+    @Test
+    void resetPasswordWithOversizedNewPasswordReturns400NotFiveHundred() throws Exception {
+        ResetPasswordRequest request = new ResetPasswordRequest("some-token", "a".repeat(73));
+
+        mockMvc.perform(post("/api/auth/reset-password")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isBadRequest());
+
+        org.mockito.Mockito.verifyNoInteractions(passwordResetService);
+    }
+
     private User activeUser(Long id) throws Exception {
         User user = new User("Name " + id, "user" + id + "@flowpilot.local", "hash", GlobalRole.MIEMBRO_EQUIPO, true);
         Field field = User.class.getDeclaredField("id");

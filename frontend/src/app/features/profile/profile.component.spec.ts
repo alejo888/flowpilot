@@ -84,7 +84,23 @@ describe('ProfileComponent', () => {
     await setup();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('[data-testid="profile-load-error"]')).toBeTruthy();
+    const loadError = compiled.querySelector('[data-testid="profile-load-error"]');
+    expect(loadError).toBeTruthy();
+    expect(loadError?.getAttribute('role')).toBe('alert');
+    expect(loadError?.getAttribute('aria-live')).toBe('assertive');
+  });
+
+  it('sets autocomplete attributes so password managers can tell the fields apart', async () => {
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const current = compiled.querySelector('[data-testid="profile-current-password"]') as HTMLInputElement;
+    const next = compiled.querySelector('[data-testid="profile-new-password"]') as HTMLInputElement;
+    const confirm = compiled.querySelector('[data-testid="profile-confirm-password"]') as HTMLInputElement;
+
+    expect(current.getAttribute('autocomplete')).toBe('current-password');
+    expect(next.getAttribute('autocomplete')).toBe('new-password');
+    expect(confirm.getAttribute('autocomplete')).toBe('new-password');
   });
 
   it('blocks submission client-side when the new password is too short', async () => {
@@ -132,7 +148,9 @@ describe('ProfileComponent', () => {
     submitForm();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('[data-testid="profile-password-success"]')).toBeTruthy();
+    const success = compiled.querySelector('[data-testid="profile-password-success"]');
+    expect(success).toBeTruthy();
+    expect(success?.getAttribute('role')).toBe('status');
     expect((compiled.querySelector('[data-testid="profile-current-password"]') as HTMLInputElement).value).toBe('');
     expect((compiled.querySelector('[data-testid="profile-new-password"]') as HTMLInputElement).value).toBe('');
     expect((compiled.querySelector('[data-testid="profile-confirm-password"]') as HTMLInputElement).value).toBe('');
@@ -148,9 +166,10 @@ describe('ProfileComponent', () => {
     submitForm();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('[data-testid="profile-password-error"]')?.textContent).toContain(
-      'La contraseña actual no es correcta',
-    );
+    const errorBanner = compiled.querySelector('[data-testid="profile-password-error"]');
+    expect(errorBanner?.textContent).toContain('La contraseña actual no es correcta');
+    expect(errorBanner?.getAttribute('role')).toBe('alert');
+    expect(errorBanner?.getAttribute('aria-live')).toBe('assertive');
   });
 
   it('disables the submit button while the request is in flight', async () => {

@@ -172,4 +172,36 @@ class AuthRateLimiterTest {
         assertThatCode(() -> limiter.ensureWithinLimit(AuthRateLimiter.LOGIN, "198.51.100.7", victim))
                 .doesNotThrowAnyException();
     }
+
+    // --- user-keyed scope (authenticated endpoints, e.g. change-password) ---
+
+    @Test
+    void userScopedLimitBlocksAfterMaxAttemptsAndIsIndependentPerUser() {
+        AuthRateLimiter limiter = new AuthRateLimiter(fixedClock());
+
+        for (int attempt = 0; attempt < AuthRateLimiter.MAX_ATTEMPTS_PER_USER; attempt++) {
+            limiter.countUserAttemptOrReject(AuthRateLimiter.CHANGE_PASSWORD, 1L);
+        }
+        assertThatThrownBy(() -> limiter.countUserAttemptOrReject(AuthRateLimiter.CHANGE_PASSWORD, 1L))
+                .isInstanceOf(TooManyRequestsException.class);
+        assertThatThrownBy(() -> limiter.ensureUserWithinLimit(AuthRateLimiter.CHANGE_PASSWORD, 1L))
+                .isInstanceOf(TooManyRequestsException.class);
+
+        // A different user id is unaffected.
+        assertThatCode(() -> limiter.ensureUserWithinLimit(AuthRateLimiter.CHANGE_PASSWORD, 2L))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void resetUserClearsOnlyThatUsersCounter() {
+        AuthRateLimiter limiter = new AuthRateLimiter(fixedClock());
+
+        for (int attempt = 0; attempt < AuthRateLimiter.MAX_ATTEMPTS_PER_USER; attempt++) {
+            limiter.countUserAttemptOrReject(AuthRateLimiter.CHANGE_PASSWORD, 1L);
+        }
+        limiter.resetUser(AuthRateLimiter.CHANGE_PASSWORD, 1L);
+
+        assertThatCode(() -> limiter.ensureUserWithinLimit(AuthRateLimiter.CHANGE_PASSWORD, 1L))
+                .doesNotThrowAnyException();
+    }
 }

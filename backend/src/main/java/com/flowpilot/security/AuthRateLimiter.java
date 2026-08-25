@@ -40,9 +40,11 @@ public class AuthRateLimiter {
 
     public static final String LOGIN = "login";
     public static final String FORGOT_PASSWORD = "forgot-password";
+    public static final String CHANGE_PASSWORD = "change-password";
 
     static final int MAX_ATTEMPTS_PER_IP = 5;
     static final int MAX_ATTEMPTS_PER_ACCOUNT = 15;
+    static final int MAX_ATTEMPTS_PER_USER = 5;
     static final long WINDOW_MILLIS = 60_000L;
 
     private static final String FORWARDED_FOR = "X-Forwarded-For";
@@ -153,6 +155,49 @@ public class AuthRateLimiter {
         if (email != null && !email.isBlank()) {
             windows.remove(accountKey(action, email));
         }
+    }
+
+    /**
+     * User-keyed variant of {@link #ensureWithinLimit}, for AUTHENTICATED
+     * endpoints where an IP or email key makes no sense (a caller acting on
+     * their own account, e.g. {@code PUT /api/users/me/password}'s
+     * {@code currentPassword} verification oracle): keying by IP would let
+     * many accounts behind one NAT/proxy share a budget, and keying by email
+     * doesn't apply since no email is submitted on that request.
+     */
+    public void ensureUserWithinLimit(String action, Long userId) {
+        long now = clock.millis();
+        evictStaleIfCrowded(now);
+        Scope scope = userScope(action, userId);
+        Window window = windows.get(scope.key());
+        if (window != null && !window.isExpired(now) && window.count() >= scope.limit()) {
+            throw new TooManyRequestsException();
+        }
+    }
+
+    /** User-keyed variant of {@link #countAttemptOrReject}. */
+    public void countUserAttemptOrReject(String action, Long userId) {
+        long now = clock.millis();
+        evictStaleIfCrowded(now);
+        Scope scope = userScope(action, userId);
+        Window window = windows.compute(scope.key(), (ignored, existing) ->
+                (existing == null || existing.isExpired(now))
+                        ? new Window(now, 1)
+                        : new Window(existing.start(), existing.count() + 1));
+        if (window.count() > scope.limit()) {
+            throw new TooManyRequestsException();
+        }
+    }
+
+    /** User-keyed variant of {@link #resetAccount}. */
+    public void resetUser(String action, Long userId) {
+        if (userId != null) {
+            windows.remove(userScope(action, userId).key());
+        }
+    }
+
+    private Scope userScope(String action, Long userId) {
+        return new Scope(action + "|user|" + userId, MAX_ATTEMPTS_PER_USER);
     }
 
     private List<Scope> scopes(String action, String clientIp, String email) {

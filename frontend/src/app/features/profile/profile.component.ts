@@ -29,7 +29,7 @@ interface ProblemDetailLike {
       <h1 class="profile-title">Perfil</h1>
 
       @if (loadError(); as message) {
-        <p data-testid="profile-load-error" class="profile-error">{{ message }}</p>
+        <p data-testid="profile-load-error" class="profile-error" role="alert" aria-live="assertive">{{ message }}</p>
       }
 
       <div class="profile-sections">
@@ -52,15 +52,16 @@ interface ProblemDetailLike {
         <form class="profile-password-form" (submit)="onSubmit($event)">
           <h2 class="profile-password-title">Cambiar contraseña</h2>
           @if (formError(); as message) {
-            <p data-testid="profile-password-error" class="profile-error">{{ message }}</p>
+            <p data-testid="profile-password-error" class="profile-error" role="alert" aria-live="assertive">{{ message }}</p>
           }
           @if (successMessage(); as message) {
-            <p data-testid="profile-password-success" class="profile-success">{{ message }}</p>
+            <p data-testid="profile-password-success" class="profile-success" role="status">{{ message }}</p>
           }
           <fp-input
             label="Contraseña actual"
             type="password"
             testId="profile-current-password"
+            autocomplete="current-password"
             [value]="currentPassword()"
             [required]="true"
             [error]="currentPasswordError()"
@@ -70,6 +71,7 @@ interface ProblemDetailLike {
             label="Nueva contraseña"
             type="password"
             testId="profile-new-password"
+            autocomplete="new-password"
             [value]="newPassword()"
             [required]="true"
             [error]="newPasswordError()"
@@ -79,6 +81,7 @@ interface ProblemDetailLike {
             label="Confirmar nueva contraseña"
             type="password"
             testId="profile-confirm-password"
+            autocomplete="new-password"
             [value]="confirmPassword()"
             [required]="true"
             [error]="confirmPasswordError()"
