@@ -90,7 +90,7 @@ public class BoardService {
         }
 
         item.moveTo(targetColumn.getId(), newPosition);
-            if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_MOVED, "Work item moved", "{}");
+            if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_MOVED, "Se movió la tarea \"" + item.getTitle() + "\" a la columna \"" + targetColumn.getName() + "\"", "{}");
         WorkItemResponse response = toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
         if (resequenced && !siblings.isEmpty()) {
             List<WorkItemResponse> affectedItems = siblings.stream()

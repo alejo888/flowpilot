@@ -114,7 +114,7 @@ class CommentServiceTest {
         var response = service.update(7L, new CommentUpdateRequest("new"), 4L);
         assertThat(response.content()).isEqualTo("new");
         verify(activity).record(10L, 4L, com.flowpilot.entity.ActivityEventType.COMMENT_UPDATED,
-                "Comment updated", "{\"commentId\":7}");
+                "Comentario actualizado", "{\"commentId\":7}");
     }
 
     @Test
@@ -154,7 +154,7 @@ class CommentServiceTest {
         service.delete(7L, 4L);
         verify(comments).delete(comment);
         verify(activity).record(10L, 4L, com.flowpilot.entity.ActivityEventType.COMMENT_DELETED,
-                "Comment deleted", "{\"commentId\":7}");
+                "Comentario eliminado", "{\"commentId\":7}");
     }
 
     @Test
