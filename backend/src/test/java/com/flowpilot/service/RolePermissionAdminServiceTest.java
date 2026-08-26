@@ -119,6 +119,33 @@ class RolePermissionAdminServiceTest {
     }
 
     @Test
+    void expectedUpdatedAtWithADifferentOffsetButTheSameInstantIsNotAConcurrencyConflict() throws Exception {
+        // OffsetDateTime.equals() (what Objects.equals used to use) also compares
+        // the UTC offset, so a client-echoed timestamp re-serialized with a
+        // different-but-equivalent offset than the persisted value would
+        // previously trigger a spurious 409 even though the instant is identical.
+        setUp();
+        User admin = user(3L, GlobalRole.ADMINISTRADOR);
+        OffsetDateTime persisted = OffsetDateTime.parse("2026-02-01T00:00:00Z");
+        OffsetDateTime sameInstantDifferentOffset = OffsetDateTime.parse("2026-02-01T01:00:00+01:00");
+        RolePermission row = rowWithUpdatedAt(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, false, persisted);
+        when(userRepository.findById(3L)).thenReturn(Optional.of(admin));
+        when(rolePermissionRepository.findAllForUpdate()).thenReturn(List.of(row));
+        when(rolePermissionRepository.findAll()).thenReturn(List.of(row));
+        when(rolePermissionRepository.findMaxUpdatedAt()).thenReturn(Optional.of(persisted));
+        RolePermissionUpdateRequest request = new RolePermissionUpdateRequest(
+                List.of(new RolePermissionGrant(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, true)),
+                sameInstantDifferentOffset);
+
+        RolePermissionMatrixResponse response = service.replaceAll(3L, request);
+
+        assertThat(row.isGranted()).isTrue();
+        verify(rolePermissionRepository, times(1)).saveAll(anyIterable());
+        verify(projectAuthorizationService, times(1)).reloadCache();
+        assertThat(response.grants()).extracting(RolePermissionGrant::granted).containsExactly(true);
+    }
+
+    @Test
     void bulkReplaceUpdatesGrantsReloadsCacheAndReturnsFreshMatrix() throws Exception {
         setUp();
         User admin = user(3L, GlobalRole.ADMINISTRADOR);

@@ -7,6 +7,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import org.springframework.data.domain.PageRequest;
+
 import com.flowpilot.dto.CommentCreateRequest;
 import com.flowpilot.dto.CommentUpdateRequest;
 import com.flowpilot.entity.Comment;
@@ -85,14 +87,33 @@ class CommentServiceTest {
     void listUsesNewestFirstResultsAndSupportsArbitraryOffset() throws Exception {
         when(projects.findById(10L)).thenReturn(Optional.of(mock(com.flowpilot.entity.Project.class)));
         when(auth.canView(1L, 10L)).thenReturn(true);
-        Comment first = comment(1L, 10L, null, 1L, "newest");
         Comment second = comment(2L, 10L, null, 1L, "next");
-        Comment third = comment(3L, 10L, null, 1L, "older");
-        when(comments.findByProjectIdAndWorkItemIdIsNullOrderByCreatedAtDescIdDesc(10L))
-                .thenReturn(List.of(first, second, third));
+        when(comments.findByProjectIdAndWorkItemIdIsNullOrderByCreatedAtDescIdDesc(10L, PageRequest.of(1, 1)))
+                .thenReturn(List.of(second));
         when(users.findById(1L)).thenReturn(Optional.empty());
 
         assertThat(service.listProject(10L, 1L, 1, 1)).extracting(r -> r.content()).containsExactly("next");
+    }
+
+    @Test
+    void listPaginatesAtTheQueryLevelForANonPageAlignedOffset() throws Exception {
+        // limit=2, offset=1 is not page-aligned (page=0, remainder=1): the first
+        // page-sized fetch is exactly full, so a second page must be fetched and
+        // the two results concatenated before the in-page remainder is skipped —
+        // proves pagination happens at the query level (via CommentRepository's
+        // Pageable-taking finder), not by loading everything into memory.
+        when(projects.findById(10L)).thenReturn(Optional.of(mock(com.flowpilot.entity.Project.class)));
+        when(auth.canView(1L, 10L)).thenReturn(true);
+        Comment first = comment(1L, 10L, null, 1L, "newest");
+        Comment second = comment(2L, 10L, null, 1L, "next");
+        Comment third = comment(3L, 10L, null, 1L, "older");
+        when(comments.findByProjectIdAndWorkItemIdIsNullOrderByCreatedAtDescIdDesc(any(), any()))
+                .thenReturn(List.of(first, second), List.of(third));
+        when(users.findById(1L)).thenReturn(Optional.empty());
+
+        assertThat(service.listProject(10L, 1L, 2, 1)).extracting(r -> r.content()).containsExactly("next", "older");
+        verify(comments).findByProjectIdAndWorkItemIdIsNullOrderByCreatedAtDescIdDesc(10L, PageRequest.of(0, 2));
+        verify(comments).findByProjectIdAndWorkItemIdIsNullOrderByCreatedAtDescIdDesc(10L, PageRequest.of(1, 2));
     }
 
     @Test

@@ -23,6 +23,7 @@ export class CommentsStore {
   loadProject(projectId: number): void {
     const requestId = ++this.projectRequest;
     this.loading.set(true); this.error.set(null);
+    this.projectComments.set([]); this.activity.set([]);
     forkJoin({ comments: this.api.listProject(projectId, { limit: 20, offset: 0 }), activity: this.api.listActivity(projectId, { limit: 20, offset: 0 }) }).subscribe({
       next: ({ comments, activity }) => { if (requestId !== this.projectRequest) return; this.projectComments.set(comments); this.activity.set(activity); this.loading.set(false); },
       error: (err: unknown) => { if (requestId !== this.projectRequest) return; this.error.set(errorMessage(err, 'No se pudieron cargar los comentarios y la actividad')); this.loading.set(false); },
@@ -32,6 +33,7 @@ export class CommentsStore {
   loadWorkItem(workItemId: number): void {
     const requestId = ++this.workItemRequest;
     this.workItemLoading.set(true); this.error.set(null);
+    this.workItemComments.set([]);
     this.api.listWorkItem(workItemId, { limit: 20, offset: 0 }).subscribe({
       next: comments => { if (requestId !== this.workItemRequest) return; this.workItemComments.set(comments); this.workItemLoading.set(false); },
       error: err => { if (requestId !== this.workItemRequest) return; this.error.set(errorMessage(err, 'No se pudieron cargar los comentarios')); this.workItemLoading.set(false); },

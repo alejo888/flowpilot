@@ -1,7 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
+import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 
+import { AuthStore } from '../../core/auth/auth.store';
 import { RolePermissionsApiService } from './role-permissions-api.service';
 import { RolePermissionMatrixResponse } from './role-permission.model';
 import { RolePermissionsStore } from './role-permissions.store';
@@ -129,5 +131,36 @@ describe('RolePermissionsStore', () => {
 
     expect(store.conflict()).toBe(false);
     expect(store.error()).toBeTruthy();
+  });
+
+  it('resets all state when AuthStore.isAuthenticated transitions to false (logout)', () => {
+    const isAuthenticated = signal(true);
+    TestBed.resetTestingModule();
+    apiSpy = { getMatrix: vi.fn(), replaceAll: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        RolePermissionsStore,
+        { provide: RolePermissionsApiService, useValue: apiSpy },
+        { provide: AuthStore, useValue: { isAuthenticated } },
+      ],
+    });
+    store = TestBed.inject(RolePermissionsStore);
+    apiSpy.getMatrix.mockReturnValue(of(matrix('2026-01-01T00:00:00Z', false)));
+    store.load();
+    store.toggle('PROJECT_MANAGER', 'MEMBER_ADD');
+    expect(store.roles()).toEqual(['PROJECT_MANAGER', 'DEVELOPER']);
+    expect(store.hasDirtyChanges()).toBe(true);
+
+    isAuthenticated.set(false);
+    TestBed.tick();
+
+    expect(store.roles()).toEqual([]);
+    expect(store.permissions()).toEqual([]);
+    expect(store.updatedAt()).toBeNull();
+    expect(store.hasDirtyChanges()).toBe(false);
+    expect(store.isGranted('PROJECT_MANAGER', 'MEMBER_ADD')).toBe(false);
+    expect(store.error()).toBeNull();
+    expect(store.conflict()).toBe(false);
+    expect(store.saving()).toBe(false);
   });
 });
