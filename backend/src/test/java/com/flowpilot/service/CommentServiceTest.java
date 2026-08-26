@@ -85,14 +85,34 @@ class CommentServiceTest {
         Comment comment = comment(7L, 10L, null, 4L, "old");
         when(comments.findById(7L)).thenReturn(Optional.of(comment));
         when(auth.canView(9L, 10L)).thenReturn(true);
+        // User 9 is NOT the author but DOES hold COMMENT_CREATE, so the rejection
+        // below can only come from the author check — without this stub the
+        // earlier requireCreate gate would throw first and the assertion would
+        // no longer prove anything about authorship.
+        when(auth.hasPermission(9L, 10L, Permission.COMMENT_CREATE)).thenReturn(true);
         assertThatThrownBy(() -> service.update(7L, new CommentUpdateRequest("no"), 9L))
                 .isInstanceOf(AccessDeniedException.class);
+        assertThat(comment.getContent()).isEqualTo("old");
 
         when(auth.canView(4L, 10L)).thenReturn(true);
+        when(auth.hasPermission(4L, 10L, Permission.COMMENT_CREATE)).thenReturn(true);
         var response = service.update(7L, new CommentUpdateRequest("new"), 4L);
         assertThat(response.content()).isEqualTo("new");
         verify(activity).record(10L, 4L, com.flowpilot.entity.ActivityEventType.COMMENT_UPDATED,
                 "Comment updated", "{\"commentId\":7}");
+    }
+
+    @Test
+    void authorWithoutCommentCreatePermissionCannotEditOwnComment() throws Exception {
+        Comment comment = comment(7L, 10L, null, 4L, "old");
+        when(comments.findById(7L)).thenReturn(Optional.of(comment));
+        when(auth.canView(4L, 10L)).thenReturn(true);
+        when(auth.hasPermission(4L, 10L, Permission.COMMENT_CREATE)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.update(7L, new CommentUpdateRequest("new"), 4L))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThat(comment.getContent()).isEqualTo("old");
+        verify(activity, org.mockito.Mockito.never()).record(any(), any(), any(), any(), any());
     }
 
     @Test

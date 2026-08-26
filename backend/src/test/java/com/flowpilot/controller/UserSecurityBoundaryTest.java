@@ -3,6 +3,7 @@ package com.flowpilot.controller;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.flowpilot.security.CookieService;
 import com.flowpilot.security.JwtService;
 import com.flowpilot.security.SecurityConfig;
 import com.flowpilot.service.UserService;
@@ -44,6 +45,9 @@ class UserSecurityBoundaryTest {
 
     @MockitoBean
     private JwtService jwtService;
+
+    @MockitoBean
+    private CookieService cookieService;
 
     @Test
     void listUsersWithoutTokenReturns401() throws Exception {

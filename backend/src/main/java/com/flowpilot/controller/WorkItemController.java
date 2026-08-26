@@ -129,7 +129,8 @@ public class WorkItemController {
 
     @Operation(summary = "Move a work item to a column and/or position")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Work item moved; columnId and position persisted"),
+        @ApiResponse(responseCode = "200", description = "Work item moved; columnId and position persisted. "
+                + "affectedItems is populated only when the target column's siblings were re-sequenced."),
         @ApiResponse(responseCode = "400", description = "columnId belongs to a different project",
                 content = @Content(mediaType = "application/problem+json",
                         schema = @Schema(implementation = ProblemDetail.class))),

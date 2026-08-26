@@ -15,7 +15,10 @@ import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.Sprint;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.entity.WorkItemPriority;
+import com.flowpilot.exception.InvalidSprintException;
+import com.flowpilot.exception.ProjectMemberNotFoundException;
 import com.flowpilot.exception.SprintNotFoundException;
+    import com.flowpilot.exception.UserNotFoundException;
     import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.repository.BoardColumnRepository;
     import com.flowpilot.repository.SprintRepository;
@@ -182,6 +185,7 @@ class WorkItemServiceTest {
         WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
         when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
         when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+        when(authorizationService.canView(42L, 10L)).thenReturn(true);
 
         WorkItemResponse response = workItemService.update(
                 500L, new WorkItemUpdateRequest("New title", "New description", 42L), 1L);
@@ -260,6 +264,58 @@ class WorkItemServiceTest {
     }
 
     @Test
+    void createRejectsAssignmentToCompletedSprint() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        BoardColumn firstColumn = column(200L, 10L, 1024);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(firstColumn));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(sprintRepository.findByIdAndProjectId(7L, 10L))
+                .thenReturn(Optional.of(completedSprint(10L)));
+
+        assertThatThrownBy(() -> workItemService.create(
+                10L, new WorkItemCreateRequest("Sprint task", null, null, 7L), 1L))
+                .isInstanceOf(InvalidSprintException.class);
+    }
+
+    @Test
+    void updateRejectsAssignmentToCompletedSprint() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+        when(sprintRepository.findByIdAndProjectId(7L, 10L))
+                .thenReturn(Optional.of(completedSprint(10L)));
+
+        assertThatThrownBy(() -> workItemService.update(
+                500L, new WorkItemUpdateRequest("New title", null, null, 7L), 1L))
+                .isInstanceOf(InvalidSprintException.class);
+    }
+
+    @Test
+    void updateAllowsAssignmentToPlannedOrActiveSprint() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+        Sprint activeSprint = new Sprint(10L, "Sprint", null,
+                java.time.LocalDate.now(), java.time.LocalDate.now().plusDays(7));
+        activeSprint.start();
+        when(sprintRepository.findByIdAndProjectId(7L, 10L)).thenReturn(Optional.of(activeSprint));
+
+        WorkItemResponse response = workItemService.update(
+                500L, new WorkItemUpdateRequest("New title", null, null, 7L), 1L);
+
+        assertThat(response.sprintId()).isEqualTo(7L);
+    }
+
+    private Sprint completedSprint(Long projectId) {
+        Sprint sprint = new Sprint(projectId, "Sprint", null,
+                java.time.LocalDate.now(), java.time.LocalDate.now().plusDays(7));
+        sprint.start();
+        sprint.complete();
+        return sprint;
+    }
+
+    @Test
     void updateWithNullSprintMovesItemToBacklog() throws Exception {
         WorkItem item = workItem(500L, 10L, 200L, "Sprint task", 1024);
         item.setSprintId(7L);
@@ -271,6 +327,74 @@ class WorkItemServiceTest {
 
         assertThat(response.sprintId()).isNull();
         assertThat(item.getSprintId()).isNull();
+    }
+
+    @Test
+    void createWithNonexistentAssigneeThrowsProperExceptionNotFkViolation() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        BoardColumn firstColumn = column(200L, 10L, 1024);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(firstColumn));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(authorizationService.canView(99L, 10L)).thenThrow(new UserNotFoundException(99L));
+
+        assertThatThrownBy(() -> workItemService.create(
+                10L, new WorkItemCreateRequest("Task", null, 99L), 1L))
+                .isInstanceOf(UserNotFoundException.class);
+    }
+
+    @Test
+    void createWithNonMemberAssigneeThrowsProperException() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        BoardColumn firstColumn = column(200L, 10L, 1024);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(firstColumn));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(authorizationService.canView(42L, 10L)).thenReturn(false);
+
+        assertThatThrownBy(() -> workItemService.create(
+                10L, new WorkItemCreateRequest("Task", null, 42L), 1L))
+                .isInstanceOf(ProjectMemberNotFoundException.class);
+    }
+
+    @Test
+    void createWithValidMemberAssigneeSucceeds() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        BoardColumn firstColumn = column(200L, 10L, 1024);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(firstColumn));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(authorizationService.canView(42L, 10L)).thenReturn(true);
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WorkItemResponse response = workItemService.create(
+                10L, new WorkItemCreateRequest("Task", null, 42L), 1L);
+
+        assertThat(response.assignedUserId()).isEqualTo(42L);
+    }
+
+    @Test
+    void updateWithNonexistentAssigneeThrowsProperExceptionNotFkViolation() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+        when(authorizationService.canView(99L, 10L)).thenThrow(new UserNotFoundException(99L));
+
+        assertThatThrownBy(() -> workItemService.update(
+                500L, new WorkItemUpdateRequest("New title", null, 99L), 1L))
+                .isInstanceOf(UserNotFoundException.class);
+    }
+
+    @Test
+    void updateWithNonMemberAssigneeThrowsProperException() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+        when(authorizationService.canView(42L, 10L)).thenReturn(false);
+
+        assertThatThrownBy(() -> workItemService.update(
+                500L, new WorkItemUpdateRequest("New title", null, 42L), 1L))
+                .isInstanceOf(ProjectMemberNotFoundException.class);
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.flowpilot;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -108,6 +109,57 @@ class AuthFlowIntegrationTest {
         mockMvc.perform(post("/api/auth/refresh")
                         .cookie(rotatedCookie, rotatedCsrfCookie)
                         .header(CSRF_HEADER_NAME, rotatedCsrfCookie.getValue()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void changePasswordIssuesAFreshRefreshCookieAndRevokesTheOldOne() throws Exception {
+        RegisterRequest register = new RegisterRequest("Ada Lovelace", "ada@flowpilot.local", "supersecret1");
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(register)))
+                .andExpect(status().isCreated());
+
+        LoginRequest login = new LoginRequest("ada@flowpilot.local", "supersecret1");
+        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(login)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String accessToken = objectMapper.readTree(loginResult.getResponse().getContentAsString())
+                .get("accessToken").asText();
+        Cookie oldRefreshCookie = loginResult.getResponse().getCookie("refreshToken");
+        assertThat(oldRefreshCookie).isNotNull();
+        Cookie csrfCookie = loginResult.getResponse().getCookie(CookieService.CSRF_COOKIE_NAME);
+        assertThat(csrfCookie).isNotNull();
+
+        // Changing the password does not carry the /api/auth-scoped refresh
+        // cookie at all (its Path attribute excludes this endpoint) — it must
+        // still come back with a brand-new one for the current session.
+        MvcResult changePasswordResult = mockMvc.perform(put("/api/users/me/password")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"supersecret1\",\"newPassword\":\"newsupersecret1\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        Cookie newRefreshCookie = changePasswordResult.getResponse().getCookie("refreshToken");
+        assertThat(newRefreshCookie).isNotNull();
+        assertThat(newRefreshCookie.isHttpOnly()).isTrue();
+        assertThat(newRefreshCookie.getValue()).isNotEqualTo(oldRefreshCookie.getValue());
+
+        // The fresh cookie rotates successfully — no reuse-detection false positive.
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(newRefreshCookie, csrfCookie)
+                        .header(CSRF_HEADER_NAME, csrfCookie.getValue()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").exists());
+
+        // The pre-password-change refresh token is genuinely revoked and rejected.
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(oldRefreshCookie, csrfCookie)
+                        .header(CSRF_HEADER_NAME, csrfCookie.getValue()))
                 .andExpect(status().isUnauthorized());
     }
 

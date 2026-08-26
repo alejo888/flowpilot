@@ -54,13 +54,15 @@ const STATUS_OPTIONS = [
           <fp-button type="submit" icon="save" testId="project-edit-submit" [disabled]="saving()">Guardar cambios</fp-button>
         </form></fp-card>
         <fp-card><div class="actions">
-          <section class="comments-section" aria-labelledby="project-comments-title"><h2 id="project-comments-title">Comentarios</h2><form data-testid="project-comment-form" (submit)="submitComment($event)"><label for="project-comment">Agregar comentario</label><textarea id="project-comment" rows="3" maxlength="4000" [value]="commentDraft()" (input)="commentDraft.set($any($event.target).value)" [disabled]="commentSubmitting()"></textarea><fp-button type="submit" icon="comment" [disabled]="commentSubmitting() || !commentDraft().trim()">Comentar</fp-button></form>@if (commentLoading()) { <p role="status">Cargando comentarios...</p> } @for (comment of projectComments(); track comment.id) { <article class="project-comment"><div class="comment-meta"><strong>{{ comment.authorName || 'Usuario' }}</strong><span>{{ comment.createdAt | date:'d MMM y, HH:mm' }}</span></div>@if (editingCommentId() === comment.id) { <textarea rows="3" aria-label="Editar comentario" [value]="editingContent()" (input)="editingContent.set($any($event.target).value)"></textarea><fp-button type="button" icon="save" ariaLabel="Guardar comentario" (click)="saveComment(comment.id)">Guardar</fp-button> } @else { <p>{{ comment.content }}</p>@if (canEdit(comment)) { <div class="comment-actions"><fp-button type="button" variant="secondary" icon="edit" ariaLabel="Editar comentario" (click)="startEdit(comment)">Editar</fp-button><fp-button type="button" variant="danger" icon="delete" ariaLabel="Eliminar comentario" (click)="confirmDeleteComment(comment.id)">Eliminar</fp-button></div> } }</article> }</section><section class="activity-section" aria-labelledby="project-activity-title"><h2 id="project-activity-title">Actividad</h2>@for (event of activity(); track event.id) { <article class="activity-event"><span>{{ event.createdAt | date:'d MMM y, HH:mm' }}</span><p>{{ event.displayText }}</p></article> }</section>
-              <fp-select label="Estado" testId="project-status-select" [value]="current.status" [options]="statusOptions" [disabled]="saving()" (valueChange)="onStatusChange($event)" />
+          <section class="comments-section" aria-labelledby="project-comments-title"><h2 id="project-comments-title">Comentarios</h2><form data-testid="project-comment-form" (submit)="submitComment($event)"><label for="project-comment">Agregar comentario</label><textarea id="project-comment" rows="3" maxlength="4000" [value]="commentDraft()" (input)="commentDraft.set($any($event.target).value)" [disabled]="commentSubmitting()"></textarea><fp-button type="submit" icon="comment" [disabled]="commentSubmitting() || !commentDraft().trim()">Comentar</fp-button></form>@if (commentLoading()) { <p role="status">Cargando comentarios...</p> } @if (sectionCommentError(); as message) { <p class="error" role="alert" data-testid="project-comment-error">{{ message }}</p> } @for (comment of projectComments(); track comment.id) { <article class="project-comment"><div class="comment-meta"><strong>{{ comment.authorName || 'Usuario' }}</strong><span>{{ comment.createdAt | date:'d MMM y, HH:mm' }}</span></div>@if (editingCommentId() === comment.id) { <textarea rows="3" aria-label="Editar comentario" [value]="editingContent()" (input)="editingContent.set($any($event.target).value)"></textarea><fp-button type="button" icon="save" ariaLabel="Guardar comentario" (click)="saveComment(comment.id)">Guardar</fp-button> } @else { <p>{{ comment.content }}</p>@if (canEdit(comment)) { <div class="comment-actions"><fp-button type="button" variant="secondary" icon="edit" ariaLabel="Editar comentario" (click)="startEdit(comment)">Editar</fp-button><fp-button type="button" variant="danger" icon="delete" ariaLabel="Eliminar comentario" (click)="confirmDeleteComment(comment.id)">Eliminar</fp-button></div> } }</article> }</section><section class="activity-section" aria-labelledby="project-activity-title"><h2 id="project-activity-title">Actividad</h2>@for (event of activity(); track event.id) { <article class="activity-event"><span>{{ event.createdAt | date:'d MMM y, HH:mm' }}</span><p>{{ event.displayText }}</p></article> }</section>
+              @for (resetToken of [statusResetToken()]; track resetToken) {
+                <fp-select label="Estado" testId="project-status-select" [value]="current.status" [options]="statusOptions" [disabled]="saving()" (valueChange)="onStatusChange($event)" />
+              }
           <fp-button variant="danger" icon="delete" testId="project-delete" [disabled]="deleting()" (click)="confirmingDelete.set(true)">Eliminar proyecto</fp-button>
         </div></fp-card>
       }
       @if (confirmingDelete()) { <fp-dialog data-testid="project-delete-dialog" label="project-delete-dialog-title" describedById="project-delete-dialog-description" (closed)="confirmingDelete.set(false)"><h2 id="project-delete-dialog-title">Eliminar proyecto</h2><p id="project-delete-dialog-description">¿Seguro que querés eliminar este proyecto? Esta acción no se puede deshacer.</p><div class="actions"><fp-button variant="danger" icon="delete" testId="project-delete-confirm" (click)="onDelete()">Sí, eliminar</fp-button><fp-button variant="secondary" icon="close" testId="project-delete-cancel" (click)="confirmingDelete.set(false)">Cancelar</fp-button></div></fp-dialog> }
-      @if (deletingCommentId(); as commentId) { <fp-dialog data-testid="comment-delete-dialog" label="comment-delete-dialog-title" describedById="comment-delete-dialog-description" (closed)="cancelDeleteComment()"><h2 id="comment-delete-dialog-title">Eliminar comentario</h2><p id="comment-delete-dialog-description">¿Seguro que querés eliminar este comentario? Esta acción no se puede deshacer.</p><div class="actions"><fp-button variant="danger" icon="delete" testId="comment-delete-confirm" (click)="deleteCommentConfirmed()">Sí, eliminar</fp-button><fp-button variant="secondary" icon="close" testId="comment-delete-cancel" (click)="cancelDeleteComment()">Cancelar</fp-button></div></fp-dialog> }
+      @if (deletingCommentId(); as commentId) { <fp-dialog data-testid="comment-delete-dialog" label="comment-delete-dialog-title" describedById="comment-delete-dialog-description" (closed)="cancelDeleteComment()"><h2 id="comment-delete-dialog-title">Eliminar comentario</h2><p id="comment-delete-dialog-description">¿Seguro que querés eliminar este comentario? Esta acción no se puede deshacer.</p>@if (commentError(); as message) { <p class="error" role="alert" data-testid="comment-delete-dialog-error">{{ message }}</p> }<div class="actions"><fp-button variant="danger" icon="delete" testId="comment-delete-confirm" [disabled]="commentSubmitting()" (click)="deleteCommentConfirmed()">Sí, eliminar</fp-button><fp-button variant="secondary" icon="close" testId="comment-delete-cancel" (click)="cancelDeleteComment()">Cancelar</fp-button></div></fp-dialog> }
     </main>
   `,
   styles: `
@@ -96,13 +98,34 @@ export class ProjectDetailComponent {
       readonly activity = this.commentsStore.activity;
       readonly commentLoading = this.commentsStore.loading;
       readonly commentSubmitting = this.commentsStore.submitting;
+      readonly commentError = this.commentsStore.error;
       readonly commentDraft = signal('');
       readonly editingCommentId = signal<number | null>(null);
       readonly editingContent = signal('');
       readonly deletingCommentId = signal<number | null>(null);
+      /**
+       * `fp-dialog` is a fixed full-viewport backdrop with `aria-modal="true"`
+       * and a focus trap, so an error rendered in `.comments-section` sits
+       * visually behind the backdrop and outside the trap — invisible and
+       * unreachable while the delete confirmation is open. While that dialog
+       * is open the error is rendered inside the dialog instead; this computed
+       * suppresses the section copy so the same message is never announced
+       * twice by two `role="alert"` nodes.
+       */
+      readonly sectionCommentError = computed(() => (this.deletingCommentId() === null ? this.commentError() : null));
   protected readonly statusBadgeVariant = projectStatusBadgeVariant;
   readonly name = signal(''); readonly description = signal(''); readonly code = signal(''); readonly startDate = signal(''); readonly estimatedEndDate = signal(''); readonly technologies = signal(''); readonly repositoryUrl = signal('');
   readonly confirmingDelete = signal(false);
+  /**
+   * Bumped on a failed status update to force `@for`'s `track` to recreate
+   * the `<fp-select>` (and its native `<select>`). Angular's property-binding
+   * diffing skips re-applying `[selected]` when `current.status` itself
+   * hasn't changed (the update failed, so the store's project is unchanged),
+   * but the browser already moved its own live selection to whatever the
+   * user just clicked — recreating the element is what actually discards
+   * that stale native selection and shows the real persisted status again.
+   */
+  readonly statusResetToken = signal(0);
 
   constructor() {
     effect(() => {
@@ -122,14 +145,23 @@ export class ProjectDetailComponent {
     });
   }
   onSubmit(event: Event): void { event.preventDefault(); const name = this.name().trim(); if (!name) return; this.store.updateProject(this.projectId(), { name, description: blank(this.description()), code: blank(this.code()), startDate: blank(this.startDate()), estimatedEndDate: blank(this.estimatedEndDate()), technologies: blank(this.technologies()), repositoryUrl: blank(this.repositoryUrl()) }); }
-  onStatusChange(value: string): void { if (value) this.store.updateProjectStatus(this.projectId(), value as ProjectStatus); }
-  submitComment(event: Event): void { event.preventDefault(); const content = this.commentDraft().trim(); if (!content) return; this.commentsStore.createProject(this.projectId(), content); this.commentDraft.set(''); }
+  async onStatusChange(value: string): Promise<void> {
+    if (!value) return;
+    const succeeded = await this.store.updateProjectStatus(this.projectId(), value as ProjectStatus);
+    if (!succeeded) this.statusResetToken.update((token) => token + 1);
+  }
+  /**
+   * Local UI state (draft text, edit mode, pending delete) is only cleared once
+   * the store confirms the write succeeded — otherwise a failed request would
+   * silently discard what the user typed while the error message is shown.
+   */
+  async submitComment(event: Event): Promise<void> { event.preventDefault(); const content = this.commentDraft().trim(); if (!content) return; const created = await this.commentsStore.createProject(this.projectId(), content); if (created) this.commentDraft.set(''); }
       canEdit(comment: Comment): boolean { return comment.authorId === this.commentsStore.currentUserId(); }
       startEdit(comment: Comment): void { this.editingCommentId.set(comment.id); this.editingContent.set(comment.content); }
-      saveComment(id: number): void { const content = this.editingContent().trim(); if (!content) return; this.commentsStore.update(id, content, 'project'); this.editingCommentId.set(null); }
+      async saveComment(id: number): Promise<void> { const content = this.editingContent().trim(); if (!content) return; const saved = await this.commentsStore.update(id, content, 'project'); if (saved) this.editingCommentId.set(null); }
       confirmDeleteComment(id: number): void { this.deletingCommentId.set(id); }
       cancelDeleteComment(): void { this.deletingCommentId.set(null); }
-      deleteCommentConfirmed(): void { const id = this.deletingCommentId(); if (id === null) return; this.commentsStore.delete(id, 'project'); this.deletingCommentId.set(null); }
+      async deleteCommentConfirmed(): Promise<void> { const id = this.deletingCommentId(); if (id === null) return; const deleted = await this.commentsStore.delete(id, 'project'); if (deleted) this.deletingCommentId.set(null); }
 
       async onDelete(): Promise<void> {
     const deleted = await this.store.deleteProject(this.projectId());

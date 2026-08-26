@@ -69,7 +69,7 @@ describe('BacklogComponent', () => {
       createSprint: vi.fn(),
       startSprint: vi.fn(),
       completeSprint: vi.fn(),
-      assignItem: vi.fn(),
+      assignItem: vi.fn().mockResolvedValue(true),
     };
   });
 
@@ -121,5 +121,41 @@ describe('BacklogComponent', () => {
     store.sprints.set([{ ...planned, status: 'ACTIVE' }]);
     fixture.detectChanges();
     expect(element.textContent).toContain('Completar sprint');
+  });
+
+  it('excludes COMPLETED sprints from the assignment dropdown options', async () => {
+    store.sprints.set([sprint(7, 'PLANNED'), sprint(8, 'COMPLETED')]);
+    const backlogItem = item();
+    store.backlogItems.set([backlogItem]);
+    await setup();
+
+    expect(fixture.componentInstance.sprintOptions()).toEqual([
+      { value: '7', label: 'Sprint 1' },
+    ]);
+  });
+
+  it('resets the sprint select when the assignment fails', async () => {
+    store.assignItem.mockResolvedValue(false);
+    const planned = sprint();
+    store.sprints.set([planned]);
+    const backlogItem = item();
+    store.backlogItems.set([backlogItem]);
+    await setup();
+
+    expect(fixture.componentInstance.sprintResetToken(backlogItem.id)).toBe(0);
+
+    await fixture.componentInstance.assign(backlogItem, '7');
+
+    expect(fixture.componentInstance.sprintResetToken(backlogItem.id)).toBe(1);
+  });
+
+  it('disables the sprint select while a mutation is in flight', async () => {
+    store.mutating.set(true);
+    const backlogItem = item();
+    store.backlogItems.set([backlogItem]);
+    await setup();
+
+    const select = fixture.nativeElement.querySelector('[data-testid="item-sprint-1"]') as HTMLSelectElement;
+    expect(select.disabled).toBe(true);
   });
 });

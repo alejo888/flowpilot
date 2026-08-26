@@ -28,13 +28,16 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Project CRUD + lifecycle endpoints (spec: project-management). Every write
- * requires the caller to be the project's owner or a global administrator —
- * interim rule enforced by {@link com.flowpilot.service.ProjectAuthorizationService}
- * (slices 3-6, until slice 8a's permission matrix exists). {@code GET /{id}}
- * and {@code GET /{id}/board-columns} require {@code canView} (admin, owner,
- * or a {@code ProjectMember}) — closes the read-authorization gap flagged in
- * the slice-3 verify report (previously authentication-only).
+ * Project CRUD + lifecycle endpoints (spec: project-management). Writes
+ * require the matrix-backed {@link com.flowpilot.entity.Permission#PROJECT_EDIT_SETTINGS}
+ * or {@link com.flowpilot.entity.Permission#PROJECT_DELETE} permission via
+ * {@link com.flowpilot.service.ProjectAuthorizationService#hasPermission} —
+ * an admin or the project's owner always has it, but so does any {@code
+ * ProjectMember} whose role is granted that permission in the role-permission
+ * matrix (slice 8a; e.g. {@code PROJECT_MANAGER} by default). {@code GET
+ * /{id}} and {@code GET /{id}/board-columns} require {@code canView} (admin,
+ * owner, or a {@code ProjectMember}) — closes the read-authorization gap
+ * flagged in the slice-3 verify report (previously authentication-only).
  */
 @RestController
 @RequestMapping("/api/projects")
@@ -98,13 +101,14 @@ public class ProjectController {
         @ApiResponse(responseCode = "400", description = "Validation failed, or start date is after estimated end date",
                 content = @Content(mediaType = "application/problem+json",
                         schema = @Schema(implementation = ProblemDetail.class))),
-        @ApiResponse(responseCode = "403", description = "Caller is not the owner or an administrator",
+        @ApiResponse(responseCode = "403", description = "Caller lacks the required permission for this project (admin, owner, or a matrix-granted role)",
                 content = @Content(mediaType = "application/problem+json",
                         schema = @Schema(implementation = ProblemDetail.class))),
         @ApiResponse(responseCode = "404", description = "No project with that id",
                 content = @Content(mediaType = "application/problem+json",
                         schema = @Schema(implementation = ProblemDetail.class))),
-        @ApiResponse(responseCode = "409", description = "Code already belongs to another project",
+        @ApiResponse(responseCode = "409",
+                description = "Code already belongs to another project, or the project was modified concurrently",
                 content = @Content(mediaType = "application/problem+json",
                         schema = @Schema(implementation = ProblemDetail.class)))
     })
@@ -119,7 +123,7 @@ public class ProjectController {
     @Operation(summary = "Transition a project's lifecycle status")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Status updated"),
-        @ApiResponse(responseCode = "403", description = "Caller is not the owner or an administrator",
+        @ApiResponse(responseCode = "403", description = "Caller lacks the required permission for this project (admin, owner, or a matrix-granted role)",
                 content = @Content(mediaType = "application/problem+json",
                         schema = @Schema(implementation = ProblemDetail.class))),
         @ApiResponse(responseCode = "404", description = "No project with that id",
@@ -137,7 +141,7 @@ public class ProjectController {
     @Operation(summary = "Delete a project")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Project deleted"),
-        @ApiResponse(responseCode = "403", description = "Caller is not the owner or an administrator",
+        @ApiResponse(responseCode = "403", description = "Caller lacks the required permission for this project (admin, owner, or a matrix-granted role)",
                 content = @Content(mediaType = "application/problem+json",
                         schema = @Schema(implementation = ProblemDetail.class))),
         @ApiResponse(responseCode = "404", description = "No project with that id",

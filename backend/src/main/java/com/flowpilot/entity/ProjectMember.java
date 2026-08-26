@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.OffsetDateTime;
 
 /**
@@ -15,6 +16,10 @@ import java.time.OffsetDateTime;
  * project-membership). {@code projectId}/{@code userId} are plain FK columns
  * (not JPA relations), matching {@code Project}'s {@code ownerId} pattern so
  * {@code ProjectAuthorizationService} can do lightweight existence checks.
+ *
+ * <p>{@code version} (V15 migration) backs JPA's built-in optimistic locking,
+ * same convention as {@code Project}: two concurrent role changes on the
+ * same row now fail the second with a 409 instead of silently last-write-wins.
  */
 @Entity
 @Table(name = "project_members")
@@ -23,6 +28,10 @@ public class ProjectMember {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     @Column(name = "project_id", nullable = false)
     private Long projectId;

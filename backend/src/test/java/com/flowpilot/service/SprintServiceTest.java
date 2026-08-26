@@ -2,6 +2,9 @@ package com.flowpilot.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowpilot.dto.SprintCreateRequest;
@@ -35,7 +38,7 @@ class SprintServiceTest {
     @Test
     void rejectsInvalidDateRange() {
         SprintService service = service();
-        when(authorizationService.hasPermission(9L, 1L, Permission.WORKITEM_EDIT)).thenReturn(true);
+        when(authorizationService.hasPermission(9L, 1L, Permission.SPRINT_MANAGE)).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(
                 1L,
@@ -49,7 +52,7 @@ class SprintServiceTest {
     void startsPlannedSprint() {
         Sprint sprint = sprint();
         when(sprintRepository.findById(1L)).thenReturn(Optional.of(sprint));
-        when(authorizationService.hasPermission(9L, 1L, Permission.WORKITEM_EDIT)).thenReturn(true);
+        when(authorizationService.hasPermission(9L, 1L, Permission.SPRINT_MANAGE)).thenReturn(true);
         when(sprintRepository.existsByProjectIdAndStatus(1L, SprintStatus.ACTIVE)).thenReturn(false);
 
         SprintStatus status = service().start(1L, 9L).status();
@@ -60,12 +63,12 @@ class SprintServiceTest {
     @Test
     void rejectsStartingWhenProjectAlreadyHasActiveSprint() {
         when(sprintRepository.findById(1L)).thenReturn(Optional.of(sprint()));
-        when(authorizationService.hasPermission(9L, 1L, Permission.WORKITEM_EDIT)).thenReturn(true);
+        when(authorizationService.hasPermission(9L, 1L, Permission.SPRINT_MANAGE)).thenReturn(true);
         when(sprintRepository.existsByProjectIdAndStatus(1L, SprintStatus.ACTIVE)).thenReturn(true);
 
         assertThatThrownBy(() -> service().start(1L, 9L))
                 .isInstanceOf(InvalidSprintException.class)
-                .hasMessage("Project already has an active sprint");
+                .hasMessage("El proyecto ya tiene un sprint activo");
     }
 
     @Test
@@ -73,7 +76,7 @@ class SprintServiceTest {
         Sprint sprint = sprint();
         sprint.start();
         when(sprintRepository.findById(1L)).thenReturn(Optional.of(sprint));
-        when(authorizationService.hasPermission(9L, 1L, Permission.WORKITEM_EDIT)).thenReturn(true);
+        when(authorizationService.hasPermission(9L, 1L, Permission.SPRINT_MANAGE)).thenReturn(true);
 
         SprintStatus status = service().complete(1L, 9L).status();
 
@@ -83,7 +86,7 @@ class SprintServiceTest {
     @Test
     void rejectsCompletingPlannedSprint() {
         when(sprintRepository.findById(1L)).thenReturn(Optional.of(sprint()));
-        when(authorizationService.hasPermission(9L, 1L, Permission.WORKITEM_EDIT)).thenReturn(true);
+        when(authorizationService.hasPermission(9L, 1L, Permission.SPRINT_MANAGE)).thenReturn(true);
 
         assertThatThrownBy(() -> service().complete(1L, 9L))
                 .isInstanceOf(InvalidSprintException.class);
@@ -95,7 +98,7 @@ class SprintServiceTest {
         sprint.start();
         sprint.complete();
         when(sprintRepository.findById(1L)).thenReturn(Optional.of(sprint));
-        when(authorizationService.hasPermission(9L, 1L, Permission.WORKITEM_EDIT)).thenReturn(true);
+        when(authorizationService.hasPermission(9L, 1L, Permission.SPRINT_MANAGE)).thenReturn(true);
 
         assertThatThrownBy(() -> service().update(
                 1L,
@@ -107,10 +110,66 @@ class SprintServiceTest {
     @Test
     void rejectsUnauthorizedLifecycleChange() {
         when(sprintRepository.findById(1L)).thenReturn(Optional.of(sprint()));
-        when(authorizationService.hasPermission(9L, 1L, Permission.WORKITEM_EDIT)).thenReturn(false);
+        when(authorizationService.hasPermission(9L, 1L, Permission.SPRINT_MANAGE)).thenReturn(false);
 
         assertThatThrownBy(() -> service().start(1L, 9L))
                 .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void rejectsCreateWithoutSprintManagePermission() {
+        // A DEVELOPER/QA/UX/DEVOPS member holds WORKITEM_EDIT but not
+        // SPRINT_MANAGE, so sprint creation must be denied.
+        when(authorizationService.hasPermission(9L, 1L, Permission.SPRINT_MANAGE)).thenReturn(false);
+
+        assertThatThrownBy(() -> service().create(
+                1L,
+                new SprintCreateRequest(
+                        "Sprint", "Goal", LocalDate.now(), LocalDate.now().plusDays(7)),
+                9L))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(sprintRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectsUpdateWithoutSprintManagePermission() {
+        when(sprintRepository.findById(1L)).thenReturn(Optional.of(sprint()));
+        when(authorizationService.hasPermission(9L, 1L, Permission.SPRINT_MANAGE)).thenReturn(false);
+
+        assertThatThrownBy(() -> service().update(
+                1L,
+                new SprintUpdateRequest("Updated", null, LocalDate.now(), LocalDate.now().plusDays(7)),
+                9L))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void rejectsCompleteWithoutSprintManagePermission() {
+        Sprint sprint = sprint();
+        sprint.start();
+        when(sprintRepository.findById(1L)).thenReturn(Optional.of(sprint));
+        when(authorizationService.hasPermission(9L, 1L, Permission.SPRINT_MANAGE)).thenReturn(false);
+
+        assertThatThrownBy(() -> service().complete(1L, 9L))
+                .isInstanceOf(AccessDeniedException.class);
+
+        assertThat(sprint.getStatus()).isEqualTo(SprintStatus.ACTIVE);
+    }
+
+    @Test
+    void createsSprintWhenCallerHasSprintManagePermission() {
+        when(authorizationService.hasPermission(9L, 1L, Permission.SPRINT_MANAGE)).thenReturn(true);
+        when(projectRepository.existsById(1L)).thenReturn(true);
+        when(sprintRepository.save(any(Sprint.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = service().create(
+                1L,
+                new SprintCreateRequest(
+                        "Sprint", "Goal", LocalDate.now(), LocalDate.now().plusDays(7)),
+                9L);
+
+        assertThat(response.status()).isEqualTo(SprintStatus.PLANNED);
     }
 
     private SprintService service() {

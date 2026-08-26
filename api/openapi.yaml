@@ -175,9 +175,10 @@ paths:
       summary: List users (read-only directory, for member selection)
       operationId: listUsers
       description: >-
-        Requires a valid Bearer access token — no special global role or
-        project permission (interim rule until the slice 8 permission matrix
-        exists). Returns both active and inactive users.
+        Requires a valid Bearer access token from an active caller — no
+        special global role or project permission on the target (interim
+        rule until the slice 8 permission matrix exists). Returns both active
+        and inactive users.
       security:
         - bearerAuth: []
       responses:
@@ -191,6 +192,12 @@ paths:
                   $ref: '#/components/schemas/UserSummaryResponse'
         '401':
           description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller's account is deactivated
           content:
             application/problem+json:
               schema:
@@ -221,6 +228,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller's account is deactivated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: No user with that id
           content:
@@ -246,14 +259,23 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller's account is deactivated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/users/me/password:
     put:
       summary: Change the authenticated caller's own password
       operationId: changePassword
       description: >-
-        Verifies currentPassword against the stored hash before re-hashing.
-        On success, revokes all of the caller's active refresh tokens (same
-        as /api/auth/reset-password).
+        Verifies currentPassword against the stored hash before re-hashing
+        (rate-limited per caller). Rejects a newPassword equal to
+        currentPassword. On success, revokes all of the caller's active
+        refresh tokens (same as /api/auth/reset-password) and issues a fresh
+        one for the current session, set as the refreshToken cookie —
+        otherwise the browser would keep presenting a now-revoked cookie.
       security:
         - bearerAuth: []
       requestBody:
@@ -264,15 +286,29 @@ paths:
               $ref: '#/components/schemas/ChangePasswordRequest'
       responses:
         '200':
-          description: Password updated; all refresh tokens revoked
+          description: >-
+            Password updated; all refresh tokens revoked and a fresh one set
+            as the refreshToken cookie for the current session
         '400':
-          description: Validation failed, or current password is incorrect
+          description: Validation failed, current password is incorrect, or newPassword equals currentPassword
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
         '401':
           description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller's account is deactivated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '429':
+          description: Too many incorrect currentPassword attempts
           content:
             application/problem+json:
               schema:
@@ -416,11 +452,11 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
   /api/admin/role-permissions:
     get:
-      summary: Get the full 6x10 role/permission matrix — admin-only
+      summary: Get the full 6x11 role/permission matrix — admin-only
       operationId: getRolePermissions
       description: >-
         Returns the fixed role/permission catalogs (for rendering the admin
-        grid) plus all 60 grant rows and MAX(role_permissions.updated_at),
+        grid) plus all 66 grant rows and MAX(role_permissions.updated_at),
         which the caller must echo back as expectedUpdatedAt on PUT
         (optimistic concurrency, spec: role-permissions).
       security:
@@ -589,8 +625,10 @@ paths:
       summary: Update a project's name/description
       operationId: updateProject
       description: >-
-        Only the project's owner or a global administrator may edit
-        (interim owner rule, design's ProjectAuthorizationService).
+        Requires the PROJECT_EDIT_SETTINGS permission (role-permission
+        matrix): a global administrator or the project's owner always has
+        it, and by default so does the PROJECT_MANAGER project role
+        (design's ProjectAuthorizationService).
       security:
         - bearerAuth: []
       parameters:
@@ -615,7 +653,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
         '403':
-          description: Caller is not the owner or an administrator
+          description: Caller lacks the required permission for this project (admin, owner, or a matrix-granted role)
           content:
             application/problem+json:
               schema:
@@ -627,7 +665,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
         '409':
-          description: Code already belongs to another project
+          description: Code already belongs to another project, or the project was modified concurrently
           content:
             application/problem+json:
               schema:
@@ -636,9 +674,10 @@ paths:
       summary: Delete a project
       operationId: deleteProject
       description: >-
-        Only the project's owner or a global administrator may delete
-        (PROJECT_DELETE is granted to no role in the future permission
-        matrix; owner/admin coverage is interim + permanent per the design).
+        Requires the PROJECT_DELETE permission (role-permission matrix): a
+        global administrator or the project's owner always has it;
+        PROJECT_DELETE is granted to no project role by default, but an
+        administrator may grant it to any role via the matrix.
       security:
         - bearerAuth: []
       parameters:
@@ -647,7 +686,7 @@ paths:
         '204':
           description: Project deleted
         '403':
-          description: Caller is not the owner or an administrator
+          description: Caller lacks the required permission for this project (admin, owner, or a matrix-granted role)
           content:
             application/problem+json:
               schema:
@@ -662,6 +701,9 @@ paths:
     patch:
       summary: Transition a project's lifecycle status
       operationId: updateProjectStatus
+      description: >-
+        Requires the PROJECT_EDIT_SETTINGS permission (role-permission
+        matrix), the same gate as updating the project itself.
       security:
         - bearerAuth: []
       parameters:
@@ -680,7 +722,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProjectResponse'
         '403':
-          description: Caller is not the owner or an administrator
+          description: Caller lacks the required permission for this project (admin, owner, or a matrix-granted role)
           content:
             application/problem+json:
               schema:
@@ -745,7 +787,13 @@ paths:
                 items:
                   $ref: '#/components/schemas/ProjectMemberResponse'
         '403':
-          description: Caller is not the owner, an administrator, or a member
+          description: Caller lacks the required permission for this project (admin, owner, or a matrix-granted role)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No project with that id
           content:
             application/problem+json:
               schema:
@@ -754,8 +802,9 @@ paths:
       summary: Add a member to a project
       operationId: addProjectMember
       description: >-
-        Only the project's owner or a global administrator may add members
-        (interim rule, same seam as project PUT/DELETE). Rejects duplicate
+        Requires the MEMBER_ADD permission (role-permission matrix): a
+        global administrator or the project's owner always has it, and by
+        default so does the PROJECT_MANAGER project role. Rejects duplicate
         memberships with 409.
       security:
         - bearerAuth: []
@@ -775,7 +824,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProjectMemberResponse'
         '403':
-          description: Caller is not the owner or an administrator
+          description: Caller lacks the required permission for this project (admin, owner, or a matrix-granted role)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No project with that id, or no user with that id
           content:
             application/problem+json:
               schema:
@@ -791,8 +846,10 @@ paths:
       summary: Change a member's role in place
       operationId: changeProjectMemberRole
       description: >-
-        Only the project's owner or a global administrator may change a
-        member's role. joinedAt is preserved.
+        Requires the MEMBER_CHANGE_ROLE permission (role-permission matrix):
+        a global administrator or the project's owner always has it, and by
+        default so does the PROJECT_MANAGER project role. joinedAt is
+        preserved. A caller can never change their own role.
       security:
         - bearerAuth: []
       parameters:
@@ -812,13 +869,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProjectMemberResponse'
         '403':
-          description: Caller is not the owner or an administrator
+          description: >-
+            Caller lacks the required permission for this project (admin,
+            owner, or a matrix-granted role), or is trying to change their
+            own role
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
         '404':
-          description: No such member
+          description: No project with that id, or no such member
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: The member's role was changed concurrently
           content:
             application/problem+json:
               schema:
@@ -827,8 +893,9 @@ paths:
       summary: Remove a member from a project
       operationId: removeProjectMember
       description: >-
-        Only the project's owner or a global administrator may remove a
-        member.
+        Requires the MEMBER_REMOVE permission (role-permission matrix): a
+        global administrator or the project's owner always has it, and by
+        default so does the PROJECT_MANAGER project role.
       security:
         - bearerAuth: []
       parameters:
@@ -838,13 +905,13 @@ paths:
         '204':
           description: Member removed
         '403':
-          description: Caller is not the owner or an administrator
+          description: Caller lacks the required permission for this project (admin, owner, or a matrix-granted role)
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
         '404':
-          description: No such member
+          description: No project with that id, or no such member
           content:
             application/problem+json:
               schema:
@@ -882,14 +949,14 @@ paths:
       operationId: startSprint
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/SprintId' }]
-      responses: { '200': { description: Sprint activated }, '400': { description: Invalid transition or active sprint already exists } }
+      responses: { '200': { description: Sprint activated, content: { application/json: { schema: { $ref: '#/components/schemas/SprintResponse' } } } }, '400': { description: Invalid transition or active sprint already exists } }
   /api/sprints/{id}/complete:
     post:
       summary: Complete an active sprint
       operationId: completeSprint
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/SprintId' }]
-      responses: { '200': { description: Sprint completed }, '400': { description: Invalid transition } }
+      responses: { '200': { description: Sprint completed, content: { application/json: { schema: { $ref: '#/components/schemas/SprintResponse' } } } }, '400': { description: Invalid transition } }
   /api/projects/{projectId}/work-items:
     get:
       summary: List a project's work items
@@ -1068,7 +1135,10 @@ paths:
               $ref: '#/components/schemas/WorkItemMoveRequest'
       responses:
         '200':
-          description: Work item moved; columnId and position persisted
+          description: >-
+            Work item moved; columnId and position persisted. affectedItems
+            is populated only when the target column's siblings were
+            re-sequenced.
           content:
             application/json:
               schema:
@@ -1106,7 +1176,19 @@ paths:
             content:
               application/json:
                 schema: {$ref: '#/components/schemas/ProjectDashboardResponse'}
+          '401':
+            description: Missing or invalid access token
+            content:
+              application/problem+json:
+                schema:
+                  $ref: '#/components/schemas/ProblemDetail'
           '403': {description: Not authorized}
+          '404':
+            description: No project with that id
+            content:
+              application/problem+json:
+                schema:
+                  $ref: '#/components/schemas/ProblemDetail'
   /api/projects/{projectId}/comments:
     get:
       summary: List project comments, newest first
@@ -1330,6 +1412,7 @@ components:
         newPassword:
           type: string
           minLength: 8
+          maxLength: 72
     ProblemDetail:
       type: object
       properties:
@@ -1367,6 +1450,7 @@ components:
         newPassword:
           type: string
           minLength: 8
+          maxLength: 72
     GlobalRole:
       type: string
       enum: [ADMINISTRADOR, MIEMBRO_EQUIPO]
@@ -1531,6 +1615,7 @@ components:
         - WORKITEM_DELETE
         - WORKITEM_MOVE
         - COMMENT_CREATE
+        - SPRINT_MANAGE
     RolePermissionCatalogEntry:
       type: object
       description: Rendering metadata for one fixed catalog Permission. UI copy in Spanish.
@@ -1555,7 +1640,7 @@ components:
     RolePermissionMatrixResponse:
       type: object
       description: >-
-        Full 6x10 permission matrix (spec: role-permissions). updatedAt is
+        Full 6x11 permission matrix (spec: role-permissions). updatedAt is
         MAX(role_permissions.updated_at) — echo it back as
         expectedUpdatedAt on PUT.
       properties:
@@ -1652,13 +1737,35 @@ components:
       properties:
         totalItems: {type: integer, format: int64}
         completedItems: {type: integer, format: int64}
-        columnCounts: {type: array, items: {type: object}}
-        activeSprint: {type: object, nullable: true}
+        columnCounts: {type: array, items: {$ref: '#/components/schemas/ColumnCount'}}
+        activeSprint:
+          allOf: [{$ref: '#/components/schemas/SprintSummary'}]
+          nullable: true
         activeSprintTotalItems: {type: integer, format: int64}
         activeSprintCompletedItems: {type: integer, format: int64}
         backlogPendingCount: {type: integer, format: int64}
-        workload: {type: array, items: {type: object}}
+        workload: {type: array, items: {$ref: '#/components/schemas/AssigneeWorkload'}}
         priorityDistribution: {type: object, additionalProperties: {type: integer, format: int64}}
+    ColumnCount:
+      type: object
+      properties:
+        columnId: {type: integer, format: int64}
+        name: {type: string}
+        count: {type: integer, format: int64}
+    AssigneeWorkload:
+      type: object
+      properties:
+        assigneeId: {type: integer, format: int64}
+        assigneeName: {type: string, nullable: true}
+        count: {type: integer, format: int64}
+    SprintSummary:
+      type: object
+      properties:
+        id: {type: integer, format: int64}
+        name: {type: string}
+        goal: {type: string, nullable: true}
+        startDate: {type: string, format: date}
+        endDate: {type: string, format: date}
     WorkItemCreateRequest:
       type: object
       description: >-
@@ -1673,6 +1780,9 @@ components:
           type: string
         assignedUserId:
           type: integer
+          format: int64
+        sprintId:
+          type: [integer, 'null']
           format: int64
         priority:
           $ref: '#/components/schemas/WorkItemPriority'
@@ -1690,6 +1800,9 @@ components:
           type: string
         assignedUserId:
           type: integer
+          format: int64
+        sprintId:
+          type: [integer, 'null']
           format: int64
         priority:
           $ref: '#/components/schemas/WorkItemPriority'
@@ -1729,6 +1842,15 @@ components:
           nullable: true
         priority:
           $ref: '#/components/schemas/WorkItemPriority'
+        affectedItems:
+          type: array
+          nullable: true
+          description: >-
+            Populated only by PUT /api/work-items/{id}/move when the target
+            column's siblings were re-sequenced (design D10); null/absent
+            otherwise, including for every non-move response.
+          items:
+            $ref: '#/components/schemas/WorkItemResponse'
     WorkItemMoveRequest:
       type: object
       description: >-

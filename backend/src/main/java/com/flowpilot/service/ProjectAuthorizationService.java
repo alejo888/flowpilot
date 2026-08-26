@@ -26,6 +26,9 @@ import org.springframework.stereotype.Service;
  * {@code isOwnerOrAdmin}/{@code canManageWorkItems} owner-or-admin rule):
  *
  * <ol>
+ *   <li>A deactivated caller ({@code !user.isActive()}) is denied outright,
+ *       before any of the branches below — an already-issued access token must
+ *       not outlive the deactivation for project-scoped reads or writes.</li>
  *   <li>Global admin ({@link GlobalRole#ADMINISTRADOR}) bypasses everything —
  *       decision 6, matrix-independent, never restrictable.</li>
  *   <li>The project's owner bypasses everything — decision 5c, self-lockout
@@ -90,6 +93,9 @@ public class ProjectAuthorizationService {
     public boolean hasPermission(Long userId, Long projectId, Permission permission) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
+        if (!user.isActive()) {
+            return false; // step 0 — a deactivated caller is denied on every branch
+        }
         if (user.getRole() == GlobalRole.ADMINISTRADOR) {
             return true; // step 1 — global admin, before any matrix touch
         }
@@ -113,6 +119,9 @@ public class ProjectAuthorizationService {
     public boolean canView(Long userId, Long projectId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
+        if (!user.isActive()) {
+            return false; // a deactivated caller is denied on every branch
+        }
         if (user.getRole() == GlobalRole.ADMINISTRADOR) {
             return true;
         }

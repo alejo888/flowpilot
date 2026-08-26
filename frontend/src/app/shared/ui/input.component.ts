@@ -20,10 +20,13 @@ import { Component, input, output } from '@angular/core';
         [value]="value()"
         [required]="required()"
         [attr.data-testid]="testId()"
+        [attr.autocomplete]="autocomplete()"
+        [attr.aria-describedby]="error() ? errorId : null"
+        [attr.aria-invalid]="error() ? true : null"
         (input)="onInput($event)"
       />
       @if (error(); as message) {
-        <span class="fp-input__error">{{ message }}</span>
+        <span [id]="errorId" class="fp-input__error">{{ message }}</span>
       }
     </label>
   `,
@@ -68,12 +71,18 @@ import { Component, input, output } from '@angular/core';
   `,
 })
 export class FpInputComponent {
+  private static nextId = 0;
+
   readonly label = input('');
   readonly type = input('text');
   readonly value = input('');
   readonly required = input(false);
   readonly error = input<string | null>(null);
   readonly testId = input<string | undefined>(undefined);
+  readonly autocomplete = input<string | undefined>(undefined);
+
+  /** Unique per instance, so multiple `fp-input`s on one page never collide. */
+  readonly errorId = `fp-input-error-${FpInputComponent.nextId++}`;
 
   readonly valueChange = output<string>();
 

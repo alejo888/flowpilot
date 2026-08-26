@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, OnInit, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, input, numberAttribute, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { AuthStore } from '../../../core/auth/auth.store';
@@ -64,6 +64,7 @@ import { ProjectMembersStore } from './project-members.store';
             label="Usuario"
             testId="member-add-user-select"
             placeholder="Elegí un usuario"
+            [value]="selectedUserId() === null ? '' : String(selectedUserId())"
             [options]="selectableUserOptions()"
             (valueChange)="onUserChange($event)"
           />
@@ -71,6 +72,7 @@ import { ProjectMembersStore } from './project-members.store';
             label="Rol"
             testId="member-add-role-select"
             placeholder="Elegí un rol"
+            [value]="selectedRole() ?? ''"
             [options]="roleSelectOptions"
             (valueChange)="onRoleChange($event)"
           />
@@ -101,18 +103,20 @@ import { ProjectMembersStore } from './project-members.store';
                     }}</span>
                   </div>
                   <div class="member-row-actions">
-                    <fp-select
-                      testId="member-role-select"
-                      [value]="member.role"
-                      [options]="roleSelectOptions"
-                      [disabled]="mutatingUserId() === member.userId"
-                      (valueChange)="onRoleChangeForMember(member, $event)"
-                    />
+                    @for (resetToken of [roleResetToken(member.userId)]; track resetToken) {
+                      <fp-select
+                        testId="member-role-select"
+                        [value]="member.role"
+                        [options]="roleSelectOptions"
+                        [disabled]="isMutating(member.userId)"
+                        (valueChange)="onRoleChangeForMember(member, $event)"
+                      />
+                    }
                     @if (isSelf(member)) {
                       <fp-button
                         variant="danger"
                         testId="member-remove-self"
-                        [disabled]="mutatingUserId() === member.userId"
+                        [disabled]="isMutating(member.userId)"
                         (click)="onRemove(member)"
                       >
                         Quitarme del proyecto
@@ -121,7 +125,7 @@ import { ProjectMembersStore } from './project-members.store';
                       <fp-button
                         variant="danger"
                         testId="member-remove"
-                        [disabled]="mutatingUserId() === member.userId"
+                        [disabled]="isMutating(member.userId)"
                         (click)="onRemove(member)"
                       >
                         Quitar
@@ -268,14 +272,14 @@ export class ProjectMembersComponent implements OnInit {
   private readonly store = inject(ProjectMembersStore);
   private readonly auth = inject(AuthStore);
 
-  readonly projectId = input.required<number>();
+  readonly projectId = input.required<number, string>({ transform: numberAttribute });
 
   readonly members = this.store.members;
   readonly users = this.store.users;
   readonly loading = this.store.loading;
   readonly adding = this.store.adding;
-  readonly mutatingUserId = this.store.mutatingUserId;
   readonly error = this.store.error;
+  readonly isMutating = (userId: number) => this.store.isMutating(userId);
 
   readonly roleSelectOptions: ReadonlyArray<{ value: string; label: string }> = PROJECT_ROLE_OPTIONS;
 
@@ -284,6 +288,21 @@ export class ProjectMembersComponent implements OnInit {
   readonly selectedRole = signal<ProjectRole | null>(null);
   readonly addFormError = signal<string | null>(null);
   readonly confirmingSelfRemoval = signal(false);
+  protected readonly String = String;
+
+  /**
+   * Bumped per-row on a failed role change to force `@for`'s `track` to
+   * recreate that row's `<fp-select>`. Same rationale as
+   * `ProjectDetailComponent.statusResetToken`: Angular's property-binding
+   * diffing skips the DOM write when `member.role` itself hasn't changed
+   * (the update failed), but the browser already moved its own live
+   * selection to whatever the user just clicked.
+   */
+  private readonly roleResetTokens = signal<ReadonlyMap<number, number>>(new Map());
+
+  roleResetToken(userId: number): number {
+    return this.roleResetTokens().get(userId) ?? 0;
+  }
 
   readonly selectableUsers = computed(() => {
     const taken = this.store.memberUserIds();
@@ -329,12 +348,17 @@ export class ProjectMembersComponent implements OnInit {
     return member.userId === this.auth.currentUserId();
   }
 
-  onRoleChangeForMember(member: ProjectMember, role: string): void {
+  async onRoleChangeForMember(member: ProjectMember, role: string): Promise<void> {
     const value = role as ProjectRole;
     if (value === member.role) {
       return;
     }
-    this.store.changeRole(this.projectId(), member.userId, value);
+    const succeeded = await this.store.changeRole(this.projectId(), member.userId, value);
+    if (!succeeded) {
+      const next = new Map(this.roleResetTokens());
+      next.set(member.userId, (next.get(member.userId) ?? 0) + 1);
+      this.roleResetTokens.set(next);
+    }
   }
 
   onRemove(member: ProjectMember): void {

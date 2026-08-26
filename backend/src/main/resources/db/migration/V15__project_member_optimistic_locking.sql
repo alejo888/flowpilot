@@ -1,0 +1,1 @@
+ALTER TABLE project_members ADD COLUMN version BIGINT NOT NULL DEFAULT 0;

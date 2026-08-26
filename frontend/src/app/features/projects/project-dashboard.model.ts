@@ -3,6 +3,6 @@ export interface ProjectDashboard {
   columnCounts: { columnId: number; name: string; count: number }[];
   activeSprint: { id: number; name: string; goal: string | null; startDate: string; endDate: string } | null;
   activeSprintTotalItems: number; activeSprintCompletedItems: number; backlogPendingCount: number;
-  workload: { assigneeId: number; assigneeName: string; count: number }[];
+  workload: { assigneeId: number; assigneeName: string | null; count: number }[];
   priorityDistribution: Record<string, number>;
 }

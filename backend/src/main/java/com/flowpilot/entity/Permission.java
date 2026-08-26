@@ -2,7 +2,7 @@ package com.flowpilot.entity;
 
 /**
  * Fixed, code-level catalog of project-scoped permissions (confirmed decision
- * 5b/10). Only the 6x9 {@code role_permissions} GRANTS are data; the catalog
+ * 5b/10). Only the 6x11 {@code role_permissions} GRANTS are data; the catalog
  * itself is a compile-time enum — adding a new permission is a code +
  * migration change, never a runtime admin action.
  *
@@ -17,6 +17,8 @@ package com.flowpilot.entity;
  *   <li>{@link #WORKITEM_EDIT} — {@code PUT /api/work-items/{id}}</li>
  *   <li>{@link #WORKITEM_DELETE} — {@code DELETE /api/work-items/{id}}</li>
  *   <li>{@link #WORKITEM_MOVE} — {@code PUT /api/work-items/{id}/move}</li>
+ *   <li>{@link #SPRINT_MANAGE} — {@code POST /api/projects/{id}/sprints}, {@code PUT /api/sprints/{id}},
+ *       {@code POST /api/sprints/{id}/start}, {@code POST /api/sprints/{id}/complete}</li>
  * </ul>
  *
  * Reads (GET) are never gated by this catalog — membership alone grants read
@@ -32,5 +34,6 @@ public enum Permission {
     WORKITEM_EDIT,
     WORKITEM_DELETE,
     WORKITEM_MOVE,
-        COMMENT_CREATE
+        COMMENT_CREATE,
+    SPRINT_MANAGE
 }

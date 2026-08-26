@@ -116,14 +116,17 @@ import { Sprint } from './backlog.model';
       <article class="item">
         <strong>{{ item.title }}</strong>
         <span>{{ item.assignedUserName || 'Sin asignar' }}</span>
-        <fp-select
-          label="Sprint"
-          [value]="item.sprintId?.toString() ?? ''"
-          [options]="sprintOptions()"
-          placeholder="Backlog"
-          [testId]="'item-sprint-' + item.id"
-          (valueChange)="assign(item, $event)"
-        />
+        @for (resetToken of [sprintResetToken(item.id)]; track resetToken) {
+          <fp-select
+            label="Sprint"
+            [value]="item.sprintId?.toString() ?? ''"
+            [options]="sprintOptions()"
+            placeholder="Backlog"
+            [disabled]="store.mutating()"
+            [testId]="'item-sprint-' + item.id"
+            (valueChange)="assign(item, $event)"
+          />
+        }
       </article>
     </ng-template>
   `,
@@ -162,9 +165,30 @@ export class BacklogComponent implements OnInit {
   readonly goal = signal('');
   readonly startDate = signal('');
   readonly endDate = signal('');
+  // Excludes COMPLETED sprints: the backend rejects assigning a work item to
+  // a completed sprint (validateSprint in WorkItemService), so the dropdown
+  // shouldn't offer an option that would just come back as a 400.
   readonly sprintOptions = computed(() =>
-    this.store.sprints().map((sprint) => ({ value: String(sprint.id), label: sprint.name })),
+    this.store
+      .sprints()
+      .filter((sprint) => sprint.status !== 'COMPLETED')
+      .map((sprint) => ({ value: String(sprint.id), label: sprint.name })),
   );
+
+  /**
+   * Bumped per-item on a failed sprint assignment to force `@for`'s `track`
+   * to recreate that item's `<fp-select>`. Same rationale as
+   * `ProjectMembersComponent.roleResetTokens`: the update failed so
+   * `item.sprintId` never changed, but the native select's own DOM
+   * selection already moved to whatever the user just picked — a `Map`,
+   * not a single global token, since more than one item's select can be
+   * mid-request at once.
+   */
+  private readonly sprintResetTokens = signal<ReadonlyMap<number, number>>(new Map());
+
+  sprintResetToken(itemId: number): number {
+    return this.sprintResetTokens().get(itemId) ?? 0;
+  }
 
   constructor() {
     effect(() => {
@@ -197,8 +221,13 @@ export class BacklogComponent implements OnInit {
     });
   }
 
-  assign(item: WorkItem, value: string): void {
-    this.store.assignItem(item, value ? Number(value) : null);
+  async assign(item: WorkItem, value: string): Promise<void> {
+    const succeeded = await this.store.assignItem(item, value ? Number(value) : null);
+    if (!succeeded) {
+      const next = new Map(this.sprintResetTokens());
+      next.set(item.id, (next.get(item.id) ?? 0) + 1);
+      this.sprintResetTokens.set(next);
+    }
   }
 
   inputValue(event: Event): string {

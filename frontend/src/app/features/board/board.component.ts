@@ -9,7 +9,7 @@ import { FpCardComponent } from '../../shared/ui/card.component';
 import { FpIconComponent } from '../../shared/ui/icon.component';
 import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { columnAccent } from './column-accent';
-import { WorkItem, WorkItemCreateRequest, WorkItemUpdateRequest } from './board.model';
+import { WorkItem, WorkItemCreateRequest, WorkItemPriority, WorkItemUpdateRequest } from './board.model';
 import { BoardStore } from './board.store';
 import { CommentsStore } from '../comments/comments.store';
 
@@ -17,6 +17,19 @@ type WorkItemForm = {
   title: string;
   description: string;
   assignedUserId: number | null;
+  /**
+   * Not edited in this screen (sprint assignment lives in the backlog screen),
+   * but round-tripped so a board edit never drops the item's current sprint:
+   * `PUT /api/work-items/{id}` treats an omitted `sprintId` as an explicit
+   * "move to backlog" (that null IS the backlog screen's unassign contract).
+   */
+  sprintId?: number | null;
+  /**
+   * Not edited in this screen (no priority UI here yet), but round-tripped
+   * the same way as `sprintId` above so submitting the edit form never wipes
+   * the item's current priority back to the backend default.
+   */
+  priority?: WorkItemPriority | null;
 };
 
 const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUserId: null });
@@ -358,8 +371,18 @@ export class BoardComponent {
     this.store.moveItem(movedItem.id, targetColumnId, event.currentIndex);
   }
 
+  /**
+   * `position` on `WorkItemMoveRequest` is a zero-based insertion INDEX
+   * among the target column's OTHER items (api/openapi.yaml), not the
+   * item's own gap-based `position` value. Sending `item.position` here
+   * only happened to land at the end because the backend clamps
+   * out-of-range indices — this computes the actual end-of-column index
+   * instead, so "move to end of column X" is expressed correctly.
+   */
   onMoveToColumn(item: WorkItem, columnId: string): void {
-    this.store.moveItem(item.id, Number(columnId), item.position);
+    const targetColumnId = Number(columnId);
+    const endIndex = this.columnItems(targetColumnId).filter((existing) => existing.id !== item.id).length;
+    this.store.moveItem(item.id, targetColumnId, endIndex);
   }
 }
 
@@ -368,6 +391,8 @@ function formFromItem(item: WorkItem): WorkItemForm {
     title: item.title,
     description: item.description ?? '',
     assignedUserId: item.assignedUserId,
+    sprintId: item.sprintId ?? null,
+    priority: item.priority ?? null,
   };
 }
 
@@ -380,7 +405,7 @@ function requestFromForm(form: WorkItemForm): WorkItemCreateRequest | WorkItemUp
   const rawAssignee = form.assignedUserId as number | string | null | undefined;
   const assignedUserId = Number(rawAssignee);
 
-  return {
+  const request: WorkItemCreateRequest | WorkItemUpdateRequest = {
     title,
     description: form.description.trim() || null,
     assignedUserId:
@@ -388,4 +413,14 @@ function requestFromForm(form: WorkItemForm): WorkItemCreateRequest | WorkItemUp
         ? null
         : assignedUserId,
   };
+
+  if (form.sprintId !== undefined) {
+    request.sprintId = form.sprintId;
+  }
+
+  if (form.priority !== undefined) {
+    request.priority = form.priority;
+  }
+
+  return request;
 }

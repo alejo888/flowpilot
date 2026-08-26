@@ -21,10 +21,6 @@ export class BacklogApiService {
     return this.http.post<Sprint>(`/api/projects/${projectId}/sprints`, request);
   }
 
-  updateSprint(sprintId: number, request: SprintRequest): Observable<Sprint> {
-    return this.http.put<Sprint>(`/api/sprints/${sprintId}`, request);
-  }
-
   startSprint(sprintId: number): Observable<Sprint> {
     return this.http.post<Sprint>(`/api/sprints/${sprintId}/start`, {});
   }

@@ -38,23 +38,28 @@ export class CommentsStore {
     });
   }
 
-  createProject(projectId: number, content: string): void { this.submit(this.api.createProject(projectId, { content }), this.projectComments); }
-  createWorkItem(workItemId: number, content: string): void { this.submit(this.api.createWorkItem(workItemId, { content }), this.workItemComments); }
-  update(commentId: number, content: string, target: 'project' | 'workItem'): void {
-    this.submit(this.api.update(commentId, { content }), target === 'project' ? this.projectComments : this.workItemComments);
+  createProject(projectId: number, content: string): Promise<boolean> { return this.submit(this.api.createProject(projectId, { content }), this.projectComments); }
+  createWorkItem(workItemId: number, content: string): Promise<boolean> { return this.submit(this.api.createWorkItem(workItemId, { content }), this.workItemComments); }
+  update(commentId: number, content: string, target: 'project' | 'workItem'): Promise<boolean> {
+    return this.submit(this.api.update(commentId, { content }), target === 'project' ? this.projectComments : this.workItemComments);
   }
-  delete(commentId: number, target: 'project' | 'workItem'): void {
+  delete(commentId: number, target: 'project' | 'workItem'): Promise<boolean> {
     const list = target === 'project' ? this.projectComments : this.workItemComments;
     const previous = list(); this.submitting.set(true); this.error.set(null);
-    this.api.delete(commentId).subscribe({
-      next: () => { list.set(previous.filter(item => item.id !== commentId)); this.submitting.set(false); },
-      error: err => { this.error.set(errorMessage(err, 'No se pudo eliminar el comentario')); this.submitting.set(false); },
-    });
+    return new Promise(resolve => this.api.delete(commentId).subscribe({
+      next: () => { list.set(previous.filter(item => item.id !== commentId)); this.submitting.set(false); resolve(true); },
+      error: err => { this.error.set(errorMessage(err, 'No se pudo eliminar el comentario')); this.submitting.set(false); resolve(false); },
+    }));
   }
 
-  private submit(request: ReturnType<CommentsApiService['createProject']>, target: typeof this.projectComments): void {
+  /**
+   * Resolves `true` only once the server confirmed the write, so callers can
+   * keep their local UI state (draft text, edit mode) on failure instead of
+   * discarding what the user typed.
+   */
+  private submit(request: ReturnType<CommentsApiService['createProject']>, target: typeof this.projectComments): Promise<boolean> {
     const previous = target(); this.submitting.set(true); this.error.set(null);
-    request.subscribe({ next: comment => { target.set([comment, ...previous.filter(item => item.id !== comment.id)]); this.submitting.set(false); }, error: err => { this.error.set(errorMessage(err, 'No se pudo guardar el comentario')); this.submitting.set(false); } });
+    return new Promise(resolve => request.subscribe({ next: comment => { target.set([comment, ...previous.filter(item => item.id !== comment.id)]); this.submitting.set(false); resolve(true); }, error: err => { this.error.set(errorMessage(err, 'No se pudo guardar el comentario')); this.submitting.set(false); resolve(false); } }));
   }
 }
 

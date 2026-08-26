@@ -51,14 +51,16 @@ class ProjectServiceTest {
     private UserRepository userRepository;
 
     private ProjectAuthorizationService authorizationService;
+    private ProjectActivityService activityService;
 
     private ProjectService projectService;
 
     @BeforeEach
     void setUp() {
         authorizationService = mock(ProjectAuthorizationService.class);
+        activityService = mock(ProjectActivityService.class);
         projectService = new ProjectService(
-                projectRepository, boardColumnRepository, userRepository, authorizationService);
+                projectRepository, boardColumnRepository, userRepository, authorizationService, activityService);
     }
 
     @Test
@@ -316,14 +318,29 @@ class ProjectServiceTest {
     }
 
     @Test
-    void listReturnsOnlyOwnedProjectsForNonAdmin() throws Exception {
+    void listReturnsOwnedAndMemberProjectsForNonAdmin() throws Exception {
         User member = user(2L, GlobalRole.MIEMBRO_EQUIPO);
         when(userRepository.findById(2L)).thenReturn(Optional.of(member));
-        when(projectRepository.findByOwnerId(2L)).thenReturn(List.of(project(11L, 2L)));
+        when(projectRepository.findVisibleToUser(2L))
+                .thenReturn(List.of(project(11L, 2L), project(13L, 9L)));
 
         List<ProjectResponse> result = projectService.list(2L);
 
-        assertThat(result).extracting(ProjectResponse::id).containsExactly(11L);
+        assertThat(result).extracting(ProjectResponse::id).containsExactlyInAnyOrder(11L, 13L);
+    }
+
+    @Test
+    void listRejectsDeactivatedCaller() throws Exception {
+        User deactivated = new User("Name", "inactive@flowpilot.local", "hash", GlobalRole.MIEMBRO_EQUIPO, false);
+        Field field = User.class.getDeclaredField("id");
+        field.setAccessible(true);
+        field.set(deactivated, 4L);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(deactivated));
+
+        assertThatThrownBy(() -> projectService.list(4L)).isInstanceOf(AccessDeniedException.class);
+
+        verify(projectRepository, org.mockito.Mockito.never()).findVisibleToUser(org.mockito.ArgumentMatchers.anyLong());
+        verify(projectRepository, org.mockito.Mockito.never()).findAll();
     }
 
     @Test

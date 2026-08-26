@@ -27,7 +27,7 @@ export class ProjectMembersStore {
   private readonly loadingSignal = signal<boolean>(false);
   private readonly addingSignal = signal<boolean>(false);
   private readonly lastAddedSignal = signal<ProjectMember | null>(null);
-  private readonly mutatingUserIdSignal = signal<number | null>(null);
+  private readonly mutatingUserIdsSignal = signal<ReadonlySet<number>>(new Set());
   private readonly errorSignal = signal<string | null>(null);
 
   readonly members = this.membersSignal.asReadonly();
@@ -35,9 +35,18 @@ export class ProjectMembersStore {
   readonly loading = this.loadingSignal.asReadonly();
   readonly adding = this.addingSignal.asReadonly();
   readonly lastAdded = this.lastAddedSignal.asReadonly();
-  /** userId of the row currently being mutated (role change or removal); design D2 — per-row, not a single global boolean. */
-  readonly mutatingUserId = this.mutatingUserIdSignal.asReadonly();
+  /**
+   * userIds of every row currently being mutated (role change or removal).
+   * A `Set`, not a single value: two rows can have requests in flight at
+   * once, and a single shared marker would let the first response's cleanup
+   * re-enable a second row whose own request is still pending.
+   */
+  readonly mutatingUserIds = this.mutatingUserIdsSignal.asReadonly();
   readonly error = this.errorSignal.asReadonly();
+
+  isMutating(userId: number): boolean {
+    return this.mutatingUserIdsSignal().has(userId);
+  }
 
   /** userIds already on the roster — the picker excludes them (design D2/D3). */
   readonly memberUserIds = computed(() => new Set(this.membersSignal().map((m) => m.userId)));
@@ -45,6 +54,12 @@ export class ProjectMembersStore {
   loadMembers(projectId: number): void {
     this.errorSignal.set(null);
     this.loadingSignal.set(true);
+    // Cleared up front, not just on error: this store is providedIn:'root'
+    // (a singleton across route navigations), so leaving the previous
+    // project's roster in place — even briefly — risks a row's role-change
+    // or remove action firing against this new projectId with a userId that
+    // only belonged to the project the caller just navigated away from.
+    this.membersSignal.set([]);
     this.api.listMembers(projectId).subscribe({
       next: (members) => {
         this.membersSignal.set(members);
@@ -83,34 +98,42 @@ export class ProjectMembersStore {
     });
   }
 
-  changeRole(projectId: number, userId: number, role: ProjectRole): void {
+  changeRole(projectId: number, userId: number, role: ProjectRole): Promise<boolean> {
     this.errorSignal.set(null);
-    this.mutatingUserIdSignal.set(userId);
-    this.api.changeRole(projectId, userId, role).subscribe({
+    this.setMutating(userId, true);
+    return new Promise((resolve) => this.api.changeRole(projectId, userId, role).subscribe({
       next: (updated) => {
         this.membersSignal.set(this.membersSignal().map((m) => (m.userId === userId ? updated : m)));
-        this.mutatingUserIdSignal.set(null);
+        this.setMutating(userId, false);
+        resolve(true);
       },
       error: (err: unknown) => {
         this.errorSignal.set(errorMessage(err, 'No se pudo cambiar el rol'));
-        this.mutatingUserIdSignal.set(null);
+        this.setMutating(userId, false);
+        resolve(false);
       },
-    });
+    }));
   }
 
   removeMember(projectId: number, userId: number): void {
     this.errorSignal.set(null);
-    this.mutatingUserIdSignal.set(userId);
+    this.setMutating(userId, true);
     this.api.removeMember(projectId, userId).subscribe({
       next: () => {
         this.membersSignal.set(this.membersSignal().filter((m) => m.userId !== userId));
-        this.mutatingUserIdSignal.set(null);
+        this.setMutating(userId, false);
       },
       error: (err: unknown) => {
         this.errorSignal.set(errorMessage(err, 'No se pudo quitar el miembro'));
-        this.mutatingUserIdSignal.set(null);
+        this.setMutating(userId, false);
       },
     });
+  }
+
+  private setMutating(userId: number, mutating: boolean): void {
+    const next = new Set(this.mutatingUserIdsSignal());
+    if (mutating) next.add(userId); else next.delete(userId);
+    this.mutatingUserIdsSignal.set(next);
   }
 }
 

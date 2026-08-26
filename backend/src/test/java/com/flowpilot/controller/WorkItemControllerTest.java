@@ -76,6 +76,30 @@ class WorkItemControllerTest {
     }
 
     @Test
+    void createWithTitleOver255CharsReturns400ValidationErrorNotConflict() throws Exception {
+        String tooLongTitle = "a".repeat(256);
+
+        mockMvc.perform(post("/api/projects/10/work-items")
+                        .principal(authenticatedAs(1L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(
+                                new WorkItemCreateRequest(tooLongTitle, null, null))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateWithTitleOver255CharsReturns400ValidationErrorNotConflict() throws Exception {
+        String tooLongTitle = "a".repeat(256);
+
+        mockMvc.perform(put("/api/work-items/500")
+                        .principal(authenticatedAs(1L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(
+                                new WorkItemUpdateRequest(tooLongTitle, null, null))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void createByUnauthorizedUserReturns403() throws Exception {
         when(workItemService.create(eq(10L), any(WorkItemCreateRequest.class), eq(2L)))
                 .thenThrow(new AccessDeniedException("Not the project owner or an administrator"));

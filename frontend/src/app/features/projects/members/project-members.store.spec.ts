@@ -159,7 +159,7 @@ describe('ProjectMembersStore', () => {
     expect(store.members()).toHaveLength(2);
     expect(store.members()[0]).toEqual(updated);
     expect(store.members()[1].role).toBe('DEVELOPER');
-    expect(store.mutatingUserId()).toBeNull();
+    expect(store.isMutating(7)).toBe(false);
   });
 
   it('removes the matching row on a successful removal', () => {
@@ -171,7 +171,7 @@ describe('ProjectMembersStore', () => {
 
     expect(apiSpy.removeMember).toHaveBeenCalledWith(10, 7);
     expect(store.members()).toEqual([member(2, 8)]);
-    expect(store.mutatingUserId()).toBeNull();
+    expect(store.isMutating(7)).toBe(false);
   });
 
   it('sets the error from the ProblemDetail on a 404 remove-already-gone response and leaves the stale row', () => {
@@ -185,10 +185,10 @@ describe('ProjectMembersStore', () => {
 
     expect(store.error()).toBe('El miembro ya no existe');
     expect(store.members()).toEqual([member(1, 7)]);
-    expect(store.mutatingUserId()).toBeNull();
+    expect(store.isMutating(7)).toBe(false);
   });
 
-  it('sets mutatingUserId to the target during a mutation and clears it on success and error', () => {
+  it('marks the target row as mutating during a mutation and clears it on success and error', () => {
     apiSpy.listMembers.mockReturnValue(of([member(1, 7)]));
     store.loadMembers(10);
     apiSpy.changeRole.mockReturnValue({
@@ -199,7 +199,34 @@ describe('ProjectMembersStore', () => {
 
     store.changeRole(10, 7, 'QA');
 
-    expect(store.mutatingUserId()).toBe(7);
+    expect(store.isMutating(7)).toBe(true);
+  });
+
+  it('tracks two concurrent row mutations independently', () => {
+    apiSpy.listMembers.mockReturnValue(of([member(1, 7), member(2, 8)]));
+    store.loadMembers(10);
+    let resolveFirst!: (value: ProjectMember) => void;
+    apiSpy.changeRole.mockReturnValueOnce({
+      subscribe: (observer: { next: (value: ProjectMember) => void }) => {
+        resolveFirst = observer.next;
+      },
+    });
+    apiSpy.removeMember.mockReturnValue({
+      subscribe: () => {
+        /* never resolves */
+      },
+    });
+
+    store.changeRole(10, 7, 'QA');
+    store.removeMember(10, 8);
+
+    expect(store.isMutating(7)).toBe(true);
+    expect(store.isMutating(8)).toBe(true);
+
+    resolveFirst({ ...member(1, 7), role: 'QA' });
+
+    expect(store.isMutating(7)).toBe(false);
+    expect(store.isMutating(8)).toBe(true);
   });
 
   it('leaves membersSignal unchanged on a 403 during either mutation (no optimistic mutation retained)', () => {

@@ -12,7 +12,7 @@ import java.time.OffsetDateTime;
 
 /**
  * A single (role, permission) grant row (confirmed decision 5b). Dense
- * representation: all 6x9 = 54 combinations exist as rows from the seed
+ * representation: all 6x11 = 66 combinations exist as rows from the seed
  * migration ({@code V7__seed_role_permissions.sql}); the admin screen (slice
  * 8b) flips {@code granted}, never inserts or deletes. Unique {@code (role,
  * permission)} enforced at the database level.

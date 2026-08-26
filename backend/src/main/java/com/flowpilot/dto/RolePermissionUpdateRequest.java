@@ -14,7 +14,7 @@ import java.util.List;
  * {@code GET /api/admin/role-permissions} response; the service 409s if it
  * no longer matches the persisted value (optimistic concurrency, no partial
  * apply). {@code null} matches an empty table only (never true in practice,
- * since the dense 6x9 seed always has 54 rows).
+ * since the dense 6x11 seed always has 66 rows).
  */
 public record RolePermissionUpdateRequest(
         @NotEmpty(message = "La lista de permisos no puede estar vacía") List<@Valid RolePermissionGrant> grants,

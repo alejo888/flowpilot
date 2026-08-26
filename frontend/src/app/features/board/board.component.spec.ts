@@ -183,6 +183,38 @@ describe('BoardComponent', () => {
     });
   });
 
+  it('keeps the item sprint assignment when editing from the detail panel', () => {
+    storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Design schema'), sprintId: 7 });
+    fixture.detectChanges();
+
+    fixture.componentInstance.editForm.title = 'Schema editado';
+    fixture.componentInstance.submitUpdate(500);
+
+    expect(storeStub.updateItem).toHaveBeenCalledWith(500, {
+      title: 'Schema editado',
+      description: null,
+      assignedUserId: null,
+      sprintId: 7,
+      priority: null,
+    });
+  });
+
+  it('keeps the item priority when editing from the detail panel', () => {
+    storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Design schema'), priority: 'HIGH' });
+    fixture.detectChanges();
+
+    fixture.componentInstance.editForm.title = 'Schema editado';
+    fixture.componentInstance.submitUpdate(500);
+
+    expect(storeStub.updateItem).toHaveBeenCalledWith(500, {
+      title: 'Schema editado',
+      description: null,
+      assignedUserId: null,
+      sprintId: null,
+      priority: 'HIGH',
+    });
+  });
+
   it('opens an accessible delete confirmation dialog', () => {
     fixture.componentInstance.confirmDelete(item(500, 1, 1024, 'Design schema'));
     fixture.detectChanges();
@@ -264,7 +296,7 @@ describe('BoardComponent', () => {
     expect(sections[1].classList.contains('board-column--inactive-mobile')).toBe(true);
   });
 
-  it('moves the open task to another column via the detail panel select', () => {
+  it('moves the open task to the end of an empty target column via the detail panel select', () => {
     storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
     fixture.detectChanges();
 
@@ -275,7 +307,26 @@ describe('BoardComponent', () => {
     select.value = '2';
     select.dispatchEvent(new Event('change'));
 
-    expect(storeStub.moveItem).toHaveBeenCalledWith(500, 2, 1024);
+    // Column 2 starts empty, so the end-of-column insertion index is 0 —
+    // NOT the moved item's own gap-based position (1024), which is what the
+    // old (buggy) implementation sent.
+    expect(storeStub.moveItem).toHaveBeenCalledWith(500, 2, 0);
+  });
+
+  it('computes the end-of-column index from the target column item count, not the moved item position', () => {
+    storeStub.itemsByColumn.set({
+      1: [item(500, 1, 1024, 'Design schema')],
+      2: [item(600, 2, 1024, 'Existing A'), item(601, 2, 2048, 'Existing B'), item(602, 2, 3072, 'Existing C')],
+    });
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const select = compiled.querySelector('[data-testid="move-to-column-select"]') as HTMLSelectElement;
+    select.value = '2';
+    select.dispatchEvent(new Event('change'));
+
+    expect(storeStub.moveItem).toHaveBeenCalledWith(500, 2, 3);
   });
 
   it('labels the detail panel and manual movement control', () => {

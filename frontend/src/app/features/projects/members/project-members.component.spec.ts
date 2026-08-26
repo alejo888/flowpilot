@@ -32,7 +32,7 @@ describe('ProjectMembersComponent', () => {
     lastAdded: ReturnType<typeof signal<ProjectMember | null>>;
     error: ReturnType<typeof signal<string | null>>;
     memberUserIds: ReturnType<typeof signal<Set<number>>>;
-    mutatingUserId: ReturnType<typeof signal<number | null>>;
+    isMutating: ReturnType<typeof vi.fn>;
     loadMembers: ReturnType<typeof vi.fn>;
     loadUsers: ReturnType<typeof vi.fn>;
     addMember: ReturnType<typeof vi.fn>;
@@ -65,11 +65,11 @@ describe('ProjectMembersComponent', () => {
       lastAdded: signal(null),
       error: signal(null),
       memberUserIds: signal(new Set<number>()),
-      mutatingUserId: signal(null),
+      isMutating: vi.fn().mockReturnValue(false),
       loadMembers: vi.fn(),
       loadUsers: vi.fn(),
       addMember: vi.fn(),
-      changeRole: vi.fn(),
+      changeRole: vi.fn().mockResolvedValue(true),
       removeMember: vi.fn(),
     };
     authStoreStub = { currentUserId: signal(99) };
@@ -223,6 +223,26 @@ describe('ProjectMembersComponent', () => {
     expect(filterInputAfter.value).toBe('');
   });
 
+  it('resets the visible user and role selects (not just internal state) after a successful add', async () => {
+    storeStub.users.set([user(7, 'Ada Lovelace', 'ada@flowpilot.local')]);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const userSelect = compiled.querySelector('[data-testid="member-add-user-select"]') as HTMLSelectElement;
+    userSelect.value = '7';
+    userSelect.dispatchEvent(new Event('change'));
+    const roleSelect = compiled.querySelector('[data-testid="member-add-role-select"]') as HTMLSelectElement;
+    roleSelect.value = 'DEVELOPER';
+    roleSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    storeStub.lastAdded.set(member(3, 7));
+    fixture.detectChanges();
+
+    expect(userSelect.value).toBe('');
+    expect(roleSelect.value).toBe('');
+  });
+
   it('calls store.changeRole when a row role select changes to a different value', async () => {
     storeStub.members.set([member(1, 7)]);
     await setup();
@@ -235,6 +255,28 @@ describe('ProjectMembersComponent', () => {
     roleSelect.dispatchEvent(new Event('change'));
 
     expect(storeStub.changeRole).toHaveBeenCalledWith(10, 7, 'QA');
+  });
+
+  it('reverts the row role select to the real role after a failed change', async () => {
+    storeStub.members.set([member(1, 7)]);
+    storeStub.changeRole.mockResolvedValueOnce(false);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    let roleSelect = compiled.querySelector(
+      '[data-testid="member-row-1"] [data-testid="member-role-select"]',
+    ) as HTMLSelectElement;
+    roleSelect.value = 'QA';
+    roleSelect.dispatchEvent(new Event('change'));
+
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // The reset-token trick recreates the <fp-select>, so re-query it.
+    roleSelect = compiled.querySelector(
+      '[data-testid="member-row-1"] [data-testid="member-role-select"]',
+    ) as HTMLSelectElement;
+    expect(roleSelect.value).toBe('DEVELOPER');
   });
 
   it('does not call store.changeRole when the role select fires with the same current value', async () => {

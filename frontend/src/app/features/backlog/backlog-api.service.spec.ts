@@ -63,7 +63,7 @@ describe('BacklogApiService', () => {
     sprintsRequest.flush([sprint()]);
   });
 
-  it('sends sprint create and update payloads', () => {
+  it('sends the sprint create payload', () => {
     const request = {
       name: 'New sprint',
       goal: null,
@@ -76,12 +76,6 @@ describe('BacklogApiService', () => {
     expect(create.request.method).toBe('POST');
     expect(create.request.body).toEqual(request);
     create.flush(sprint(request));
-
-    service.updateSprint(7, request).subscribe();
-    const update = httpMock.expectOne('/api/sprints/7');
-    expect(update.request.method).toBe('PUT');
-    expect(update.request.body).toEqual(request);
-    update.flush(sprint(request));
   });
 
   it('starts and completes a sprint with empty POST bodies', () => {
