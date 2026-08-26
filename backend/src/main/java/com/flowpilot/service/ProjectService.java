@@ -72,7 +72,7 @@ public class ProjectService {
         project = projectRepository.save(project);
         seedDefaultColumns(project.getId());
         record(project.getId(), ownerId, ActivityEventType.PROJECT_CREATED, "Se creó el proyecto \"" + project.getName() + "\"");
-        return toResponse(project);
+        return toResponse(project, ownerId);
     }
 
     private void seedDefaultColumns(Long projectId) {
@@ -91,12 +91,12 @@ public class ProjectService {
         List<Project> projects = user.getRole() == GlobalRole.ADMINISTRADOR
                 ? projectRepository.findAll()
                 : projectRepository.findVisibleToUser(userId);
-        return projects.stream().map(ProjectService::toResponse).toList();
+        return projects.stream().map(p -> toResponse(p, userId)).toList();
     }
 
     public ProjectResponse findById(Long id, Long userId) {
         requireCanView(userId, id);
-        return toResponse(getOrThrow(id));
+        return toResponse(getOrThrow(id), userId);
     }
 
     @Transactional
@@ -114,7 +114,7 @@ public class ProjectService {
                 request.technologies(), request.repositoryUrl());
         project.touch();
         record(id, userId, ActivityEventType.PROJECT_UPDATED, "Se actualizó el proyecto \"" + project.getName() + "\"");
-        return toResponse(project);
+        return toResponse(project, userId);
     }
 
     @Transactional
@@ -125,7 +125,7 @@ public class ProjectService {
         project.touch();
         record(id, userId, ActivityEventType.PROJECT_STATUS_CHANGED,
                 "Se cambió el estado del proyecto \"" + project.getName() + "\" a " + request.status());
-        return toResponse(project);
+        return toResponse(project, userId);
     }
 
     @Transactional
@@ -227,7 +227,7 @@ public class ProjectService {
                 .orElseThrow(() -> new ProjectNotFoundException(id));
     }
 
-    private static ProjectResponse toResponse(Project project) {
+    private ProjectResponse toResponse(Project project, Long callerId) {
         return new ProjectResponse(
                 project.getId(),
                 project.getName(),
@@ -240,7 +240,8 @@ public class ProjectService {
                 project.getStartDate(),
                 project.getEstimatedEndDate(),
                 project.getTechnologies(),
-                project.getRepositoryUrl());
+                project.getRepositoryUrl(),
+                authorizationService.permissionsFor(callerId, project.getId()));
     }
 
     private static BoardColumnResponse toColumnResponse(BoardColumn column) {

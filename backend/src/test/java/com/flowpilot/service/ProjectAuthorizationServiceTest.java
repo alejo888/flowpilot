@@ -240,6 +240,66 @@ class ProjectAuthorizationServiceTest {
         assertThat(authorizationService.canView(4L, 10L)).isFalse();
     }
 
+    @Test
+    void permissionsForDeactivatedCallerIsEmpty() throws Exception {
+        setUp(List.of(rolePermission(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, true)));
+        User member = inactiveUser(4L, GlobalRole.MIEMBRO_EQUIPO);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(member));
+
+        assertThat(authorizationService.permissionsFor(4L, 10L)).isEmpty();
+    }
+
+    @Test
+    void permissionsForGlobalAdminIsEverything() throws Exception {
+        setUp(List.of(rolePermission(ProjectRole.DEVELOPER, Permission.WORKITEM_CREATE, false)));
+        User admin = user(3L, GlobalRole.ADMINISTRADOR);
+        when(userRepository.findById(3L)).thenReturn(Optional.of(admin));
+
+        assertThat(authorizationService.permissionsFor(3L, 10L))
+                .containsExactlyInAnyOrder(Permission.values());
+    }
+
+    @Test
+    void permissionsForProjectOwnerIsEverything() throws Exception {
+        setUp(List.of(rolePermission(ProjectRole.DEVELOPER, Permission.PROJECT_DELETE, false)));
+        User owner = user(1L, GlobalRole.MIEMBRO_EQUIPO);
+        Project project = project(10L, 1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+
+        assertThat(authorizationService.permissionsFor(1L, 10L))
+                .containsExactlyInAnyOrder(Permission.values());
+    }
+
+    @Test
+    void permissionsForProjectMemberIsRoleGrantsOnly() throws Exception {
+        setUp(List.of(
+                rolePermission(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, true),
+                rolePermission(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_REMOVE, true),
+                rolePermission(ProjectRole.PROJECT_MANAGER, Permission.PROJECT_DELETE, false)));
+        User member = user(4L, GlobalRole.MIEMBRO_EQUIPO);
+        Project project = project(10L, 1L);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(member));
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+        when(projectMemberRepository.findByProjectIdAndUserId(10L, 4L))
+                .thenReturn(Optional.of(new ProjectMember(10L, 4L, ProjectRole.PROJECT_MANAGER)));
+
+        assertThat(authorizationService.permissionsFor(4L, 10L))
+                .containsExactlyInAnyOrder(Permission.MEMBER_ADD, Permission.MEMBER_REMOVE);
+    }
+
+    @Test
+    void permissionsForNonMemberNonOwnerNonAdminIsEmpty() throws Exception {
+        setUp(List.of(rolePermission(ProjectRole.PROJECT_MANAGER, Permission.WORKITEM_CREATE, true)));
+        User outsider = user(5L, GlobalRole.MIEMBRO_EQUIPO);
+        Project project = project(10L, 1L);
+        when(userRepository.findById(5L)).thenReturn(Optional.of(outsider));
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+        when(projectMemberRepository.findByProjectIdAndUserId(10L, 5L)).thenReturn(Optional.empty());
+
+        assertThat(authorizationService.permissionsFor(5L, 10L)).isEmpty();
+    }
+
     private RolePermission rolePermission(ProjectRole role, Permission permission, boolean granted) {
         return new RolePermission(role, permission, granted);
     }

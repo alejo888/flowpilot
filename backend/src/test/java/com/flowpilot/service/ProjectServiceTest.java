@@ -28,6 +28,7 @@ import com.flowpilot.repository.ProjectRepository;
 import com.flowpilot.repository.UserRepository;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -223,12 +224,14 @@ class ProjectServiceTest {
         Project existing = project(10L, 1L);
         when(authorizationService.hasPermission(1L, 10L, Permission.PROJECT_EDIT_SETTINGS)).thenReturn(true);
         when(projectRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(authorizationService.permissionsFor(1L, 10L)).thenReturn(EnumSet.allOf(Permission.class));
 
         ProjectResponse response = projectService.update(
                 10L, new ProjectUpdateRequest("Renamed", "new desc", null, null, null, null, null), 1L);
 
         assertThat(response.name()).isEqualTo("Renamed");
         assertThat(response.description()).isEqualTo("new desc");
+        assertThat(response.callerPermissions()).containsExactlyInAnyOrder(Permission.values());
     }
 
     @Test
@@ -299,6 +302,19 @@ class ProjectServiceTest {
         ProjectResponse response = projectService.findById(10L, 1L);
 
         assertThat(response.id()).isEqualTo(10L);
+    }
+
+    @Test
+    void findByIdIncludesCallerPermissionsForPlainMember() throws Exception {
+        when(authorizationService.canView(4L, 10L)).thenReturn(true);
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project(10L, 1L)));
+        when(authorizationService.permissionsFor(4L, 10L))
+                .thenReturn(EnumSet.of(Permission.WORKITEM_CREATE, Permission.WORKITEM_EDIT));
+
+        ProjectResponse response = projectService.findById(10L, 4L);
+
+        assertThat(response.callerPermissions())
+                .containsExactlyInAnyOrder(Permission.WORKITEM_CREATE, Permission.WORKITEM_EDIT);
     }
 
     @Test

@@ -18,6 +18,7 @@ import com.flowpilot.dto.ProjectCreateRequest;
 import com.flowpilot.dto.ProjectResponse;
 import com.flowpilot.dto.ProjectStatusUpdateRequest;
 import com.flowpilot.dto.ProjectUpdateRequest;
+import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.ProjectStatus;
 import com.flowpilot.exception.DuplicateProjectCodeException;
 import com.flowpilot.exception.GlobalExceptionHandler;
@@ -27,6 +28,7 @@ import com.flowpilot.service.ProjectService;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -75,7 +77,8 @@ class ProjectControllerTest {
         ProjectResponse response = new ProjectResponse(
                 1L, "Apollo", "desc", ProjectStatus.PLANIFICACION, 42L, now, now,
                 "ABC", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 6, 1),
-                "Angular, Spring Boot, Postgres", "https://github.com/org/repo");
+                "Angular, Spring Boot, Postgres", "https://github.com/org/repo",
+                Set.of(Permission.PROJECT_EDIT_SETTINGS));
         when(projectService.create(any(ProjectCreateRequest.class), eq(42L))).thenReturn(response);
 
         mockMvc.perform(post("/api/projects")
@@ -207,7 +210,8 @@ class ProjectControllerTest {
 
     private ProjectResponse projectResponse(Long id, String name, Long ownerId, ProjectStatus status) {
         OffsetDateTime now = OffsetDateTime.now();
-        return new ProjectResponse(id, name, "desc", status, ownerId, now, now, null, null, null, null, null);
+        return new ProjectResponse(
+                id, name, "desc", status, ownerId, now, now, null, null, null, null, null, Set.of());
     }
 
     /**

@@ -113,6 +113,37 @@ public class ProjectAuthorizationService {
     }
 
     /**
+     * Returns the full set of {@link Permission}s the caller holds for this
+     * project, computed with the SAME lookup chain as {@link #hasPermission}
+     * but performed once instead of once per permission. Deactivated caller
+     * -> empty set; global admin or project owner -> every permission
+     * (matches steps 0-2 of {@link #hasPermission}); otherwise the
+     * matrix-granted set for the caller's live {@link ProjectMember} role, or
+     * an empty set when the caller is not a member.
+     */
+    public EnumSet<Permission> permissionsFor(Long userId, Long projectId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        if (!user.isActive()) {
+            return EnumSet.noneOf(Permission.class);
+        }
+        if (user.getRole() == GlobalRole.ADMINISTRADOR) {
+            return EnumSet.allOf(Permission.class);
+        }
+
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ProjectNotFoundException(projectId));
+        if (project.getOwnerId().equals(userId)) {
+            return EnumSet.allOf(Permission.class);
+        }
+
+        return projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
+                .map(ProjectMember::getRole)
+                .map(role -> EnumSet.copyOf(grants.getOrDefault(role, EnumSet.noneOf(Permission.class))))
+                .orElseGet(() -> EnumSet.noneOf(Permission.class));
+    }
+
+    /**
      * Read gate: admin OR owner OR a live {@code ProjectMember} of the
      * project (design's {@code canRead} formula). Unaffected by slice 8a.
      */
