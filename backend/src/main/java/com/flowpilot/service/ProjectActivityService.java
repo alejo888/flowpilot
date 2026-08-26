@@ -3,7 +3,9 @@ package com.flowpilot.service;
 import com.flowpilot.dto.ActivityResponse;
 import com.flowpilot.entity.ActivityEventType;
 import com.flowpilot.entity.ProjectActivity;
+import com.flowpilot.exception.ProjectNotFoundException;
 import com.flowpilot.repository.ProjectActivityRepository;
+import com.flowpilot.repository.ProjectRepository;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -11,9 +13,19 @@ import org.springframework.stereotype.Service;
 @Service
 public class ProjectActivityService {
  private final ProjectActivityRepository repository;
- public ProjectActivityService(ProjectActivityRepository repository){this.repository=repository;}
+ private final ProjectRepository projects;
+ public ProjectActivityService(ProjectActivityRepository repository, ProjectRepository projects){this.repository=repository;this.projects=projects;}
  public void record(Long projectId, Long actorId, ActivityEventType type, String displayText, String payload){repository.save(new ProjectActivity(projectId,actorId,type,displayText,payload));}
+ /**
+  * Explicit project-existence check independent of the caller's view
+  * permission: {@code ProjectAuthorizationService.canView} short-circuits
+  * {@code true} for a global admin without ever looking up the project, so
+  * without this check an admin listing activity for a nonexistent project
+  * got a silent {@code 200 []} instead of the {@code 404} every other
+  * caller (whose {@code canView} path does reach the project lookup) gets.
+  */
  public List<ActivityResponse> list(Long projectId, int limit, int offset){
+  if(projects.findById(projectId).isEmpty()) throw new ProjectNotFoundException(projectId);
   validate(limit,offset);
   int page = offset / limit;
   int remainder = offset % limit;

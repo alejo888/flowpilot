@@ -38,10 +38,15 @@ export class CommentsStore {
     });
   }
 
-  createProject(projectId: number, content: string): Promise<boolean> { return this.submit(this.api.createProject(projectId, { content }), this.projectComments); }
-  createWorkItem(workItemId: number, content: string): Promise<boolean> { return this.submit(this.api.createWorkItem(workItemId, { content }), this.workItemComments); }
+  createProject(projectId: number, content: string): Promise<boolean> { return this.submit(this.api.createProject(projectId, { content }), this.projectComments, 'prepend'); }
+  createWorkItem(workItemId: number, content: string): Promise<boolean> { return this.submit(this.api.createWorkItem(workItemId, { content }), this.workItemComments, 'prepend'); }
+  /**
+   * Unlike create, an edited comment must keep its original position in the
+   * list (backend order is `createdAt DESC, id DESC` and `createdAt` doesn't
+   * change on edit) rather than jump to the front.
+   */
   update(commentId: number, content: string, target: 'project' | 'workItem'): Promise<boolean> {
-    return this.submit(this.api.update(commentId, { content }), target === 'project' ? this.projectComments : this.workItemComments);
+    return this.submit(this.api.update(commentId, { content }), target === 'project' ? this.projectComments : this.workItemComments, 'replace');
   }
   delete(commentId: number, target: 'project' | 'workItem'): Promise<boolean> {
     const list = target === 'project' ? this.projectComments : this.workItemComments;
@@ -56,10 +61,25 @@ export class CommentsStore {
    * Resolves `true` only once the server confirmed the write, so callers can
    * keep their local UI state (draft text, edit mode) on failure instead of
    * discarding what the user typed.
+   *
+   * `mode` controls where the returned comment lands in `target`: 'prepend'
+   * (create) puts it at the front, matching backend order (`createdAt DESC`)
+   * for a brand-new comment; 'replace' (update) swaps it in at its existing
+   * array position so editing an older comment doesn't reorder the list.
    */
-  private submit(request: ReturnType<CommentsApiService['createProject']>, target: typeof this.projectComments): Promise<boolean> {
+  private submit(request: ReturnType<CommentsApiService['createProject']>, target: typeof this.projectComments, mode: 'prepend' | 'replace'): Promise<boolean> {
     const previous = target(); this.submitting.set(true); this.error.set(null);
-    return new Promise(resolve => request.subscribe({ next: comment => { target.set([comment, ...previous.filter(item => item.id !== comment.id)]); this.submitting.set(false); resolve(true); }, error: err => { this.error.set(errorMessage(err, 'No se pudo guardar el comentario')); this.submitting.set(false); resolve(false); } }));
+    return new Promise(resolve => request.subscribe({
+      next: comment => {
+        target.set(
+          mode === 'prepend'
+            ? [comment, ...previous.filter(item => item.id !== comment.id)]
+            : previous.map(item => (item.id === comment.id ? comment : item)),
+        );
+        this.submitting.set(false); resolve(true);
+      },
+      error: err => { this.error.set(errorMessage(err, 'No se pudo guardar el comentario')); this.submitting.set(false); resolve(false); },
+    }));
   }
 }
 
