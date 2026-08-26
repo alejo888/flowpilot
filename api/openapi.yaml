@@ -1782,9 +1782,8 @@ components:
           type: integer
           format: int64
         sprintId:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
         priority:
           $ref: '#/components/schemas/WorkItemPriority'
     WorkItemUpdateRequest:
@@ -1803,9 +1802,8 @@ components:
           type: integer
           format: int64
         sprintId:
-          type: integer
+          type: [integer, 'null']
           format: int64
-          nullable: true
         priority:
           $ref: '#/components/schemas/WorkItemPriority'
     WorkItemResponse:
