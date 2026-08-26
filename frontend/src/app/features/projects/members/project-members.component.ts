@@ -3,6 +3,8 @@ import { Component, OnInit, computed, effect, inject, input, numberAttribute, si
 import { RouterLink } from '@angular/router';
 
 import { AuthStore } from '../../../core/auth/auth.store';
+import { hasPermission } from '../project.model';
+import { ProjectsStore } from '../projects.store';
 import { FpBadgeComponent } from '../../../shared/ui/badge.component';
 import { FpButtonComponent } from '../../../shared/ui/button.component';
 import { FpCardComponent } from '../../../shared/ui/card.component';
@@ -76,7 +78,7 @@ import { ProjectMembersStore } from './project-members.store';
             [options]="roleSelectOptions"
             (valueChange)="onRoleChange($event)"
           />
-          <fp-button type="submit" testId="member-add-submit" [disabled]="adding()">
+          <fp-button type="submit" testId="member-add-submit" [disabled]="adding() || !canAddMember()">
             Agregar miembro
           </fp-button>
         </form>
@@ -108,7 +110,7 @@ import { ProjectMembersStore } from './project-members.store';
                         testId="member-role-select"
                         [value]="member.role"
                         [options]="roleSelectOptions"
-                        [disabled]="isMutating(member.userId)"
+                        [disabled]="isMutating(member.userId) || !canChangeRole()"
                         (valueChange)="onRoleChangeForMember(member, $event)"
                       />
                     }
@@ -116,7 +118,7 @@ import { ProjectMembersStore } from './project-members.store';
                       <fp-button
                         variant="danger"
                         testId="member-remove-self"
-                        [disabled]="isMutating(member.userId)"
+                        [disabled]="isMutating(member.userId) || !canRemoveMember()"
                         (click)="onRemove(member)"
                       >
                         Quitarme del proyecto
@@ -125,7 +127,7 @@ import { ProjectMembersStore } from './project-members.store';
                       <fp-button
                         variant="danger"
                         testId="member-remove"
-                        [disabled]="isMutating(member.userId)"
+                        [disabled]="isMutating(member.userId) || !canRemoveMember()"
                         (click)="onRemove(member)"
                       >
                         Quitar
@@ -271,6 +273,7 @@ import { ProjectMembersStore } from './project-members.store';
 export class ProjectMembersComponent implements OnInit {
   private readonly store = inject(ProjectMembersStore);
   private readonly auth = inject(AuthStore);
+  private readonly projectsStore = inject(ProjectsStore);
 
   readonly projectId = input.required<number, string>({ transform: numberAttribute });
 
@@ -280,6 +283,11 @@ export class ProjectMembersComponent implements OnInit {
   readonly adding = this.store.adding;
   readonly error = this.store.error;
   readonly isMutating = (userId: number) => this.store.isMutating(userId);
+
+  private readonly project = this.projectsStore.selectedProject;
+  readonly canAddMember = computed(() => hasPermission(this.project(), 'MEMBER_ADD'));
+  readonly canRemoveMember = computed(() => hasPermission(this.project(), 'MEMBER_REMOVE'));
+  readonly canChangeRole = computed(() => hasPermission(this.project(), 'MEMBER_CHANGE_ROLE'));
 
   readonly roleSelectOptions: ReadonlyArray<{ value: string; label: string }> = PROJECT_ROLE_OPTIONS;
 
@@ -333,6 +341,7 @@ export class ProjectMembersComponent implements OnInit {
   ngOnInit(): void {
     this.store.loadMembers(this.projectId());
     this.store.loadUsers();
+    this.projectsStore.loadProject(this.projectId());
   }
 
   memberLabel(member: ProjectMember): string {

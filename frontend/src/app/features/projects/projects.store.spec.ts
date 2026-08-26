@@ -32,6 +32,7 @@ function project(id: number, name = `Project ${id}`): Project {
     estimatedEndDate: null,
     technologies: null,
     repositoryUrl: null,
+    callerPermissions: [],
   };
 }
 

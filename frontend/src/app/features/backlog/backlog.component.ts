@@ -11,6 +11,8 @@ import { FpInputComponent } from '../../shared/ui/input.component';
 import { FpSelectComponent } from '../../shared/ui/select.component';
 import { BacklogStore } from './backlog.store';
 import { Sprint } from './backlog.model';
+import { hasPermission } from '../projects/project.model';
+import { ProjectsStore } from '../projects/projects.store';
 
 @Component({
   selector: 'app-backlog',
@@ -61,7 +63,7 @@ import { Sprint } from './backlog.model';
             />
             <label>Inicio <input data-testid="sprint-start" type="date" [value]="startDate()" (input)="startDate.set(inputValue($event))" required /></label>
             <label>Fin <input data-testid="sprint-end" type="date" [value]="endDate()" (input)="endDate.set(inputValue($event))" required /></label>
-            <fp-button type="submit" icon="add" [disabled]="store.mutating()">Crear sprint</fp-button>
+            <fp-button type="submit" icon="add" [disabled]="store.mutating() || !canManageSprints()">Crear sprint</fp-button>
           </form>
         </fp-card>
 
@@ -89,10 +91,10 @@ import { Sprint } from './backlog.model';
               </div>
               <p>{{ sprint.goal || 'Sin objetivo definido' }}</p>
               @if (sprint.status === 'PLANNED') {
-                <fp-button icon="play" (click)="store.startSprint(sprint)" [disabled]="store.mutating()">Iniciar sprint</fp-button>
+                <fp-button icon="play" (click)="store.startSprint(sprint)" [disabled]="store.mutating() || !canManageSprints()">Iniciar sprint</fp-button>
               }
               @if (sprint.status === 'ACTIVE') {
-                <fp-button icon="check-circle" (click)="store.completeSprint(sprint)" [disabled]="store.mutating()">Completar sprint</fp-button>
+                <fp-button icon="check-circle" (click)="store.completeSprint(sprint)" [disabled]="store.mutating() || !canManageSprints()">Completar sprint</fp-button>
               }
               <div class="items">
                 @for (item of itemsFor(sprint); track item.id) {
@@ -160,6 +162,9 @@ import { Sprint } from './backlog.model';
 export class BacklogComponent implements OnInit {
   readonly projectId = input.required<number, string>({ transform: numberAttribute });
   readonly store = inject(BacklogStore);
+  private readonly projectsStore = inject(ProjectsStore);
+  private readonly project = this.projectsStore.selectedProject;
+  readonly canManageSprints = computed(() => hasPermission(this.project(), 'SPRINT_MANAGE'));
 
   readonly name = signal('');
   readonly goal = signal('');
@@ -195,6 +200,7 @@ export class BacklogComponent implements OnInit {
       const id = this.projectId();
       if (id) {
         this.store.load(id);
+        this.projectsStore.loadProject(id);
       }
     });
   }

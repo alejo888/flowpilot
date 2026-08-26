@@ -9,7 +9,7 @@ import { FpCardComponent } from '../../shared/ui/card.component';
 import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { FpInputComponent } from '../../shared/ui/input.component';
 import { FpSelectComponent } from '../../shared/ui/select.component';
-import { ProjectStatus } from './project.model';
+import { hasPermission, ProjectStatus } from './project.model';
 import { projectStatusBadgeVariant } from './project-status';
 import { ProjectsStore } from './projects.store';
 import { CommentsStore } from '../comments/comments.store';
@@ -51,14 +51,14 @@ const STATUS_OPTIONS = [
           <fp-input label="Fecha estimada de fin" type="date" testId="project-edit-estimated-end-date" [value]="estimatedEndDate()" (valueChange)="estimatedEndDate.set($event)" />
           <fp-input label="Tecnologías" testId="project-edit-technologies" [value]="technologies()" (valueChange)="technologies.set($event)" />
           <fp-input label="URL del repositorio" type="url" testId="project-edit-repository-url" [value]="repositoryUrl()" (valueChange)="repositoryUrl.set($event)" />
-          <fp-button type="submit" icon="save" testId="project-edit-submit" [disabled]="saving()">Guardar cambios</fp-button>
+          <fp-button type="submit" icon="save" testId="project-edit-submit" [disabled]="saving() || !canEditSettings()">Guardar cambios</fp-button>
         </form></fp-card>
         <fp-card><div class="actions">
           <section class="comments-section" aria-labelledby="project-comments-title"><h2 id="project-comments-title">Comentarios</h2><form data-testid="project-comment-form" (submit)="submitComment($event)"><label for="project-comment">Agregar comentario</label><textarea id="project-comment" rows="3" maxlength="4000" [value]="commentDraft()" (input)="commentDraft.set($any($event.target).value)" [disabled]="commentSubmitting()"></textarea><fp-button type="submit" icon="comment" [disabled]="commentSubmitting() || !commentDraft().trim()">Comentar</fp-button></form>@if (commentLoading()) { <p role="status">Cargando comentarios...</p> } @if (sectionCommentError(); as message) { <p class="error" role="alert" data-testid="project-comment-error">{{ message }}</p> } @for (comment of projectComments(); track comment.id) { <article class="project-comment"><div class="comment-meta"><strong>{{ comment.authorName || 'Usuario' }}</strong><span>{{ comment.createdAt | date:'d MMM y, HH:mm' }}</span></div>@if (editingCommentId() === comment.id) { <textarea rows="3" aria-label="Editar comentario" [value]="editingContent()" (input)="editingContent.set($any($event.target).value)"></textarea><fp-button type="button" icon="save" ariaLabel="Guardar comentario" (click)="saveComment(comment.id)">Guardar</fp-button> } @else { <p>{{ comment.content }}</p>@if (canEdit(comment)) { <div class="comment-actions"><fp-button type="button" variant="secondary" icon="edit" ariaLabel="Editar comentario" (click)="startEdit(comment)">Editar</fp-button><fp-button type="button" variant="danger" icon="delete" ariaLabel="Eliminar comentario" (click)="confirmDeleteComment(comment.id)">Eliminar</fp-button></div> } }</article> }</section><section class="activity-section" aria-labelledby="project-activity-title"><h2 id="project-activity-title">Actividad</h2>@for (event of activity(); track event.id) { <article class="activity-event"><span>{{ event.createdAt | date:'d MMM y, HH:mm' }}</span><p>{{ event.displayText }}</p></article> }</section>
               @for (resetToken of [statusResetToken()]; track resetToken) {
-                <fp-select label="Estado" testId="project-status-select" [value]="current.status" [options]="statusOptions" [disabled]="saving()" (valueChange)="onStatusChange($event)" />
+                <fp-select label="Estado" testId="project-status-select" [value]="current.status" [options]="statusOptions" [disabled]="saving() || !canEditSettings()" (valueChange)="onStatusChange($event)" />
               }
-          <fp-button variant="danger" icon="delete" testId="project-delete" [disabled]="deleting()" (click)="confirmingDelete.set(true)">Eliminar proyecto</fp-button>
+          <fp-button variant="danger" icon="delete" testId="project-delete" [disabled]="deleting() || !canDelete()" (click)="confirmingDelete.set(true)">Eliminar proyecto</fp-button>
         </div></fp-card>
       }
       @if (confirmingDelete()) { <fp-dialog data-testid="project-delete-dialog" label="project-delete-dialog-title" describedById="project-delete-dialog-description" (closed)="confirmingDelete.set(false)"><h2 id="project-delete-dialog-title">Eliminar proyecto</h2><p id="project-delete-dialog-description">¿Seguro que querés eliminar este proyecto? Esta acción no se puede deshacer.</p><div class="actions"><fp-button variant="danger" icon="delete" testId="project-delete-confirm" (click)="onDelete()">Sí, eliminar</fp-button><fp-button variant="secondary" icon="close" testId="project-delete-cancel" (click)="confirmingDelete.set(false)">Cancelar</fp-button></div></fp-dialog> }
@@ -126,6 +126,8 @@ export class ProjectDetailComponent {
    * that stale native selection and shows the real persisted status again.
    */
   readonly statusResetToken = signal(0);
+  readonly canEditSettings = computed(() => hasPermission(this.project(), 'PROJECT_EDIT_SETTINGS'));
+  readonly canDelete = computed(() => hasPermission(this.project(), 'PROJECT_DELETE'));
 
   constructor() {
     effect(() => {

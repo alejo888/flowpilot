@@ -12,6 +12,8 @@ import { columnAccent } from './column-accent';
 import { WorkItem, WorkItemCreateRequest, WorkItemPriority, WorkItemUpdateRequest } from './board.model';
 import { BoardStore } from './board.store';
 import { CommentsStore } from '../comments/comments.store';
+import { hasPermission } from '../projects/project.model';
+import { ProjectsStore } from '../projects/projects.store';
 
 type WorkItemForm = {
   title: string;
@@ -63,7 +65,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
           <p class="eyebrow">Tablero Kanban</p>
           <h2>Trabajo del proyecto</h2>
         </div>
-        <fp-button type="button" icon="add" (click)="startCreate()">Crear tarea</fp-button>
+        <fp-button type="button" icon="add" [disabled]="!canCreateWorkItem()" (click)="startCreate()">Crear tarea</fp-button>
       </header>
 
       @if (error(); as message) {
@@ -92,7 +94,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
             </label>
           </div>
           <div class="panel-actions">
-            <fp-button type="submit" icon="save" [disabled]="isMutating()">Guardar tarea</fp-button>
+            <fp-button type="submit" icon="save" [disabled]="isMutating() || !canCreateWorkItem()">Guardar tarea</fp-button>
             <fp-button variant="secondary" icon="close" type="button" (click)="cancelCreate()">Cancelar</fp-button>
           </div>
         </form>
@@ -131,7 +133,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                 (cdkDropListDropped)="onDrop($event)"
               >
                 @for (item of columnItems(column.id); track item.id) {
-                  <fp-card class="board-card" cdkDrag [cdkDragData]="item">
+                  <fp-card class="board-card" cdkDrag [cdkDragData]="item" [cdkDragDisabled]="!canMoveWorkItem()">
                     <button class="card-title" type="button" (click)="openDetail(item)">
                       <span data-testid="work-item-title">{{ item.title }}</span>
                     </button>
@@ -169,6 +171,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
               <select
                 data-testid="move-to-column-select"
                 aria-label="Mover tarea a otra columna"
+                [disabled]="!canMoveWorkItem()"
                 (change)="onMoveToColumn(item, $any($event.target).value)"
               >
                 @for (column of columns(); track column.id) {
@@ -178,7 +181,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
             </label>
 
             <section class="work-comments" aria-labelledby="work-comments-title"><h4 id="work-comments-title">Comentarios</h4>
-              <form data-testid="work-comment-form" (ngSubmit)="submitWorkComment()"><label for="work-comment">Agregar comentario</label><textarea id="work-comment" rows="3" maxlength="4000" [(ngModel)]="commentDraft" name="work-comment" [disabled]="commentSubmitting()"></textarea><fp-button type="submit" icon="comment" [disabled]="commentSubmitting() || !commentDraft.trim()">Comentar</fp-button></form>
+              <form data-testid="work-comment-form" (ngSubmit)="submitWorkComment()"><label for="work-comment">Agregar comentario</label><textarea id="work-comment" rows="3" maxlength="4000" [(ngModel)]="commentDraft" name="work-comment" [disabled]="commentSubmitting()"></textarea><fp-button type="submit" icon="comment" [disabled]="commentSubmitting() || !commentDraft.trim() || !canComment()">Comentar</fp-button></form>
               @if (commentLoading()) { <p role="status" aria-live="polite">Cargando comentarios...</p> } @if (sectionCommentError(); as message) { <p class="board-error" role="alert">{{ message }}</p> } @for (comment of workComments(); track comment.id) { <article class="work-comment"><div class="comment-meta"><strong>{{ comment.authorName || 'Usuario' }}</strong><span>{{ comment.createdAt | date:'d MMM y, HH:mm' }}</span></div>@if (editingCommentId() === comment.id) { <textarea rows="3" aria-label="Editar comentario" [value]="editingContent()" (input)="editingContent.set($any($event.target).value)"></textarea><fp-button type="button" icon="save" ariaLabel="Guardar comentario" (click)="saveComment(comment.id)">Guardar comentario</fp-button> } @else { <p>{{ comment.content }}</p>@if (canEdit(comment)) { <div class="comment-actions"><fp-button type="button" variant="secondary" icon="edit" ariaLabel="Editar comentario" (click)="startEdit(comment)">Editar</fp-button><fp-button type="button" variant="danger" icon="delete" ariaLabel="Eliminar comentario" (click)="confirmDeleteComment(comment.id)">Eliminar</fp-button></div> } }</article> }
             </section>
 
@@ -198,13 +201,13 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                 </label>
               </div>
               <div class="panel-actions wrap">
-                <fp-button type="submit" icon="save" [disabled]="isMutating()">Guardar cambios</fp-button>
+                <fp-button type="submit" icon="save" [disabled]="isMutating() || !canEditWorkItem()">Guardar cambios</fp-button>
                 <fp-button
                   variant="danger"
                   type="button"
                   icon="delete"
                    testId="detail-delete-button"
-                  [disabled]="isMutating()"
+                  [disabled]="isMutating() || !canDeleteWorkItem()"
                   (click)="confirmDelete(item)"
                 >
                   Eliminar tarea
@@ -253,8 +256,16 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
 })
 export class BoardComponent {
   private readonly store = inject(BoardStore);
+  private readonly projectsStore = inject(ProjectsStore);
 
   readonly projectId = input.required<number, number | string>({ transform: numberAttribute });
+
+  private readonly project = this.projectsStore.selectedProject;
+  readonly canCreateWorkItem = computed(() => hasPermission(this.project(), 'WORKITEM_CREATE'));
+  readonly canEditWorkItem = computed(() => hasPermission(this.project(), 'WORKITEM_EDIT'));
+  readonly canDeleteWorkItem = computed(() => hasPermission(this.project(), 'WORKITEM_DELETE'));
+  readonly canMoveWorkItem = computed(() => hasPermission(this.project(), 'WORKITEM_MOVE'));
+  readonly canComment = computed(() => hasPermission(this.project(), 'COMMENT_CREATE'));
 
   readonly columns = this.store.columns;
   readonly selectedItem = this.store.selectedItem;
@@ -295,6 +306,7 @@ export class BoardComponent {
   constructor() {
     effect(() => {
       this.store.load(this.projectId());
+      this.projectsStore.loadProject(this.projectId());
     });
 
     effect(() => {
@@ -401,6 +413,7 @@ export class BoardComponent {
       }
 
       onDrop(event: CdkDragDrop<number, number, WorkItem>): void {
+    if (!this.canMoveWorkItem()) return;
     const movedItem = event.item.data;
     const targetColumnId = event.container.data;
     this.store.moveItem(movedItem.id, targetColumnId, event.currentIndex);
