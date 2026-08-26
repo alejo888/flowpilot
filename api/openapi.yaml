@@ -1733,6 +1733,15 @@ components:
         repositoryUrl:
           type: string
           nullable: true
+        callerPermissions:
+          type: array
+          description: >-
+            The permissions the CALLING user holds for THIS project — not the
+            full catalog and not another role's grants. Lets clients gate
+            destructive/mutating controls proactively instead of discovering
+            a lack of permission only via a 403.
+          items:
+            $ref: '#/components/schemas/Permission'
     BoardColumnResponse:
       type: object
       properties:
