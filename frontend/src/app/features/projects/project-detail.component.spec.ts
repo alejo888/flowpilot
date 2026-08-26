@@ -5,6 +5,7 @@ import { provideRouter, Router, RouterOutlet, withComponentInputBinding } from '
 import { Project } from './project.model';
 import { ProjectDetailComponent } from './project-detail.component';
 import { ProjectsStore } from './projects.store';
+import { CommentsStore } from '../comments/comments.store';
 
 function project(id = 4, status: Project['status'] = 'PLANIFICACION'): Project {
   return {
@@ -218,6 +219,156 @@ it('navigates only after deletion succeeds', async () => {
 
     expect(navigateSpy).not.toHaveBeenCalled();
     expect(fixture.componentInstance.confirmingDelete()).toBe(true);
+  });
+});
+
+
+describe('ProjectDetailComponent comments', () => {
+  let fixture: ComponentFixture<ProjectDetailComponent>;
+  let commentsStub: {
+    projectComments: ReturnType<typeof signal<unknown[]>>;
+    activity: ReturnType<typeof signal<unknown[]>>;
+    loading: ReturnType<typeof signal<boolean>>;
+    submitting: ReturnType<typeof signal<boolean>>;
+    error: ReturnType<typeof signal<string | null>>;
+    currentUserId: ReturnType<typeof signal<number | null>>;
+    loadProject: ReturnType<typeof vi.fn>;
+    createProject: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+  };
+
+  beforeEach(async () => {
+    commentsStub = {
+      projectComments: signal([]),
+      activity: signal([]),
+      loading: signal(false),
+      submitting: signal(false),
+      error: signal<string | null>(null),
+      currentUserId: signal<number | null>(4),
+      loadProject: vi.fn(),
+      createProject: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    };
+    const storeStub = {
+      selectedProject: signal(project()),
+      detailLoading: signal(false),
+      saving: signal(false),
+      deleting: signal(false),
+      error: signal<string | null>(null),
+      loadProject: vi.fn(),
+      updateProject: vi.fn(),
+      updateProjectStatus: vi.fn(),
+      deleteProject: vi.fn(),
+    };
+    await TestBed.configureTestingModule({
+      imports: [ProjectDetailComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ProjectsStore, useValue: storeStub },
+        { provide: CommentsStore, useValue: commentsStub },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(ProjectDetailComponent);
+    fixture.componentRef.setInput('projectId', 4);
+    fixture.detectChanges();
+  });
+
+  it('renders the comment store error as an alert', () => {
+    commentsStub.error.set('No se pudo guardar el comentario');
+    fixture.detectChanges();
+
+    const alert = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="project-comment-error"]');
+    expect(alert?.getAttribute('role')).toBe('alert');
+    expect(alert?.textContent).toContain('No se pudo guardar el comentario');
+  });
+
+  it('keeps the draft when creating a comment fails and clears it on success', async () => {
+    commentsStub.createProject.mockResolvedValueOnce(false);
+    fixture.componentInstance.commentDraft.set('  Texto importante ');
+
+    await fixture.componentInstance.submitComment(new Event('submit'));
+
+    expect(commentsStub.createProject).toHaveBeenCalledWith(4, 'Texto importante');
+    expect(fixture.componentInstance.commentDraft()).toBe('  Texto importante ');
+
+    commentsStub.createProject.mockResolvedValueOnce(true);
+    await fixture.componentInstance.submitComment(new Event('submit'));
+
+    expect(fixture.componentInstance.commentDraft()).toBe('');
+  });
+
+  it('stays in edit mode when saving a comment fails and exits on success', async () => {
+    commentsStub.update.mockResolvedValueOnce(false);
+    fixture.componentInstance.editingCommentId.set(7);
+    fixture.componentInstance.editingContent.set('Corregido');
+
+    await fixture.componentInstance.saveComment(7);
+
+    expect(commentsStub.update).toHaveBeenCalledWith(7, 'Corregido', 'project');
+    expect(fixture.componentInstance.editingCommentId()).toBe(7);
+
+    commentsStub.update.mockResolvedValueOnce(true);
+    await fixture.componentInstance.saveComment(7);
+
+    expect(fixture.componentInstance.editingCommentId()).toBeNull();
+  });
+
+  it('keeps the delete confirmation open when deleting a comment fails and closes it on success', async () => {
+    commentsStub.delete.mockResolvedValueOnce(false);
+    fixture.componentInstance.deletingCommentId.set(7);
+
+    await fixture.componentInstance.deleteCommentConfirmed();
+
+    expect(commentsStub.delete).toHaveBeenCalledWith(7, 'project');
+    expect(fixture.componentInstance.deletingCommentId()).toBe(7);
+
+    commentsStub.delete.mockResolvedValueOnce(true);
+    await fixture.componentInstance.deleteCommentConfirmed();
+
+    expect(fixture.componentInstance.deletingCommentId()).toBeNull();
+  });
+
+  it('shows the failure reason inside the still-open delete dialog, not behind its backdrop', async () => {
+    commentsStub.delete.mockImplementationOnce(async () => {
+      commentsStub.error.set('No se pudo eliminar el comentario');
+      return false;
+    });
+    fixture.componentInstance.deletingCommentId.set(7);
+    fixture.detectChanges();
+
+    await fixture.componentInstance.deleteCommentConfirmed();
+    fixture.detectChanges();
+
+    const dialog = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="comment-delete-dialog"]');
+    expect(dialog).not.toBeNull();
+    // The alert must live inside the modal panel (the focus-trapped, aria-modal
+    // region), otherwise it is behind the backdrop and outside assistive reach.
+    const panel = dialog?.querySelector('.fp-dialog__panel');
+    const alert = panel?.querySelector('[data-testid="comment-delete-dialog-error"]');
+    expect(alert?.getAttribute('role')).toBe('alert');
+    expect(alert?.textContent).toContain('No se pudo eliminar el comentario');
+    // And the section-level copy is suppressed so it is announced exactly once.
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="project-comment-error"]'),
+    ).toBeNull();
+  });
+
+  it('disables the delete confirmation button while a delete is in flight', () => {
+    fixture.componentInstance.deletingCommentId.set(7);
+    commentsStub.submitting.set(true);
+    fixture.detectChanges();
+
+    const confirm = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="comment-delete-confirm"]',
+    ) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+
+    commentsStub.submitting.set(false);
+    fixture.detectChanges();
+    expect(confirm.disabled).toBe(false);
   });
 });
 
