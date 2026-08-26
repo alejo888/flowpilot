@@ -168,6 +168,29 @@ class RolePermissionAdminServiceTest {
     }
 
     @Test
+    void resubmittingAnUnchangedGrantDoesNotBumpUpdatedAtOrUpdatedBy() throws Exception {
+        // The client always resubmits the full dense matrix, so most rows in a
+        // typical save are unchanged — those rows shouldn't look like they were
+        // just touched by whoever clicked Save.
+        setUp();
+        User admin = user(3L, GlobalRole.ADMINISTRADOR);
+        OffsetDateTime persisted = OffsetDateTime.parse("2026-02-01T00:00:00Z");
+        RolePermission row = rowWithUpdatedAt(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, true, persisted);
+        when(userRepository.findById(3L)).thenReturn(Optional.of(admin));
+        when(rolePermissionRepository.findAllForUpdate()).thenReturn(List.of(row));
+        when(rolePermissionRepository.findAll()).thenReturn(List.of(row));
+        when(rolePermissionRepository.findMaxUpdatedAt()).thenReturn(Optional.of(persisted));
+        RolePermissionUpdateRequest request = new RolePermissionUpdateRequest(
+                List.of(new RolePermissionGrant(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, true)), persisted);
+
+        service.replaceAll(3L, request);
+
+        assertThat(row.isGranted()).isTrue();
+        assertThat(row.getUpdatedAt()).isEqualTo(persisted);
+        assertThat(row.getUpdatedBy()).isNull();
+    }
+
+    @Test
     void deactivatedAdministradorIsDeniedOnGetMatrix() throws Exception {
         setUp();
         User deactivatedAdmin = user(4L, GlobalRole.ADMINISTRADOR, false);

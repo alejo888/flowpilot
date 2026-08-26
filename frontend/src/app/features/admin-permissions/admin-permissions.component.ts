@@ -78,6 +78,7 @@ import { RolePermissionsStore } from './role-permissions.store';
                       [attr.aria-label]="role + ': ' + permission.label"
                       [class.dirty]="isDirty(role, permission.key)"
                       [checked]="isGranted(role, permission.key)"
+                      [disabled]="saving()"
                       (click)="onToggle(role, permission.key)"
                     />
                   </td>

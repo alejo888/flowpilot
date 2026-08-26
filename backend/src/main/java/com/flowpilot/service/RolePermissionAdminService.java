@@ -153,8 +153,14 @@ public class RolePermissionAdminService {
             if (row == null) {
                 throw new UnknownRolePermissionCombinationException(grant.role(), grant.permission());
             }
-            row.setGranted(grant.granted());
-            row.setUpdatedBy(callerId);
+            // Only stamp updatedAt/updatedBy when the grant actually flips —
+            // the client always resubmits the full dense matrix, so most rows
+            // are a no-op resubmission and shouldn't look like they were just
+            // touched by this caller.
+            if (row.isGranted() != grant.granted()) {
+                row.setGranted(grant.granted());
+                row.setUpdatedBy(callerId);
+            }
         }
 
         rolePermissionRepository.saveAll(byKey.values());
