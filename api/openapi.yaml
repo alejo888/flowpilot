@@ -1193,6 +1193,11 @@ paths:
     get:
       summary: List project comments, newest first
       operationId: listProjectComments
+      description: >-
+        Requires the caller to be able to view the project (admin, owner, or
+        an existing ProjectMember).
+      security:
+        - bearerAuth: []
       parameters:
         - {$ref: '#/components/parameters/NestedProjectId'}
         - {$ref: '#/components/parameters/Limit'}
@@ -1205,9 +1210,27 @@ paths:
               schema:
                 type: array
                 items: {$ref: '#/components/schemas/CommentResponse'}
+        '400':
+          description: limit/offset out of range
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
+        '403':
+          description: Caller cannot view this project
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
+        '404':
+          description: No project with that id
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
     post:
       summary: Create a project comment
       operationId: createProjectComment
+      description: Requires the COMMENT_CREATE permission (role-permission matrix).
+      security:
+        - bearerAuth: []
       parameters: [{ $ref: '#/components/parameters/NestedProjectId' }]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CommentCreateRequest'}}}}
       responses:
@@ -1216,10 +1239,30 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CommentResponse'}
+        '400':
+          description: content blank or over 4000 characters
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
+        '403':
+          description: Caller lacks the COMMENT_CREATE permission for this project
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
+        '404':
+          description: No project with that id
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
   /api/work-items/{workItemId}/comments:
     get:
       summary: List work-item comments, newest first
       operationId: listWorkItemComments
+      description: >-
+        Requires the caller to be able to view the work item's parent
+        project (admin, owner, or an existing ProjectMember).
+      security:
+        - bearerAuth: []
       parameters:
         - {name: workItemId, in: path, required: true, schema: {type: integer, format: int64}}
         - {$ref: '#/components/parameters/Limit'}
@@ -1232,9 +1275,27 @@ paths:
               schema:
                 type: array
                 items: {$ref: '#/components/schemas/CommentResponse'}
+        '400':
+          description: limit/offset out of range
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
+        '403':
+          description: Caller cannot view the work item's parent project
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
+        '404':
+          description: No work item with that id
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
     post:
       summary: Create a work-item comment
       operationId: createWorkItemComment
+      description: Requires the COMMENT_CREATE permission (role-permission matrix) on the work item's parent project.
+      security:
+        - bearerAuth: []
       parameters: [{name: workItemId, in: path, required: true, schema: {type: integer, format: int64}}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CommentCreateRequest'}}}}
       responses:
@@ -1243,10 +1304,31 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CommentResponse'}
+        '400':
+          description: content blank or over 4000 characters
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
+        '403':
+          description: Caller lacks the COMMENT_CREATE permission for the work item's parent project
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
+        '404':
+          description: No work item with that id
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
   /api/comments/{commentId}:
     put:
       summary: Edit own comment
       operationId: updateComment
+      description: >-
+        Requires the caller to be the comment's author AND still hold the
+        COMMENT_CREATE permission on the parent project (a role that has had
+        COMMENT_CREATE revoked can no longer edit its own past comments).
+      security:
+        - bearerAuth: []
       parameters: [{name: commentId, in: path, required: true, schema: {type: integer, format: int64}}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CommentUpdateRequest'}}}}
       responses:
@@ -1255,17 +1337,50 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CommentResponse'}
+        '400':
+          description: content blank or over 4000 characters
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
+        '403':
+          description: Caller is not the comment's author, cannot view the parent project, or lacks COMMENT_CREATE
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
+        '404':
+          description: No comment with that id
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
     delete:
       summary: Delete own comment
       operationId: deleteComment
+      description: Requires the caller to be the comment's author.
+      security:
+        - bearerAuth: []
       parameters: [{name: commentId, in: path, required: true, schema: {type: integer, format: int64}}]
       responses:
         '204':
           description: Comment deleted
+        '403':
+          description: Caller is not the comment's author, or cannot view the parent project
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
+        '404':
+          description: No comment with that id
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
   /api/projects/{projectId}/activity:
     get:
       summary: List project activity, newest first
       operationId: listProjectActivity
+      description: >-
+        Requires the caller to be able to view the project (admin, owner, or
+        an existing ProjectMember).
+      security:
+        - bearerAuth: []
       parameters:
         - {$ref: '#/components/parameters/NestedProjectId'}
         - {$ref: '#/components/parameters/Limit'}
@@ -1278,6 +1393,21 @@ paths:
               schema:
                 type: array
                 items: {$ref: '#/components/schemas/ActivityResponse'}
+        '400':
+          description: limit/offset out of range
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
+        '403':
+          description: Caller cannot view this project
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
+        '404':
+          description: No project with that id
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetail'}
 components:
   parameters:
     Limit:
@@ -1356,7 +1486,27 @@ components:
         id: {type: integer, format: int64}
         projectId: {type: integer, format: int64}
         actorId: {type: integer, format: int64}
-        eventType: {type: string}
+        eventType:
+          type: string
+          enum:
+            - PROJECT_CREATED
+            - PROJECT_UPDATED
+            - PROJECT_STATUS_CHANGED
+            - WORK_ITEM_CREATED
+            - WORK_ITEM_UPDATED
+            - WORK_ITEM_STATUS_CHANGED
+            - WORK_ITEM_MOVED
+            - WORK_ITEM_DELETED
+            - MEMBER_ADDED
+            - MEMBER_REMOVED
+            - MEMBER_ROLE_CHANGED
+            - SPRINT_CREATED
+            - SPRINT_UPDATED
+            - SPRINT_STARTED
+            - SPRINT_COMPLETED
+            - COMMENT_CREATED
+            - COMMENT_UPDATED
+            - COMMENT_DELETED
         displayText: {type: string}
         payload: {type: string}
         createdAt: {type: string, format: date-time}
