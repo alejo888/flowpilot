@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { AuthStore } from '../../core/auth/auth.store';
 import { RolePermissionsApiService } from './role-permissions-api.service';
@@ -131,6 +131,29 @@ describe('RolePermissionsStore', () => {
 
     expect(store.conflict()).toBe(false);
     expect(store.error()).toBeTruthy();
+  });
+
+  it('ignores toggle() while a save is in flight, so a mid-save edit is never silently lost', () => {
+    apiSpy.getMatrix.mockReturnValue(of(matrix('2026-01-01T00:00:00Z', false)));
+    store.load();
+    store.toggle('PROJECT_MANAGER', 'MEMBER_ADD');
+    const replaceAll$ = new Subject<RolePermissionMatrixResponse>();
+    apiSpy.replaceAll.mockReturnValue(replaceAll$);
+
+    store.save();
+    expect(store.saving()).toBe(true);
+
+    // Attempted mid-save edits — save() already snapshotted the grant list,
+    // so without the guard these would silently vanish once the response
+    // overwrites workingSignal below.
+    store.toggle('DEVELOPER', 'WORKITEM_MOVE');
+    expect(store.isDirty('DEVELOPER', 'WORKITEM_MOVE')).toBe(false);
+
+    replaceAll$.next(matrix('2026-01-02T00:00:00Z', true));
+    replaceAll$.complete();
+
+    expect(store.saving()).toBe(false);
+    expect(store.hasDirtyChanges()).toBe(false);
   });
 
   it('resets all state when AuthStore.isAuthenticated transitions to false (logout)', () => {

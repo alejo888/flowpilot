@@ -102,7 +102,17 @@ export class RolePermissionsStore {
     return this.baselineSignal().get(key) !== this.workingSignal().get(key);
   }
 
+  /**
+   * No-ops while a save is in flight: `save()` snapshots `workingSignal`
+   * synchronously and its success handler overwrites it with the server's
+   * response, so an edit made during that window would otherwise be
+   * silently discarded rather than included in the request or preserved
+   * after it.
+   */
   toggle(role: ProjectRole, permission: Permission): void {
+    if (this.savingSignal()) {
+      return;
+    }
     const key = gridKey(role, permission);
     const next = new Map(this.workingSignal());
     next.set(key, !next.get(key));

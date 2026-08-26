@@ -67,6 +67,17 @@ describe('AdminPermissionsComponent', () => {
     expect(storeStub.toggle).toHaveBeenCalledWith('PROJECT_MANAGER', 'MEMBER_ADD');
   });
 
+  it('disables every grid cell while a save is in flight', () => {
+    storeStub.saving.set(true);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    const cell = compiled.querySelector(
+      '[data-testid="cell-PROJECT_MANAGER-MEMBER_ADD"]',
+    ) as HTMLInputElement;
+
+    expect(cell.disabled).toBe(true);
+  });
+
   it('disables the save button when there are no dirty changes', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const button = compiled.querySelector('[data-testid="save-button"]') as HTMLButtonElement;
