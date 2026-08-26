@@ -45,12 +45,26 @@ class CommentServiceTest {
 
     @Test
     void projectAndWorkItemReadsRequireProjectViewAuthorization() throws Exception {
+        when(projects.findById(10L)).thenReturn(Optional.of(mock(com.flowpilot.entity.Project.class)));
         when(auth.canView(2L, 10L)).thenReturn(false);
         assertThatThrownBy(() -> service.listProject(10L, 2L, 20, 0)).isInstanceOf(AccessDeniedException.class);
 
         WorkItem item = item(50L, 10L);
         when(workItems.findById(50L)).thenReturn(Optional.of(item));
         assertThatThrownBy(() -> service.listWorkItem(50L, 2L, 20, 0)).isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void listProjectThrowsNotFoundForNonexistentProjectEvenWhenViewWouldBeAllowed() {
+        // canView short-circuits true for a global admin WITHOUT looking up the
+        // project, so without an explicit existence check here an admin caller
+        // would silently get an empty list instead of a 404 for a nonexistent
+        // project id — unlike every other caller, whose canView path does reach
+        // the project lookup and throws. Stubbed lenient-equivalent: canView is
+        // never reached because requireProject throws first.
+        when(projects.findById(999L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.listProject(999L, 1L, 20, 0))
+                .isInstanceOf(com.flowpilot.exception.ProjectNotFoundException.class);
     }
 
     @Test
@@ -69,6 +83,7 @@ class CommentServiceTest {
 
     @Test
     void listUsesNewestFirstResultsAndSupportsArbitraryOffset() throws Exception {
+        when(projects.findById(10L)).thenReturn(Optional.of(mock(com.flowpilot.entity.Project.class)));
         when(auth.canView(1L, 10L)).thenReturn(true);
         Comment first = comment(1L, 10L, null, 1L, "newest");
         Comment second = comment(2L, 10L, null, 1L, "next");

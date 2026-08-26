@@ -179,7 +179,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
 
             <section class="work-comments" aria-labelledby="work-comments-title"><h4 id="work-comments-title">Comentarios</h4>
               <form data-testid="work-comment-form" (ngSubmit)="submitWorkComment()"><label for="work-comment">Agregar comentario</label><textarea id="work-comment" rows="3" maxlength="4000" [(ngModel)]="commentDraft" name="work-comment" [disabled]="commentSubmitting()"></textarea><fp-button type="submit" icon="comment" [disabled]="commentSubmitting() || !commentDraft.trim()">Comentar</fp-button></form>
-              @if (commentLoading()) { <p role="status" aria-live="polite">Cargando comentarios...</p> } @if (commentError(); as message) { <p class="board-error" role="alert">{{ message }}</p> } @for (comment of workComments(); track comment.id) { <article class="work-comment"><div class="comment-meta"><strong>{{ comment.authorName || 'Usuario' }}</strong><span>{{ comment.createdAt | date:'d MMM y, HH:mm' }}</span></div>@if (editingCommentId() === comment.id) { <textarea rows="3" aria-label="Editar comentario" [value]="editingContent()" (input)="editingContent.set($any($event.target).value)"></textarea><fp-button type="button" icon="save" ariaLabel="Guardar comentario" (click)="saveComment(comment.id)">Guardar comentario</fp-button> } @else { <p>{{ comment.content }}</p>@if (canEdit(comment)) { <div class="comment-actions"><fp-button type="button" variant="secondary" icon="edit" ariaLabel="Editar comentario" (click)="startEdit(comment)">Editar</fp-button><fp-button type="button" variant="danger" icon="delete" ariaLabel="Eliminar comentario" (click)="confirmDeleteComment(comment.id)">Eliminar</fp-button></div> } }</article> }
+              @if (commentLoading()) { <p role="status" aria-live="polite">Cargando comentarios...</p> } @if (sectionCommentError(); as message) { <p class="board-error" role="alert">{{ message }}</p> } @for (comment of workComments(); track comment.id) { <article class="work-comment"><div class="comment-meta"><strong>{{ comment.authorName || 'Usuario' }}</strong><span>{{ comment.createdAt | date:'d MMM y, HH:mm' }}</span></div>@if (editingCommentId() === comment.id) { <textarea rows="3" aria-label="Editar comentario" [value]="editingContent()" (input)="editingContent.set($any($event.target).value)"></textarea><fp-button type="button" icon="save" ariaLabel="Guardar comentario" (click)="saveComment(comment.id)">Guardar comentario</fp-button> } @else { <p>{{ comment.content }}</p>@if (canEdit(comment)) { <div class="comment-actions"><fp-button type="button" variant="secondary" icon="edit" ariaLabel="Editar comentario" (click)="startEdit(comment)">Editar</fp-button><fp-button type="button" variant="danger" icon="delete" ariaLabel="Eliminar comentario" (click)="confirmDeleteComment(comment.id)">Eliminar</fp-button></div> } }</article> }
             </section>
 
             <form (ngSubmit)="submitUpdate(item.id)">
@@ -223,6 +223,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
           >
             <h3 id="comment-delete-dialog-title">Eliminar comentario</h3>
             <p id="comment-delete-dialog-description">¿Seguro que querés eliminar este comentario? Esta acción no se puede deshacer.</p>
+            @if (commentError(); as message) { <p class="board-error" role="alert" data-testid="comment-delete-dialog-error">{{ message }}</p> }
             <div class="panel-actions">
               <fp-button variant="danger" icon="delete" type="button" (click)="deleteCommentConfirmed()">Sí, eliminar</fp-button>
               <fp-button variant="secondary" icon="close" type="button" (click)="cancelDeleteComment()">Cancelar</fp-button>
@@ -270,6 +271,17 @@ export class BoardComponent {
       readonly commentError = computed(() => this.commentsStore?.error() ?? null);
       readonly editingCommentId = signal<number | null>(null); readonly editingContent = signal(''); commentDraft = '';
       readonly deletingCommentId = signal<number | null>(null);
+      /**
+       * `fp-dialog` is a fixed full-viewport backdrop with `aria-modal="true"`
+       * and a focus trap, so an error rendered in `.work-comments` sits
+       * visually behind the backdrop and outside the trap while the delete
+       * confirmation dialog is open. While that dialog is open the error is
+       * rendered inside the dialog instead (see `comment-delete-dialog-error`
+       * below); this computed suppresses the section copy so the same
+       * message is never announced twice by two `role="alert"` nodes.
+       * Mirrors ProjectDetailComponent's `sectionCommentError`.
+       */
+      readonly sectionCommentError = computed(() => (this.deletingCommentId() === null ? this.commentError() : null));
 
   /** Which column the mobile single-column view shows; desktop ignores this. */
   readonly activeColumnId = signal<number | null>(null);
@@ -334,13 +346,36 @@ export class BoardComponent {
     this.store.selectItem(null);
   }
 
-  submitWorkComment(): void { const content=this.commentDraft.trim(); const item=this.selectedItem(); if(content && item && this.commentsStore){this.commentsStore.createWorkItem(item.id,content);this.commentDraft='';} }
+  /**
+   * Local UI state (draft text, edit mode, pending delete) is only cleared once
+   * the store confirms the write succeeded — otherwise a failed request would
+   * silently discard what the user typed while the error message is shown.
+   * Mirrors ProjectDetailComponent's comment methods (same CommentsStore
+   * `Promise<boolean>` contract).
+   */
+  async submitWorkComment(): Promise<void> {
+    const content = this.commentDraft.trim();
+    const item = this.selectedItem();
+    if (!content || !item || !this.commentsStore) return;
+    const created = await this.commentsStore.createWorkItem(item.id, content);
+    if (created) this.commentDraft = '';
+  }
   canEdit(comment: import('../comments/comments.model').Comment): boolean { const id=this.commentsStore?.currentUserId(); return id!==null && id!==undefined && comment.authorId===id; }
   startEdit(comment: import('../comments/comments.model').Comment): void { this.editingCommentId.set(comment.id); this.editingContent.set(comment.content); }
-  saveComment(id:number): void { const content=this.editingContent().trim(); if(content && this.commentsStore){this.commentsStore.update(id,content,'workItem');this.editingCommentId.set(null);} }
+  async saveComment(id: number): Promise<void> {
+    const content = this.editingContent().trim();
+    if (!content || !this.commentsStore) return;
+    const saved = await this.commentsStore.update(id, content, 'workItem');
+    if (saved) this.editingCommentId.set(null);
+  }
   confirmDeleteComment(id: number): void { this.deletingCommentId.set(id); }
   cancelDeleteComment(): void { this.deletingCommentId.set(null); }
-  deleteCommentConfirmed(): void { const id = this.deletingCommentId(); if (id === null || !this.commentsStore) return; this.commentsStore.delete(id, 'workItem'); this.deletingCommentId.set(null); }
+  async deleteCommentConfirmed(): Promise<void> {
+    const id = this.deletingCommentId();
+    if (id === null || !this.commentsStore) return;
+    const deleted = await this.commentsStore.delete(id, 'workItem');
+    if (deleted) this.deletingCommentId.set(null);
+  }
 
   submitUpdate(itemId: number): void {
     const request = requestFromForm(this.editForm);

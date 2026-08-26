@@ -45,18 +45,26 @@ describe('CommentsStore', () => {
     expect(store.workItemLoading()).toBe(false);
   });
 
-  it('creates and updates comments at the front of the selected collection', () => {
+  it('creates comments at the front of the selected collection', () => {
     const first = comment(1);
     const created = comment(2, 'Created');
     api.createProject.mockReturnValue(of(created));
-    api.update.mockReturnValue(of(comment(1, 'Updated')));
     store.projectComments.set([first]);
     store.createProject(10, 'Created');
     expect(api.createProject).toHaveBeenCalledWith(10, { content: 'Created' });
     expect(store.projectComments()).toEqual([created, first]);
-    store.update(1, 'Updated', 'project');
-    expect(api.update).toHaveBeenCalledWith(1, { content: 'Updated' });
-    expect(store.projectComments()).toEqual([comment(1, 'Updated'), created]);
+    expect(store.submitting()).toBe(false);
+  });
+
+  it('updates a comment in place, preserving its position relative to other comments', () => {
+    const first = comment(1);
+    const second = comment(2);
+    const third = comment(3);
+    api.update.mockReturnValue(of(comment(2, 'Updated')));
+    store.projectComments.set([first, second, third]);
+    store.update(2, 'Updated', 'project');
+    expect(api.update).toHaveBeenCalledWith(2, { content: 'Updated' });
+    expect(store.projectComments()).toEqual([first, comment(2, 'Updated'), third]);
     expect(store.submitting()).toBe(false);
   });
 

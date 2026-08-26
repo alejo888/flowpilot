@@ -5,6 +5,7 @@ import { provideRouter } from '@angular/router';
 import { BoardComponent } from './board.component';
 import { BoardStore } from './board.store';
 import { BoardColumn, WorkItem } from './board.model';
+import { CommentsStore } from '../comments/comments.store';
 
 function column(id: number, name: string, position: number): BoardColumn {
   return { id, name, position };
@@ -359,6 +360,151 @@ describe('BoardComponent', () => {
     fixture.componentInstance.onDrop(dropEvent as never);
 
     expect(storeStub.moveItem).toHaveBeenCalledWith(500, 2, 0);
+  });
+});
+
+describe('BoardComponent work-item comments', () => {
+  let fixture: ComponentFixture<BoardComponent>;
+  let storeStub: {
+    columns: ReturnType<typeof signal<BoardColumn[]>>;
+    itemsByColumn: ReturnType<typeof signal<Record<number, WorkItem[]>>>;
+    selectedItem: ReturnType<typeof signal<WorkItem | null>>;
+    error: ReturnType<typeof signal<string | null>>;
+    success: ReturnType<typeof signal<string | null>>;
+    isMutating: ReturnType<typeof signal<boolean>>;
+    load: ReturnType<typeof vi.fn>;
+    createItem: ReturnType<typeof vi.fn>;
+    clearSuccess: ReturnType<typeof vi.fn>;
+    selectItem: ReturnType<typeof vi.fn>;
+    loadItem: ReturnType<typeof vi.fn>;
+    updateItem: ReturnType<typeof vi.fn>;
+    deleteItem: ReturnType<typeof vi.fn>;
+    moveItem: ReturnType<typeof vi.fn>;
+  };
+  let commentsStub: {
+    workItemComments: ReturnType<typeof signal<unknown[]>>;
+    workItemLoading: ReturnType<typeof signal<boolean>>;
+    submitting: ReturnType<typeof signal<boolean>>;
+    error: ReturnType<typeof signal<string | null>>;
+    currentUserId: ReturnType<typeof signal<number | null>>;
+    loadWorkItem: ReturnType<typeof vi.fn>;
+    createWorkItem: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+  };
+
+  beforeEach(async () => {
+    storeStub = {
+      columns: signal([column(1, 'Por hacer', 1024), column(2, 'En progreso', 2048)]),
+      itemsByColumn: signal({ 1: [item(500, 1, 1024, 'Design schema')], 2: [] }),
+      selectedItem: signal(item(500, 1, 1024, 'Design schema')),
+      error: signal(null),
+      success: signal(null),
+      isMutating: signal(false),
+      load: vi.fn(),
+      createItem: vi.fn(),
+      clearSuccess: vi.fn(),
+      selectItem: vi.fn(),
+      loadItem: vi.fn(),
+      updateItem: vi.fn(),
+      deleteItem: vi.fn(),
+      moveItem: vi.fn(),
+    };
+    commentsStub = {
+      workItemComments: signal([]),
+      workItemLoading: signal(false),
+      submitting: signal(false),
+      error: signal<string | null>(null),
+      currentUserId: signal<number | null>(4),
+      loadWorkItem: vi.fn(),
+      createWorkItem: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    };
+
+    await TestBed.configureTestingModule({
+      imports: [BoardComponent],
+      providers: [
+        provideRouter([]),
+        { provide: BoardStore, useValue: storeStub },
+        { provide: CommentsStore, useValue: commentsStub },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(BoardComponent);
+    fixture.componentRef.setInput('projectId', '10');
+    fixture.detectChanges();
+  });
+
+  it('keeps the draft when creating a work-item comment fails and clears it on success', async () => {
+    commentsStub.createWorkItem.mockResolvedValueOnce(false);
+    fixture.componentInstance.commentDraft = '  Texto importante ';
+
+    await fixture.componentInstance.submitWorkComment();
+
+    expect(commentsStub.createWorkItem).toHaveBeenCalledWith(500, 'Texto importante');
+    expect(fixture.componentInstance.commentDraft).toBe('  Texto importante ');
+
+    commentsStub.createWorkItem.mockResolvedValueOnce(true);
+    await fixture.componentInstance.submitWorkComment();
+
+    expect(fixture.componentInstance.commentDraft).toBe('');
+  });
+
+  it('stays in edit mode when saving a work-item comment fails and exits on success', async () => {
+    commentsStub.update.mockResolvedValueOnce(false);
+    fixture.componentInstance.editingCommentId.set(7);
+    fixture.componentInstance.editingContent.set('Corregido');
+
+    await fixture.componentInstance.saveComment(7);
+
+    expect(commentsStub.update).toHaveBeenCalledWith(7, 'Corregido', 'workItem');
+    expect(fixture.componentInstance.editingCommentId()).toBe(7);
+
+    commentsStub.update.mockResolvedValueOnce(true);
+    await fixture.componentInstance.saveComment(7);
+
+    expect(fixture.componentInstance.editingCommentId()).toBeNull();
+  });
+
+  it('keeps the delete confirmation open when deleting a work-item comment fails and closes it on success', async () => {
+    commentsStub.delete.mockResolvedValueOnce(false);
+    fixture.componentInstance.deletingCommentId.set(7);
+
+    await fixture.componentInstance.deleteCommentConfirmed();
+
+    expect(commentsStub.delete).toHaveBeenCalledWith(7, 'workItem');
+    expect(fixture.componentInstance.deletingCommentId()).toBe(7);
+
+    commentsStub.delete.mockResolvedValueOnce(true);
+    await fixture.componentInstance.deleteCommentConfirmed();
+
+    expect(fixture.componentInstance.deletingCommentId()).toBeNull();
+  });
+
+  it('shows the failure reason inside the still-open comment delete dialog, not behind its backdrop', async () => {
+    commentsStub.delete.mockImplementationOnce(async () => {
+      commentsStub.error.set('No se pudo eliminar el comentario');
+      return false;
+    });
+    fixture.componentInstance.deletingCommentId.set(7);
+    fixture.detectChanges();
+
+    await fixture.componentInstance.deleteCommentConfirmed();
+    fixture.detectChanges();
+
+    const dialog = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="comment-delete-dialog"]');
+    expect(dialog).not.toBeNull();
+    const panel = dialog?.querySelector('.fp-dialog__panel');
+    const alert = panel?.querySelector('[data-testid="comment-delete-dialog-error"]');
+    expect(alert?.getAttribute('role')).toBe('alert');
+    expect(alert?.textContent).toContain('No se pudo eliminar el comentario');
+    // The section-level copy is suppressed while the dialog is open so the
+    // same message is not announced twice by two `role="alert"` nodes.
+    const sectionAlerts = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.work-comments [role="alert"]'),
+    );
+    expect(sectionAlerts).toHaveLength(0);
   });
 });
 
