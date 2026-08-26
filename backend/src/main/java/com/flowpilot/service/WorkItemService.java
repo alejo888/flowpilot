@@ -84,7 +84,7 @@ public class WorkItemService {
         validateSprint(projectId, item.getSprintId());
         validateAssignee(projectId, item.getAssignedUserId());
         item = workItemRepository.save(item);
-            if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED, "Work item created", "{}");
+            if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED, "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
         return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
     }
 
@@ -117,7 +117,7 @@ public class WorkItemService {
             item.setPriority(request.priority());
         }
         item.touch();
-            if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_UPDATED, "Work item updated", "{}");
+            if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_UPDATED, "Se actualizó la tarea \"" + item.getTitle() + "\"", "{}");
         return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
     }
 
@@ -126,7 +126,7 @@ public class WorkItemService {
         WorkItem item = getOrThrow(id);
         requirePermission(requesterId, item.getProjectId(), Permission.WORKITEM_DELETE);
         workItemRepository.delete(item);
-            if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_DELETED, "Work item deleted", "{}");
+            if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_DELETED, "Se eliminó la tarea \"" + item.getTitle() + "\"", "{}");
     }
 
     /**

@@ -46,7 +46,7 @@ public class SprintService {
         Sprint sprint = new Sprint(
                 projectId, request.name(), request.goal(), request.startDate(), request.endDate());
             SprintResponse response = toResponse(sprintRepository.save(sprint));
-            if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.SPRINT_CREATED, "Sprint created", "{}");
+            if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.SPRINT_CREATED, "Se creó el sprint \"" + sprint.getName() + "\"", "{}");
             return response;
     }
 
@@ -66,7 +66,7 @@ public class SprintService {
         }
         validateDates(request.startDate(), request.endDate());
         sprint.update(request.name(), request.goal(), request.startDate(), request.endDate());
-            if (activityService != null) activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_UPDATED, "Sprint updated", "{}");
+            if (activityService != null) activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_UPDATED, "Se actualizó el sprint \"" + sprint.getName() + "\"", "{}");
         return toResponse(sprint);
     }
 
@@ -79,7 +79,7 @@ public class SprintService {
         }
         try {
             sprint.start();
-            if (activityService != null) activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_STARTED, "Sprint started", "{}");
+            if (activityService != null) activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_STARTED, "Se inició el sprint \"" + sprint.getName() + "\"", "{}");
         } catch (IllegalStateException ex) {
             throw new InvalidSprintException(ex.getMessage());
         }
@@ -92,7 +92,7 @@ public class SprintService {
         requirePermission(requesterId, sprint.getProjectId());
         try {
             sprint.complete();
-            if (activityService != null) activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_COMPLETED, "Sprint completed", "{}");
+            if (activityService != null) activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_COMPLETED, "Se completó el sprint \"" + sprint.getName() + "\"", "{}");
         } catch (IllegalStateException ex) {
             throw new InvalidSprintException(ex.getMessage());
         }

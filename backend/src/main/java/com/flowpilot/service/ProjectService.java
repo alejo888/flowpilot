@@ -71,7 +71,7 @@ public class ProjectService {
 
         project = projectRepository.save(project);
         seedDefaultColumns(project.getId());
-        record(project.getId(), ownerId, ActivityEventType.PROJECT_CREATED, "Project created");
+        record(project.getId(), ownerId, ActivityEventType.PROJECT_CREATED, "Se creó el proyecto \"" + project.getName() + "\"");
         return toResponse(project);
     }
 
@@ -113,7 +113,7 @@ public class ProjectService {
         applyRichFields(project, code, request.startDate(), request.estimatedEndDate(),
                 request.technologies(), request.repositoryUrl());
         project.touch();
-        record(id, userId, ActivityEventType.PROJECT_UPDATED, "Project updated");
+        record(id, userId, ActivityEventType.PROJECT_UPDATED, "Se actualizó el proyecto \"" + project.getName() + "\"");
         return toResponse(project);
     }
 
@@ -123,7 +123,8 @@ public class ProjectService {
         Project project = getOrThrow(id);
         project.setStatus(request.status());
         project.touch();
-        record(id, userId, ActivityEventType.PROJECT_STATUS_CHANGED, "Project status changed");
+        record(id, userId, ActivityEventType.PROJECT_STATUS_CHANGED,
+                "Se cambió el estado del proyecto \"" + project.getName() + "\" a " + request.status());
         return toResponse(project);
     }
 

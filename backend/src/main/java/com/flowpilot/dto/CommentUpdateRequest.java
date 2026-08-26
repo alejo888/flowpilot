@@ -1,4 +1,6 @@
 package com.flowpilot.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-public record CommentUpdateRequest(@NotBlank @Size(max=4000) String content) {}
+public record CommentUpdateRequest(
+        @NotBlank(message = "El contenido no puede estar vacío")
+        @Size(max = 4000, message = "El contenido no puede superar los 4000 caracteres") String content) {}
