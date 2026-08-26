@@ -20,7 +20,8 @@ export type Permission =
   | 'WORKITEM_CREATE'
   | 'WORKITEM_EDIT'
   | 'WORKITEM_DELETE'
-  | 'WORKITEM_MOVE';
+  | 'WORKITEM_MOVE'
+  | 'COMMENT_CREATE';
 
 export interface RolePermissionCatalogEntry {
   key: Permission;

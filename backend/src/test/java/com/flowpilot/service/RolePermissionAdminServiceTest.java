@@ -96,7 +96,7 @@ class RolePermissionAdminServiceTest {
                 List.of(new RolePermissionGrant(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, true)), null);
 
         assertThatThrownBy(() -> service.replaceAll(2L, request)).isInstanceOf(AccessDeniedException.class);
-        verify(rolePermissionRepository, never()).findAll();
+        verify(rolePermissionRepository, never()).findAllForUpdate();
     }
 
     @Test
@@ -105,15 +105,15 @@ class RolePermissionAdminServiceTest {
         User admin = user(3L, GlobalRole.ADMINISTRADOR);
         OffsetDateTime persisted = OffsetDateTime.parse("2026-02-01T00:00:00Z");
         OffsetDateTime stale = OffsetDateTime.parse("2026-01-01T00:00:00Z");
+        RolePermission row = rowWithUpdatedAt(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, false, persisted);
         when(userRepository.findById(3L)).thenReturn(Optional.of(admin));
-        when(rolePermissionRepository.findMaxUpdatedAt()).thenReturn(Optional.of(persisted));
+        when(rolePermissionRepository.findAllForUpdate()).thenReturn(List.of(row));
         RolePermissionUpdateRequest request = new RolePermissionUpdateRequest(
                 List.of(new RolePermissionGrant(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, true)), stale);
 
         assertThatThrownBy(() -> service.replaceAll(3L, request))
                 .isInstanceOf(RolePermissionConcurrencyException.class);
 
-        verify(rolePermissionRepository, never()).findAll();
         verify(rolePermissionRepository, never()).saveAll(anyIterable());
         verify(projectAuthorizationService, never()).reloadCache();
     }
@@ -123,11 +123,11 @@ class RolePermissionAdminServiceTest {
         setUp();
         User admin = user(3L, GlobalRole.ADMINISTRADOR);
         OffsetDateTime persisted = OffsetDateTime.parse("2026-02-01T00:00:00Z");
-        RolePermission row = new RolePermission(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, false);
+        RolePermission row = rowWithUpdatedAt(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, false, persisted);
         when(userRepository.findById(3L)).thenReturn(Optional.of(admin));
-        when(rolePermissionRepository.findMaxUpdatedAt()).thenReturn(Optional.of(persisted))
-                .thenReturn(Optional.of(persisted));
+        when(rolePermissionRepository.findAllForUpdate()).thenReturn(List.of(row));
         when(rolePermissionRepository.findAll()).thenReturn(List.of(row));
+        when(rolePermissionRepository.findMaxUpdatedAt()).thenReturn(Optional.of(persisted));
         RolePermissionUpdateRequest request = new RolePermissionUpdateRequest(
                 List.of(new RolePermissionGrant(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, true)), persisted);
 
@@ -140,11 +140,50 @@ class RolePermissionAdminServiceTest {
         assertThat(response.grants()).extracting(RolePermissionGrant::granted).containsExactly(true);
     }
 
+    @Test
+    void deactivatedAdministradorIsDeniedOnGetMatrix() throws Exception {
+        setUp();
+        User deactivatedAdmin = user(4L, GlobalRole.ADMINISTRADOR, false);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(deactivatedAdmin));
+
+        assertThatThrownBy(() -> service.getMatrix(4L)).isInstanceOf(AccessDeniedException.class);
+
+        verify(rolePermissionRepository, never()).findAll();
+    }
+
+    @Test
+    void deactivatedAdministradorIsDeniedOnReplaceAll() throws Exception {
+        setUp();
+        User deactivatedAdmin = user(4L, GlobalRole.ADMINISTRADOR, false);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(deactivatedAdmin));
+        RolePermissionUpdateRequest request = new RolePermissionUpdateRequest(
+                List.of(new RolePermissionGrant(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, true)), null);
+
+        assertThatThrownBy(() -> service.replaceAll(4L, request)).isInstanceOf(AccessDeniedException.class);
+
+        verify(rolePermissionRepository, never()).findAllForUpdate();
+        verify(rolePermissionRepository, never()).saveAll(anyIterable());
+        verify(projectAuthorizationService, never()).reloadCache();
+    }
+
     private User user(Long id, GlobalRole role) throws Exception {
-        User user = new User("Name", "user" + id + "@flowpilot.local", "hash", role, true);
+        return user(id, role, true);
+    }
+
+    private User user(Long id, GlobalRole role, boolean active) throws Exception {
+        User user = new User("Name", "user" + id + "@flowpilot.local", "hash", role, active);
         Field field = User.class.getDeclaredField("id");
         field.setAccessible(true);
         field.set(user, id);
         return user;
+    }
+
+    private RolePermission rowWithUpdatedAt(
+            ProjectRole role, Permission permission, boolean granted, OffsetDateTime updatedAt) throws Exception {
+        RolePermission row = new RolePermission(role, permission, granted);
+        Field field = RolePermission.class.getDeclaredField("updatedAt");
+        field.setAccessible(true);
+        field.set(row, updatedAt);
+        return row;
     }
 }

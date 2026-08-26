@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, ElementRef, OnInit, effect, inject, viewChild } from '@angular/core';
 
 import { FpButtonComponent } from '../../shared/ui/button.component';
 import { FpCardComponent } from '../../shared/ui/card.component';
@@ -6,15 +6,13 @@ import { Permission, ProjectRole } from './role-permission.model';
 import { RolePermissionsStore } from './role-permissions.store';
 
 /**
- * Admin-only 6x9 permission-matrix grid (spec: role-permissions). Renders a
+ * Admin-only 6x10 permission-matrix grid (spec: role-permissions). Renders a
  * checkbox per (role, permission) cell, delegates dirty-tracking and the
  * explicit bulk save to {@link RolePermissionsStore}, and shows a
  * reload-and-warn dialog on a 409 (stale `expectedUpdatedAt`) instead of
- * silently discarding the caller's edits. NOT yet wired into
- * `app.routes.ts`/app shell — same disclosed-gap pattern as
- * `features/board` and `features/admin-users`. Visual layer uses the
- * FlowPilot shared/ui kit (fp-card/fp-button) — behavior is unchanged from
- * the raw-HTML version this replaces.
+ * silently discarding the caller's edits. Visual layer uses the FlowPilot
+ * shared/ui kit (fp-card/fp-button) — behavior is unchanged from the
+ * raw-HTML version this replaces.
  */
 @Component({
   selector: 'app-admin-permissions',
@@ -25,12 +23,27 @@ import { RolePermissionsStore } from './role-permissions.store';
       <h1 class="admin-permissions-title">Permisos por rol</h1>
 
       @if (error(); as message) {
-        <p data-testid="admin-permissions-error" class="admin-permissions-error">{{ message }}</p>
+        <p
+          data-testid="admin-permissions-error"
+          class="admin-permissions-error"
+          role="alert"
+          aria-live="assertive"
+        >
+          {{ message }}
+        </p>
       }
 
       @if (conflict()) {
-        <fp-card data-testid="conflict-dialog" class="conflict-dialog">
-          <p class="conflict-dialog-text">
+        <fp-card
+          #conflictDialog
+          data-testid="conflict-dialog"
+          class="conflict-dialog"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="conflict-dialog-text"
+          tabindex="-1"
+        >
+          <p id="conflict-dialog-text" class="conflict-dialog-text">
             La matriz de permisos fue modificada por otro administrador desde que la cargaste.
             Tus cambios locales se perderán si recargas.
           </p>
@@ -42,18 +55,21 @@ import { RolePermissionsStore } from './role-permissions.store';
 
       <fp-card class="matrix-card">
         <table class="matrix-table">
+          <caption class="matrix-caption">
+            Matriz de permisos por rol de proyecto
+          </caption>
           <thead>
             <tr>
-              <th>Rol</th>
+              <th scope="col">Rol</th>
               @for (permission of permissions(); track permission.key) {
-                <th [title]="permission.description">{{ permission.label }}</th>
+                <th scope="col" [title]="permission.description">{{ permission.label }}</th>
               }
             </tr>
           </thead>
           <tbody>
             @for (role of roles(); track role) {
               <tr>
-                <td class="matrix-role">{{ role }}</td>
+                <th scope="row" class="matrix-role">{{ role }}</th>
                 @for (permission of permissions(); track permission.key) {
                   <td class="matrix-cell">
                     <input
@@ -128,6 +144,18 @@ import { RolePermissionsStore } from './role-permissions.store';
       color: var(--fp-text);
     }
 
+    .matrix-caption {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
     .matrix-table th {
       text-align: left;
       font-size: 0.8125rem;
@@ -138,9 +166,6 @@ import { RolePermissionsStore } from './role-permissions.store';
     }
 
     .matrix-role {
-      font-weight: 600;
-      padding: var(--fp-space-2) var(--fp-space-3);
-      border-bottom: 1px solid var(--fp-border);
       white-space: nowrap;
     }
 
@@ -164,6 +189,7 @@ import { RolePermissionsStore } from './role-permissions.store';
 })
 export class AdminPermissionsComponent implements OnInit {
   private readonly store = inject(RolePermissionsStore);
+  private readonly conflictDialog = viewChild('conflictDialog', { read: ElementRef });
 
   readonly roles = this.store.roles;
   readonly permissions = this.store.permissions;
@@ -171,6 +197,17 @@ export class AdminPermissionsComponent implements OnInit {
   readonly conflict = this.store.conflict;
   readonly saving = this.store.saving;
   readonly hasDirtyChanges = this.store.hasDirtyChanges;
+
+  constructor() {
+    // Moves focus into the conflict alertdialog as soon as it renders, so a
+    // screen-reader user is told about the 409 instead of it appearing
+    // silently below the fold.
+    effect(() => {
+      if (this.conflict()) {
+        (this.conflictDialog()?.nativeElement as HTMLElement | undefined)?.focus();
+      }
+    });
+  }
 
   ngOnInit(): void {
     this.store.load();
