@@ -3,6 +3,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
 import { AuthStore } from '../../../core/auth/auth.store';
+import { Project } from '../project.model';
+import { ProjectsStore } from '../projects.store';
 import { ProjectMember } from './project-member.model';
 import { ProjectMembersComponent } from './project-members.component';
 import { ProjectMembersStore } from './project-members.store';
@@ -20,6 +22,24 @@ function member(id: number, userId: number): ProjectMember {
 
 function user(id: number, name: string, email: string): UserSummary {
   return { id, name, email };
+}
+
+function project(callerPermissions: Project['callerPermissions'] = ['MEMBER_ADD', 'MEMBER_REMOVE', 'MEMBER_CHANGE_ROLE']): Project {
+  return {
+    id: 10,
+    name: 'Proyecto',
+    description: null,
+    status: 'PLANIFICACION',
+    ownerId: 7,
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: '2026-08-01T00:00:00Z',
+    code: null,
+    startDate: null,
+    estimatedEndDate: null,
+    technologies: null,
+    repositoryUrl: null,
+    callerPermissions,
+  };
 }
 
 describe('ProjectMembersComponent', () => {
@@ -40,6 +60,7 @@ describe('ProjectMembersComponent', () => {
     removeMember: ReturnType<typeof vi.fn>;
   };
   let authStoreStub: { currentUserId: ReturnType<typeof signal<number | null>> };
+  let projectsStoreStub: { selectedProject: ReturnType<typeof signal<Project | null>>; loadProject: ReturnType<typeof vi.fn> };
 
   async function setup(): Promise<void> {
     await TestBed.configureTestingModule({
@@ -48,6 +69,7 @@ describe('ProjectMembersComponent', () => {
         provideRouter([]),
         { provide: ProjectMembersStore, useValue: storeStub },
         { provide: AuthStore, useValue: authStoreStub },
+        { provide: ProjectsStore, useValue: projectsStoreStub },
       ],
     }).compileComponents();
 
@@ -57,6 +79,7 @@ describe('ProjectMembersComponent', () => {
   }
 
   beforeEach(() => {
+    projectsStoreStub = { selectedProject: signal(project()), loadProject: vi.fn() };
     storeStub = {
       members: signal([]),
       users: signal([]),
@@ -80,6 +103,7 @@ describe('ProjectMembersComponent', () => {
 
     expect(storeStub.loadMembers).toHaveBeenCalledWith(10);
     expect(storeStub.loadUsers).toHaveBeenCalled();
+    expect(projectsStoreStub.loadProject).toHaveBeenCalledWith(10);
   });
 
   it('shows the loading state while the store is fetching', async () => {
@@ -381,5 +405,46 @@ describe('ProjectMembersComponent', () => {
 
     expect(storeStub.removeMember).not.toHaveBeenCalled();
     expect(compiled.querySelector('[data-testid="self-remove-dialog"]')).toBeFalsy();
+  });
+
+  it('enables add/remove/role controls when the caller holds the matching permissions', async () => {
+    storeStub.members.set([member(1, 7)]);
+    projectsStoreStub.selectedProject.set(project(['MEMBER_ADD', 'MEMBER_REMOVE', 'MEMBER_CHANGE_ROLE']));
+    await setup();
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const addSubmit = compiled.querySelector('[data-testid="member-add-submit"]') as HTMLButtonElement;
+    const removeBtn = compiled.querySelector('[data-testid="member-remove"]') as HTMLButtonElement;
+    const roleSelect = compiled.querySelector('[data-testid="member-role-select"]') as HTMLSelectElement;
+
+    expect(addSubmit.disabled).toBe(false);
+    expect(removeBtn.disabled).toBe(false);
+    expect(roleSelect.disabled).toBe(false);
+  });
+
+  it('disables add/remove/role controls when the caller lacks the matching permissions', async () => {
+    storeStub.members.set([member(1, 7)]);
+    projectsStoreStub.selectedProject.set(project([]));
+    await setup();
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const addSubmit = compiled.querySelector('[data-testid="member-add-submit"]') as HTMLButtonElement;
+    const removeBtn = compiled.querySelector('[data-testid="member-remove"]') as HTMLButtonElement;
+    const roleSelect = compiled.querySelector('[data-testid="member-role-select"]') as HTMLSelectElement;
+
+    expect(addSubmit.disabled).toBe(true);
+    expect(removeBtn.disabled).toBe(true);
+    expect(roleSelect.disabled).toBe(true);
+  });
+
+  it('fails closed (disables gated controls) while the parent project has not loaded yet', async () => {
+    projectsStoreStub.selectedProject.set(null);
+    await setup();
+
+    expect(fixture.componentInstance.canAddMember()).toBe(false);
+    expect(fixture.componentInstance.canRemoveMember()).toBe(false);
+    expect(fixture.componentInstance.canChangeRole()).toBe(false);
   });
 });

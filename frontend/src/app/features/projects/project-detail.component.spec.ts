@@ -7,7 +7,11 @@ import { ProjectDetailComponent } from './project-detail.component';
 import { ProjectsStore } from './projects.store';
 import { CommentsStore } from '../comments/comments.store';
 
-function project(id = 4, status: Project['status'] = 'PLANIFICACION'): Project {
+function project(
+  id = 4,
+  status: Project['status'] = 'PLANIFICACION',
+  callerPermissions: Project['callerPermissions'] = ['PROJECT_EDIT_SETTINGS', 'PROJECT_DELETE'],
+): Project {
   return {
     id,
     name: 'Proyecto detalle',
@@ -21,6 +25,7 @@ function project(id = 4, status: Project['status'] = 'PLANIFICACION'): Project {
     estimatedEndDate: '2026-06-01',
     technologies: 'Angular',
     repositoryUrl: 'https://github.com/org/repo',
+    callerPermissions,
   };
 }
 
@@ -219,6 +224,42 @@ it('navigates only after deletion succeeds', async () => {
 
     expect(navigateSpy).not.toHaveBeenCalled();
     expect(fixture.componentInstance.confirmingDelete()).toBe(true);
+  });
+
+  it('enables edit/status/delete controls when the caller holds the matching permissions', () => {
+    storeStub.selectedProject.set(project(4, 'PLANIFICACION', ['PROJECT_EDIT_SETTINGS', 'PROJECT_DELETE']));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const submit = compiled.querySelector('[data-testid="project-edit-submit"]') as HTMLButtonElement;
+    const statusSelect = compiled.querySelector('[data-testid="project-status-select"]') as HTMLSelectElement;
+    const deleteBtn = compiled.querySelector('[data-testid="project-delete"]') as HTMLButtonElement;
+
+    expect(submit.disabled).toBe(false);
+    expect(statusSelect.disabled).toBe(false);
+    expect(deleteBtn.disabled).toBe(false);
+  });
+
+  it('disables edit/status/delete controls when the caller lacks the matching permissions', () => {
+    storeStub.selectedProject.set(project(4, 'PLANIFICACION', []));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const submit = compiled.querySelector('[data-testid="project-edit-submit"]') as HTMLButtonElement;
+    const statusSelect = compiled.querySelector('[data-testid="project-status-select"]') as HTMLSelectElement;
+    const deleteBtn = compiled.querySelector('[data-testid="project-delete"]') as HTMLButtonElement;
+
+    expect(submit.disabled).toBe(true);
+    expect(statusSelect.disabled).toBe(true);
+    expect(deleteBtn.disabled).toBe(true);
+  });
+
+  it('fails closed (disables all gated controls) while the project has not loaded yet', () => {
+    storeStub.selectedProject.set(null);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.canEditSettings()).toBe(false);
+    expect(fixture.componentInstance.canDelete()).toBe(false);
   });
 });
 

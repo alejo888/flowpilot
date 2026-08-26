@@ -6,6 +6,26 @@ import { WorkItem } from '../board/board.model';
 import { BacklogComponent } from './backlog.component';
 import { BacklogStore } from './backlog.store';
 import { Sprint } from './backlog.model';
+import { Project } from '../projects/project.model';
+import { ProjectsStore } from '../projects/projects.store';
+
+function project(callerPermissions: Project['callerPermissions'] = ['SPRINT_MANAGE']): Project {
+  return {
+    id: 10,
+    name: 'Proyecto',
+    description: null,
+    status: 'PLANIFICACION',
+    ownerId: 7,
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: '2026-08-01T00:00:00Z',
+    code: null,
+    startDate: null,
+    estimatedEndDate: null,
+    technologies: null,
+    repositoryUrl: null,
+    callerPermissions,
+  };
+}
 
 function sprint(id = 7, status: Sprint['status'] = 'PLANNED'): Sprint {
   return {
@@ -54,8 +74,10 @@ describe('BacklogComponent', () => {
     completeSprint: ReturnType<typeof vi.fn>;
     assignItem: ReturnType<typeof vi.fn>;
   };
+  let projectsStoreStub: { selectedProject: ReturnType<typeof signal<Project | null>>; loadProject: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
+    projectsStoreStub = { selectedProject: signal(project()), loadProject: vi.fn() };
     store = {
       items: signal([]),
       sprints: signal([]),
@@ -76,7 +98,11 @@ describe('BacklogComponent', () => {
   async function setup(): Promise<void> {
     await TestBed.configureTestingModule({
       imports: [BacklogComponent],
-      providers: [provideRouter([]), { provide: BacklogStore, useValue: store }],
+      providers: [
+        provideRouter([]),
+        { provide: BacklogStore, useValue: store },
+        { provide: ProjectsStore, useValue: projectsStoreStub },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(BacklogComponent);
     fixture.componentRef.setInput('projectId', '10');
@@ -157,5 +183,46 @@ describe('BacklogComponent', () => {
 
     const select = fixture.nativeElement.querySelector('[data-testid="item-sprint-1"]') as HTMLSelectElement;
     expect(select.disabled).toBe(true);
+  });
+
+  it('enables sprint create/start/complete controls when the caller holds SPRINT_MANAGE', async () => {
+    projectsStoreStub.selectedProject.set(project(['SPRINT_MANAGE']));
+    store.sprints.set([sprint(7, 'ACTIVE')]);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const createSubmit = compiled.querySelector('[data-testid="sprint-name"]')
+      ?.closest('form')
+      ?.querySelector('button[type="submit"]') as HTMLButtonElement;
+    const completeButton = Array.from(compiled.querySelectorAll('button')).find((btn) =>
+      btn.textContent?.includes('Completar sprint'),
+    ) as HTMLButtonElement;
+
+    expect(createSubmit.disabled).toBe(false);
+    expect(completeButton.disabled).toBe(false);
+  });
+
+  it('disables sprint create/start/complete controls when the caller lacks SPRINT_MANAGE', async () => {
+    projectsStoreStub.selectedProject.set(project([]));
+    store.sprints.set([sprint(7, 'PLANNED')]);
+    await setup();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const createSubmit = compiled.querySelector('[data-testid="sprint-name"]')
+      ?.closest('form')
+      ?.querySelector('button[type="submit"]') as HTMLButtonElement;
+    const startButton = Array.from(compiled.querySelectorAll('button')).find((btn) =>
+      btn.textContent?.includes('Iniciar sprint'),
+    ) as HTMLButtonElement;
+
+    expect(createSubmit.disabled).toBe(true);
+    expect(startButton.disabled).toBe(true);
+  });
+
+  it('fails closed (disables gated controls) while the parent project has not loaded yet', async () => {
+    projectsStoreStub.selectedProject.set(null);
+    await setup();
+
+    expect(fixture.componentInstance.canManageSprints()).toBe(false);
   });
 });

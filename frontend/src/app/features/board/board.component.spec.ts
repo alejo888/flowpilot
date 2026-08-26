@@ -6,9 +6,37 @@ import { BoardComponent } from './board.component';
 import { BoardStore } from './board.store';
 import { BoardColumn, WorkItem } from './board.model';
 import { CommentsStore } from '../comments/comments.store';
+import { Project } from '../projects/project.model';
+import { ProjectsStore } from '../projects/projects.store';
 
 function column(id: number, name: string, position: number): BoardColumn {
   return { id, name, position };
+}
+
+function project(
+  callerPermissions: Project['callerPermissions'] = [
+    'WORKITEM_CREATE',
+    'WORKITEM_EDIT',
+    'WORKITEM_DELETE',
+    'WORKITEM_MOVE',
+    'COMMENT_CREATE',
+  ],
+): Project {
+  return {
+    id: 10,
+    name: 'Proyecto',
+    description: null,
+    status: 'PLANIFICACION',
+    ownerId: 7,
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: '2026-08-01T00:00:00Z',
+    code: null,
+    startDate: null,
+    estimatedEndDate: null,
+    technologies: null,
+    repositoryUrl: null,
+    callerPermissions,
+  };
 }
 
 function item(id: number, columnId: number, position: number, title: string): WorkItem {
@@ -44,6 +72,7 @@ describe('BoardComponent', () => {
     deleteItem: ReturnType<typeof vi.fn>;
     moveItem: ReturnType<typeof vi.fn>;
   };
+  let projectsStoreStub: { selectedProject: ReturnType<typeof signal<Project | null>>; loadProject: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     storeStub = {
@@ -65,10 +94,15 @@ describe('BoardComponent', () => {
       deleteItem: vi.fn(),
       moveItem: vi.fn(),
     };
+    projectsStoreStub = { selectedProject: signal(project()), loadProject: vi.fn() };
 
     await TestBed.configureTestingModule({
       imports: [BoardComponent],
-      providers: [provideRouter([]), { provide: BoardStore, useValue: storeStub }],
+      providers: [
+        provideRouter([]),
+        { provide: BoardStore, useValue: storeStub },
+        { provide: ProjectsStore, useValue: projectsStoreStub },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(BoardComponent);
@@ -361,6 +395,56 @@ describe('BoardComponent', () => {
 
     expect(storeStub.moveItem).toHaveBeenCalledWith(500, 2, 0);
   });
+
+  it('enables create/edit/delete/move controls when the caller holds the matching permissions', () => {
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(findButton(compiled, 'Crear tarea').disabled).toBe(false);
+    expect(findButton(compiled, 'Guardar cambios').disabled).toBe(false);
+    expect((compiled.querySelector('[data-testid="detail-delete-button"]') as HTMLButtonElement).disabled).toBe(false);
+    expect((compiled.querySelector('[data-testid="move-to-column-select"]') as HTMLSelectElement).disabled).toBe(false);
+    expect(fixture.componentInstance.canCreateWorkItem()).toBe(true);
+  });
+
+  it('disables create/edit/delete/move controls when the caller lacks the matching permissions', () => {
+    projectsStoreStub.selectedProject.set(project([]));
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(findButton(compiled, 'Crear tarea').disabled).toBe(true);
+    expect(findButton(compiled, 'Guardar cambios').disabled).toBe(true);
+    expect((compiled.querySelector('[data-testid="detail-delete-button"]') as HTMLButtonElement).disabled).toBe(true);
+    expect((compiled.querySelector('[data-testid="move-to-column-select"]') as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it('no-ops a drop without calling store.moveItem when the caller lacks WORKITEM_MOVE', () => {
+    projectsStoreStub.selectedProject.set(project([]));
+    fixture.detectChanges();
+
+    const dropEvent = {
+      previousContainer: { data: 1, id: 'column-1' },
+      container: { data: 2, id: 'column-2' },
+      currentIndex: 0,
+      item: { data: item(500, 1, 1024, 'Design schema') },
+    };
+
+    fixture.componentInstance.onDrop(dropEvent as never);
+
+    expect(storeStub.moveItem).not.toHaveBeenCalled();
+  });
+
+  it('fails closed (disables gated controls) while the parent project has not loaded yet', () => {
+    projectsStoreStub.selectedProject.set(null);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.canCreateWorkItem()).toBe(false);
+    expect(fixture.componentInstance.canEditWorkItem()).toBe(false);
+    expect(fixture.componentInstance.canDeleteWorkItem()).toBe(false);
+    expect(fixture.componentInstance.canMoveWorkItem()).toBe(false);
+  });
 });
 
 describe('BoardComponent work-item comments', () => {
@@ -392,6 +476,7 @@ describe('BoardComponent work-item comments', () => {
     update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
   };
+  let projectsStoreStub: { selectedProject: ReturnType<typeof signal<Project | null>>; loadProject: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     storeStub = {
@@ -421,6 +506,7 @@ describe('BoardComponent work-item comments', () => {
       update: vi.fn(),
       delete: vi.fn(),
     };
+    projectsStoreStub = { selectedProject: signal(project()), loadProject: vi.fn() };
 
     await TestBed.configureTestingModule({
       imports: [BoardComponent],
@@ -428,6 +514,7 @@ describe('BoardComponent work-item comments', () => {
         provideRouter([]),
         { provide: BoardStore, useValue: storeStub },
         { provide: CommentsStore, useValue: commentsStub },
+        { provide: ProjectsStore, useValue: projectsStoreStub },
       ],
     }).compileComponents();
 

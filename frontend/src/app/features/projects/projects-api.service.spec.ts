@@ -36,6 +36,7 @@ describe('ProjectsApiService', () => {
         estimatedEndDate: null,
         technologies: null,
         repositoryUrl: null,
+        callerPermissions: [],
       },
       {
         id: 2,
@@ -50,6 +51,7 @@ describe('ProjectsApiService', () => {
         estimatedEndDate: '2026-06-01',
         technologies: 'Angular, Spring Boot',
         repositoryUrl: 'https://github.com/org/repo',
+        callerPermissions: [],
       },
     ];
     let result: Project[] | undefined;
@@ -134,6 +136,7 @@ describe('ProjectsApiService', () => {
       estimatedEndDate: '2026-08-01',
       technologies: 'Angular, Spring Boot',
       repositoryUrl: 'https://github.com/org/repo3',
+      callerPermissions: [],
     };
     let result: Project | undefined;
 
