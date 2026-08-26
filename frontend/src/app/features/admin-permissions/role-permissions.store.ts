@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
+import { AuthStore } from '../../core/auth/auth.store';
 import { RolePermissionsApiService } from './role-permissions-api.service';
 import {
   Permission,
@@ -27,6 +28,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class RolePermissionsStore {
   private readonly api = inject(RolePermissionsApiService);
+  private readonly auth = inject(AuthStore, { optional: true });
 
   private readonly rolesSignal = signal<ProjectRole[]>([]);
   private readonly permissionsSignal = signal<RolePermissionCatalogEntry[]>([]);
@@ -54,6 +56,26 @@ export class RolePermissionsStore {
     }
     return false;
   });
+
+  constructor() {
+    effect(() => {
+      if (this.auth && !this.auth.isAuthenticated()) {
+        this.reset();
+      }
+    });
+  }
+
+  /** Clears all state back to its initial empty shape (e.g. on logout). */
+  reset(): void {
+    this.rolesSignal.set([]);
+    this.permissionsSignal.set([]);
+    this.updatedAtSignal.set(null);
+    this.baselineSignal.set(new Map());
+    this.workingSignal.set(new Map());
+    this.errorSignal.set(null);
+    this.conflictSignal.set(false);
+    this.savingSignal.set(false);
+  }
 
   load(): void {
     this.errorSignal.set(null);

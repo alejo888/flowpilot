@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { CommentsApiService } from './comments-api.service';
 import { Comment, ActivityEvent } from './comments.model';
@@ -35,6 +35,38 @@ describe('CommentsStore', () => {
     expect(store.projectComments()).toEqual([comment(1)]);
     expect(store.activity()).toEqual([event(1)]);
     expect(store.loading()).toBe(false);
+  });
+
+  it('clears stale project comments and activity synchronously before the new request resolves', () => {
+    store.projectComments.set([comment(1)]);
+    store.activity.set([event(1)]);
+    const comments$ = new Subject<Comment[]>();
+    const activity$ = new Subject<ActivityEvent[]>();
+    api.listProject.mockReturnValue(comments$);
+    api.listActivity.mockReturnValue(activity$);
+
+    store.loadProject(20);
+
+    expect(store.projectComments()).toEqual([]);
+    expect(store.activity()).toEqual([]);
+
+    comments$.next([comment(2)]); comments$.complete();
+    activity$.next([event(2)]); activity$.complete();
+    expect(store.projectComments()).toEqual([comment(2)]);
+    expect(store.activity()).toEqual([event(2)]);
+  });
+
+  it('clears stale work-item comments synchronously before the new request resolves', () => {
+    store.workItemComments.set([comment(1)]);
+    const workItem$ = new Subject<Comment[]>();
+    api.listWorkItem.mockReturnValue(workItem$);
+
+    store.loadWorkItem(60);
+
+    expect(store.workItemComments()).toEqual([]);
+
+    workItem$.next([comment(2)]);
+    expect(store.workItemComments()).toEqual([comment(2)]);
   });
 
   it('loads work-item comments and exposes errors', () => {

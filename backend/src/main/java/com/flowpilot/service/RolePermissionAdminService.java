@@ -18,7 +18,6 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -145,7 +144,7 @@ public class RolePermissionAdminService {
                 persisted = row.getUpdatedAt();
             }
         }
-        if (!Objects.equals(persisted, request.expectedUpdatedAt())) {
+        if (!sameInstant(persisted, request.expectedUpdatedAt())) {
             throw new RolePermissionConcurrencyException();
         }
 
@@ -180,6 +179,25 @@ public class RolePermissionAdminService {
 
     private static String key(ProjectRole role, Permission permission) {
         return role.name() + ":" + permission.name();
+    }
+
+    /**
+     * Null-safe "same point in time" comparison for the optimistic-concurrency
+     * check above. {@code OffsetDateTime.equals()} (what {@code Objects.equals}
+     * would use) also compares the UTC offset, so two values that represent the
+     * identical instant but were serialized with different offsets (e.g.
+     * {@code 10:00:00+01:00} vs {@code 09:00:00Z}) would compare unequal and
+     * trigger a spurious 409 even though nothing actually changed.
+     * {@code OffsetDateTime.isEqual()} compares only the instant, which is what
+     * "did the persisted state move since the client last read it" means here.
+     * Null-handling mirrors {@code Objects.equals}: both null is equal, exactly
+     * one null is not equal.
+     */
+    private static boolean sameInstant(OffsetDateTime a, OffsetDateTime b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+        return a.isEqual(b);
     }
 
     private void requireAdmin(Long callerId) {
