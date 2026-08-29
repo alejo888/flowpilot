@@ -88,6 +88,18 @@ jobs:
           echo "backend never became ready" >&2
           docker compose logs backend
           exit 1
+      - name: Wait for the frontend TLS listener (WebKit e2e origin)
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sk -o /dev/null https://localhost/; then
+              echo "frontend https is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "frontend https never became ready" >&2
+          docker compose logs frontend
+          exit 1
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
