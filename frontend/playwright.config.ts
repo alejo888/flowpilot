@@ -72,13 +72,6 @@ export default defineConfig({
       dependencies: ['mobile-authenticated', 'mobile-guest', 'mobile-focus-trap'],
       use: { browserName: 'chromium', viewport: DESKTOP_VIEWPORT },
     },
-    // Cross-browser coverage is scoped to the guest-only specs
-    // (responsive-overflow.guest / accessibility.guest): those routes need
-    // no login, so they carry none of the refresh-token reuse-detection
-    // concurrency risk documented on `mobile-focus-trap` and
-    // `desktop-sidebar` above. Duplicating the authenticated matrix across
-    // engines would need the same storageState reused concurrently across
-    // browser processes, which is out of scope here.
     {
       name: 'firefox-guest',
       testMatch: /\.guest\.spec\.ts$/,
@@ -90,6 +83,40 @@ export default defineConfig({
       testMatch: /\.guest\.spec\.ts$/,
       testIgnore: /dialog-focus-trap\.guest\.spec\.ts$/,
       use: { browserName: 'webkit', viewport: MOBILE_VIEWPORT },
+    },
+    // Cross-browser coverage for the authenticated + desktop specs, on Firefox.
+    // The refresh-token reuse-detection that made these chromium-only is
+    // handled rather than avoided: (1) global-setup captures a separate admin
+    // session per engine (`admin-firefox.json`), so no engine ever replays
+    // another engine's single-use, already-rotated refresh cookie; (2) both
+    // projects below are chained via `dependencies` back through the chromium
+    // chain, so no two authenticated runs are ever in flight at once — a
+    // rotation collision inside one admin session triggers the backend's
+    // "revoke ALL of this user's sessions" response, which would otherwise
+    // cascade across engines.
+    //
+    // WebKit is not covered: its network stack drops the `Secure` refresh
+    // cookie on the plaintext `http://localhost` e2e origin, so a restored
+    // WebKit session is silently unauthenticated and every authenticated route
+    // redirects to /login. Adding it needs an HTTPS e2e origin, not another
+    // project here.
+    {
+      name: 'firefox-authenticated',
+      testMatch: /\.authenticated\.spec\.ts$/,
+      dependencies: ['desktop-sidebar'],
+      use: {
+        browserName: 'firefox',
+        viewport: MOBILE_VIEWPORT,
+        storageState: path.join(__dirname, 'e2e/.auth/admin-firefox.json'),
+      },
+    },
+    {
+      // `.desktop.spec.ts` logs in itself, so it needs no storageState — just
+      // the same serialization via `dependencies`.
+      name: 'firefox-desktop',
+      testMatch: /\.desktop\.spec\.ts$/,
+      dependencies: ['firefox-authenticated'],
+      use: { browserName: 'firefox', viewport: DESKTOP_VIEWPORT },
     },
   ],
 });
