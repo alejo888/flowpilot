@@ -38,6 +38,9 @@ services:
         condition: service_healthy
     ports:
       - "80:80"
+      # https://localhost with a self-signed cert — used only by the WebKit
+      # e2e projects, which need a `Secure` cookie over TLS (see frontend/nginx.conf).
+      - "443:443"
 
 volumes:
   flowpilot-db-data:
