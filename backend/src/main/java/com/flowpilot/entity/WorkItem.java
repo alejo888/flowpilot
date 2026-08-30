@@ -1,6 +1,7 @@
 package com.flowpilot.entity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -10,6 +11,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A single-type "Tarea" task scoped to a {@link Project} (spec: work-items;
@@ -64,6 +67,29 @@ public class WorkItem {
 
     @Column(nullable = false)
     private int position;
+
+    /**
+     * Ordered acceptance criteria (spec: work-items — "Structured acceptance
+     * criteria"). Persisted to {@code acceptance_criteria jsonb NOT NULL
+     * DEFAULT '[]'} through {@link AcceptanceCriteriaConverter}; never folded
+     * into {@code description}. Always a non-null list — empty when none set.
+     */
+    @Convert(converter = AcceptanceCriteriaConverter.class)
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "acceptance_criteria", columnDefinition = "jsonb", nullable = false)
+    private List<String> acceptanceCriteria = new ArrayList<>();
+
+    /**
+     * Client-asserted provenance (design D4): {@code true} only when the item
+     * was created from a confirmed AI draft. Not a server-verifiable audit
+     * control — records what the client claims.
+     */
+    @Column(name = "ai_generated", nullable = false)
+    private boolean aiGenerated = false;
+
+    /** Model name for an AI-generated item; {@code null} for manual creation or a STUB draft. */
+    @Column(name = "ai_model", length = 120)
+    private String aiModel;
 
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
@@ -167,6 +193,31 @@ public class WorkItem {
 
     public int getPosition() {
         return position;
+    }
+
+    public List<String> getAcceptanceCriteria() {
+        return acceptanceCriteria;
+    }
+
+    /** Replaces the criteria list; {@code null} clears it to an empty list (never stores {@code null}). */
+    public void setAcceptanceCriteria(List<String> acceptanceCriteria) {
+        this.acceptanceCriteria = acceptanceCriteria == null ? new ArrayList<>() : new ArrayList<>(acceptanceCriteria);
+    }
+
+    public boolean isAiGenerated() {
+        return aiGenerated;
+    }
+
+    public void setAiGenerated(boolean aiGenerated) {
+        this.aiGenerated = aiGenerated;
+    }
+
+    public String getAiModel() {
+        return aiModel;
+    }
+
+    public void setAiModel(String aiModel) {
+        this.aiModel = aiModel;
     }
 
     public OffsetDateTime getCreatedAt() {

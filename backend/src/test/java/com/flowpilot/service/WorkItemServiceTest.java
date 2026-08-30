@@ -429,6 +429,106 @@ class WorkItemServiceTest {
                 .isInstanceOf(AccessDeniedException.class);
     }
 
+    @Test
+    void createPersistsAcceptanceCriteriaInOrderAndDoesNotFoldThemIntoDescription() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WorkItemResponse response = workItemService.create(
+                10L,
+                new WorkItemCreateRequest("Historia", "Descripción base", null, null, null,
+                        List.of("Dado A", "Cuando B", "Entonces C"), null, null),
+                1L);
+
+        assertThat(response.acceptanceCriteria()).containsExactly("Dado A", "Cuando B", "Entonces C");
+        assertThat(response.description()).isEqualTo("Descripción base");
+        assertThat(response.description()).doesNotContain("Dado A");
+    }
+
+    @Test
+    void createWithoutAcceptanceCriteriaDefaultsToEmptyListNotNull() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WorkItemResponse response = workItemService.create(
+                10L, new WorkItemCreateRequest("Sin criterios", null, null), 1L);
+
+        assertThat(response.acceptanceCriteria()).isNotNull().isEmpty();
+    }
+
+    @Test
+    void createRecordsClientAssertedAiProvenance() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WorkItemResponse response = workItemService.create(
+                10L,
+                new WorkItemCreateRequest("IA", "desc", null, null, null,
+                        List.of("Un criterio"), true, "llama3"),
+                1L);
+
+        assertThat(response.aiGenerated()).isTrue();
+        assertThat(response.aiModel()).isEqualTo("llama3");
+    }
+
+    @Test
+    void createRecordsStubProvenanceWithNullModel() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WorkItemResponse response = workItemService.create(
+                10L,
+                new WorkItemCreateRequest("IA stub", "desc", null, null, null,
+                        List.of("Un criterio"), true, null),
+                1L);
+
+        assertThat(response.aiGenerated()).isTrue();
+        assertThat(response.aiModel()).isNull();
+    }
+
+    @Test
+    void manualCreateLeavesProvenanceFalseAndModelNull() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WorkItemResponse response = workItemService.create(
+                10L, new WorkItemCreateRequest("Manual", "desc", null), 1L);
+
+        assertThat(response.aiGenerated()).isFalse();
+        assertThat(response.aiModel()).isNull();
+    }
+
+    @Test
+    void updateReplacesAcceptanceCriteria() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Old title", 1024);
+        item.setAcceptanceCriteria(List.of("A"));
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+
+        WorkItemResponse response = workItemService.update(
+                500L,
+                new WorkItemUpdateRequest("New title", null, null, null, null, List.of("X", "Y")),
+                1L);
+
+        assertThat(response.acceptanceCriteria()).containsExactly("X", "Y");
+        assertThat(item.getAcceptanceCriteria()).containsExactly("X", "Y");
+    }
+
     private WorkItem workItem(Long id, Long projectId, Long columnId, String title, int position) throws Exception {
         WorkItem item = new WorkItem(projectId, columnId, title, null, null, position);
         Field field = WorkItem.class.getDeclaredField("id");
