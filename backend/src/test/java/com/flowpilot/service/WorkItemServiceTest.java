@@ -440,7 +440,7 @@ class WorkItemServiceTest {
         WorkItemResponse response = workItemService.create(
                 10L,
                 new WorkItemCreateRequest("Historia", "Descripción base", null, null, null,
-                        List.of("Dado A", "Cuando B", "Entonces C"), null, null),
+                        List.of("Dado A", "Cuando B", "Entonces C"), null, null, null),
                 1L);
 
         assertThat(response.acceptanceCriteria()).containsExactly("Dado A", "Cuando B", "Entonces C");
@@ -473,7 +473,7 @@ class WorkItemServiceTest {
         WorkItemResponse response = workItemService.create(
                 10L,
                 new WorkItemCreateRequest("IA", "desc", null, null, null,
-                        List.of("Un criterio"), true, "llama3"),
+                        List.of("Un criterio"), true, "llama3", null),
                 1L);
 
         assertThat(response.aiGenerated()).isTrue();
@@ -491,7 +491,7 @@ class WorkItemServiceTest {
         WorkItemResponse response = workItemService.create(
                 10L,
                 new WorkItemCreateRequest("IA stub", "desc", null, null, null,
-                        List.of("Un criterio"), true, null),
+                        List.of("Un criterio"), true, null, null),
                 1L);
 
         assertThat(response.aiGenerated()).isTrue();
@@ -522,11 +522,227 @@ class WorkItemServiceTest {
 
         WorkItemResponse response = workItemService.update(
                 500L,
-                new WorkItemUpdateRequest("New title", null, null, null, null, List.of("X", "Y")),
+                new WorkItemUpdateRequest("New title", null, null, null, null, List.of("X", "Y"), null),
                 1L);
 
         assertThat(response.acceptanceCriteria()).containsExactly("X", "Y");
         assertThat(item.getAcceptanceCriteria()).containsExactly("X", "Y");
+    }
+
+    // --- Single-level parent hierarchy (spec: work-item-hierarchy) ---
+
+    @Test
+    void createWithValidParentPersistsTheLink() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        WorkItem parent = workItem(900L, 10L, 200L, "Historia padre", 1024);
+        when(workItemRepository.findById(900L)).thenReturn(Optional.of(parent));
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        WorkItemResponse response = workItemService.create(
+                10L,
+                new WorkItemCreateRequest("Subtarea", null, null, null, null, List.of(), null, null, 900L),
+                1L);
+
+        assertThat(response.parentWorkItemId()).isEqualTo(900L);
+        assertThat(response.parentWorkItemTitle()).isEqualTo("Historia padre");
+    }
+
+    @Test
+    void createWithoutParentLeavesLinkNull() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        WorkItemResponse response = workItemService.create(
+                10L, new WorkItemCreateRequest("Suelta", null, null), 1L);
+
+        assertThat(response.parentWorkItemId()).isNull();
+        assertThat(response.parentWorkItemTitle()).isNull();
+        assertThat(response.childCount()).isZero();
+    }
+
+    @Test
+    void setParentToSelfIsRejected() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "X", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+
+        assertThatThrownBy(() -> workItemService.update(
+                500L, new WorkItemUpdateRequest("X", null, null, null, null, List.of(), 500L), 1L))
+                .isInstanceOf(com.flowpilot.exception.InvalidParentException.class);
+    }
+
+    @Test
+    void parentFromAnotherProjectIsRejected() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "X", 1024);
+        WorkItem foreignParent = workItem(900L, 99L, 800L, "Otro proyecto", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(workItemRepository.findById(900L)).thenReturn(Optional.of(foreignParent));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+
+        assertThatThrownBy(() -> workItemService.update(
+                500L, new WorkItemUpdateRequest("X", null, null, null, null, List.of(), 900L), 1L))
+                .isInstanceOf(com.flowpilot.exception.InvalidParentException.class);
+    }
+
+    @Test
+    void missingParentIsRejectedAsNotFound() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "X", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(workItemRepository.findById(900L)).thenReturn(Optional.empty());
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+
+        assertThatThrownBy(() -> workItemService.update(
+                500L, new WorkItemUpdateRequest("X", null, null, null, null, List.of(), 900L), 1L))
+                .isInstanceOf(WorkItemNotFoundException.class);
+    }
+
+    @Test
+    void parentThatIsItselfASubtaskIsRejected() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "X", 1024);
+        WorkItem alreadyChildParent = workItem(900L, 10L, 200L, "Ya es subtarea", 1024);
+        alreadyChildParent.setParentWorkItemId(700L);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(workItemRepository.findById(900L)).thenReturn(Optional.of(alreadyChildParent));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+
+        assertThatThrownBy(() -> workItemService.update(
+                500L, new WorkItemUpdateRequest("X", null, null, null, null, List.of(), 900L), 1L))
+                .isInstanceOf(com.flowpilot.exception.InvalidParentException.class);
+    }
+
+    @Test
+    void itemThatAlreadyHasChildrenCannotBecomeASubtask() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Tiene hijos", 1024);
+        WorkItem parent = workItem(900L, 10L, 200L, "Nuevo padre", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(workItemRepository.findById(900L)).thenReturn(Optional.of(parent));
+        when(workItemRepository.existsByParentWorkItemId(500L)).thenReturn(true);
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+
+        assertThatThrownBy(() -> workItemService.update(
+                500L, new WorkItemUpdateRequest("Tiene hijos", null, null, null, null, List.of(), 900L), 1L))
+                .isInstanceOf(com.flowpilot.exception.InvalidParentException.class);
+    }
+
+    @Test
+    void updateCanClearAnExistingParentLink() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Child", 1024);
+        item.setParentWorkItemId(900L);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+
+        WorkItemResponse response = workItemService.update(
+                500L, new WorkItemUpdateRequest("Child", null, null, null, null, List.of(), null), 1L);
+
+        assertThat(response.parentWorkItemId()).isNull();
+        assertThat(item.getParentWorkItemId()).isNull();
+    }
+
+    @Test
+    void updateCanRepointToADifferentValidParent() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Child", 1024);
+        item.setParentWorkItemId(900L);
+        WorkItem newParent = workItem(901L, 10L, 200L, "Historia B", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(workItemRepository.findById(901L)).thenReturn(Optional.of(newParent));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_EDIT)).thenReturn(true);
+
+        WorkItemResponse response = workItemService.update(
+                500L, new WorkItemUpdateRequest("Child", null, null, null, null, List.of(), 901L), 1L);
+
+        assertThat(response.parentWorkItemId()).isEqualTo(901L);
+        assertThat(response.parentWorkItemTitle()).isEqualTo("Historia B");
+    }
+
+    @Test
+    void childMayLiveInADifferentSprintThanItsParent() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(10L))
+                .thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        Sprint sprintTwo = new Sprint(10L, "Sprint 2", null,
+                java.time.LocalDate.now(), java.time.LocalDate.now().plusDays(7));
+        when(sprintRepository.findByIdAndProjectId(2L, 10L)).thenReturn(Optional.of(sprintTwo));
+        WorkItem parentInSprintOne = workItem(900L, 10L, 200L, "Historia en sprint 1", 1024);
+        parentInSprintOne.setSprintId(1L);
+        when(workItemRepository.findById(900L)).thenReturn(Optional.of(parentInSprintOne));
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        WorkItemResponse response = workItemService.create(
+                10L,
+                new WorkItemCreateRequest("Subtarea", null, null, 2L, null, List.of(), null, null, 900L),
+                1L);
+
+        assertThat(response.sprintId()).isEqualTo(2L);
+        assertThat(response.parentWorkItemId()).isEqualTo(900L);
+    }
+
+    @Test
+    void deleteIsBlockedWhenTheItemHasChildren() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Padre", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_DELETE)).thenReturn(true);
+        when(workItemRepository.countByParentWorkItemId(500L)).thenReturn(3L);
+
+        assertThatThrownBy(() -> workItemService.delete(500L, 1L))
+                .isInstanceOf(com.flowpilot.exception.WorkItemHasChildrenException.class)
+                .hasMessageContaining("tiene 3 subtareas.");
+        verify(workItemRepository, org.mockito.Mockito.never()).delete(any(WorkItem.class));
+    }
+
+    @Test
+    void deleteBlockedMessageUsesSingularForOneChild() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Padre", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_DELETE)).thenReturn(true);
+        when(workItemRepository.countByParentWorkItemId(500L)).thenReturn(1L);
+
+        assertThatThrownBy(() -> workItemService.delete(500L, 1L))
+                .isInstanceOf(com.flowpilot.exception.WorkItemHasChildrenException.class)
+                .hasMessageContaining("tiene 1 subtarea.");
+    }
+
+    @Test
+    void deleteStillSucceedsForAChildlessItem() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, "Sin hijos", 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_DELETE)).thenReturn(true);
+        when(workItemRepository.countByParentWorkItemId(500L)).thenReturn(0L);
+
+        workItemService.delete(500L, 1L);
+
+        verify(workItemRepository).delete(item);
+    }
+
+    @Test
+    void listDerivesParentTitleAndChildCountInMemoryWithoutExtraQueries() throws Exception {
+        when(authorizationService.canView(1L, 10L)).thenReturn(true);
+        WorkItem parent = workItem(900L, 10L, 200L, "Historia X", 1024);
+        WorkItem childA = workItem(901L, 10L, 200L, "Sub A", 2048);
+        childA.setParentWorkItemId(900L);
+        WorkItem childB = workItem(902L, 10L, 200L, "Sub B", 3072);
+        childB.setParentWorkItemId(900L);
+        when(workItemRepository.findByProjectIdOrderByColumnIdAscPositionAsc(10L))
+                .thenReturn(List.of(parent, childA, childB));
+
+        List<WorkItemResponse> result = workItemService.list(10L, 1L);
+
+        WorkItemResponse parentResponse =
+                result.stream().filter(r -> r.id().equals(900L)).findFirst().orElseThrow();
+        WorkItemResponse childResponse =
+                result.stream().filter(r -> r.id().equals(901L)).findFirst().orElseThrow();
+        assertThat(parentResponse.childCount()).isEqualTo(2);
+        assertThat(parentResponse.parentWorkItemTitle()).isNull();
+        assertThat(childResponse.parentWorkItemTitle()).isEqualTo("Historia X");
+        assertThat(childResponse.parentWorkItemId()).isEqualTo(900L);
+        assertThat(childResponse.childCount()).isZero();
+        verify(workItemRepository, org.mockito.Mockito.never()).countByParentWorkItemId(any());
     }
 
     private WorkItem workItem(Long id, Long projectId, Long columnId, String title, int position) throws Exception {

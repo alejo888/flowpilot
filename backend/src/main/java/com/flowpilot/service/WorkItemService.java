@@ -11,9 +11,11 @@ import com.flowpilot.entity.SprintStatus;
 import com.flowpilot.entity.User;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.exception.BoardColumnNotFoundException;
+import com.flowpilot.exception.InvalidParentException;
 import com.flowpilot.exception.InvalidSprintException;
 import com.flowpilot.exception.ProjectMemberNotFoundException;
 import com.flowpilot.exception.SprintNotFoundException;
+import com.flowpilot.exception.WorkItemHasChildrenException;
 import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.repository.BoardColumnRepository;
 import com.flowpilot.repository.SprintRepository;
@@ -86,23 +88,37 @@ public class WorkItemService {
         item.setAiModel(request.aiModel());
         validateSprint(projectId, item.getSprintId());
         validateAssignee(projectId, item.getAssignedUserId());
+        validateParent(projectId, null, request.parentWorkItemId());
+        item.setParentWorkItemId(request.parentWorkItemId());
         item = workItemRepository.save(item);
             if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED, "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
-        return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
+        return toRichResponse(item);
     }
 
     public WorkItemResponse findById(Long id, Long requesterId) {
         WorkItem item = getOrThrow(id);
         requireCanView(requesterId, item.getProjectId());
-        return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
+        return toRichResponse(item);
     }
 
     public List<WorkItemResponse> list(Long projectId, Long requesterId) {
         requireCanView(requesterId, projectId);
         List<WorkItem> items = workItemRepository.findByProjectIdOrderByColumnIdAscPositionAsc(projectId);
         Map<Long, String> assignedUserNames = assignedUserNamesFor(items);
+        // Parent is always same-project (validateParent), so both fields are derived
+        // in memory from the already-loaded list — zero extra queries (design D4).
+        Map<Long, String> titlesById = items.stream()
+                .collect(Collectors.toMap(WorkItem::getId, WorkItem::getTitle));
+        Map<Long, Long> childCounts = items.stream()
+                .map(WorkItem::getParentWorkItemId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.groupingBy(parentId -> parentId, Collectors.counting()));
         return items.stream()
-                .map(item -> toResponse(item, assignedUserNames.get(item.getAssignedUserId())))
+                .map(item -> toResponse(
+                        item,
+                        assignedUserNames.get(item.getAssignedUserId()),
+                        item.getParentWorkItemId() == null ? null : titlesById.get(item.getParentWorkItemId()),
+                        childCounts.getOrDefault(item.getId(), 0L)))
                 .toList();
     }
 
@@ -117,18 +133,24 @@ public class WorkItemService {
         item.setAssignedUserId(request.assignedUserId());
         validateSprint(item.getProjectId(), request.sprintId());
         item.setSprintId(request.sprintId());
+        validateParent(item.getProjectId(), item.getId(), request.parentWorkItemId());
+        item.setParentWorkItemId(request.parentWorkItemId());
         if (request.priority() != null) {
             item.setPriority(request.priority());
         }
         item.touch();
             if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_UPDATED, "Se actualizó la tarea \"" + item.getTitle() + "\"", "{}");
-        return toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
+        return toRichResponse(item);
     }
 
     @Transactional
     public void delete(Long id, Long requesterId) {
         WorkItem item = getOrThrow(id);
         requirePermission(requesterId, item.getProjectId(), Permission.WORKITEM_DELETE);
+        long childCount = workItemRepository.countByParentWorkItemId(id);
+        if (childCount > 0) {
+            throw new WorkItemHasChildrenException(childCount);
+        }
         workItemRepository.delete(item);
             if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_DELETED, "Se eliminó la tarea \"" + item.getTitle() + "\"", "{}");
     }
@@ -165,6 +187,41 @@ public class WorkItemService {
      * doesn't exist, closing the previous gap where a bogus id fell through
      * to a misleading 409 FK-violation instead of a proper 404/400.
      */
+    /**
+     * Single-level hierarchy validation (spec: work-item-hierarchy; design
+     * D3). No-op when {@code parentId} is {@code null} (clears the link).
+     * Otherwise, cheapest checks first:
+     * <ol>
+     *   <li>parent is the item itself &rarr; 400;</li>
+     *   <li>parent does not exist &rarr; 404;</li>
+     *   <li>parent belongs to another project &rarr; 400;</li>
+     *   <li>parent is itself a subtask (grandchild) &rarr; 400;</li>
+     *   <li>the item being linked already has children &rarr; 400.</li>
+     * </ol>
+     * {@code childId} is {@code null} on create (a brand-new item has no id
+     * and no children yet), non-null on update.
+     */
+    private void validateParent(Long projectId, Long childId, Long parentId) {
+        if (parentId == null) {
+            return;
+        }
+        if (parentId.equals(childId)) {
+            throw new InvalidParentException("Una tarea no puede ser su propia tarea padre");
+        }
+        WorkItem parent = workItemRepository.findById(parentId)
+                .orElseThrow(() -> new WorkItemNotFoundException(parentId));
+        if (!parent.getProjectId().equals(projectId)) {
+            throw new InvalidParentException("La tarea padre pertenece a otro proyecto");
+        }
+        if (parent.getParentWorkItemId() != null) {
+            throw new InvalidParentException(
+                    "La tarea padre ya es una subtarea; solo se admite un nivel de jerarquía");
+        }
+        if (childId != null && workItemRepository.existsByParentWorkItemId(childId)) {
+            throw new InvalidParentException("La tarea tiene subtareas y no puede convertirse en subtarea");
+        }
+    }
+
     private void validateAssignee(Long projectId, Long assignedUserId) {
         if (assignedUserId == null) {
             return;
@@ -204,6 +261,26 @@ public class WorkItemService {
         return userRepository.findById(assignedUserId).map(User::getName).orElse(null);
     }
 
+    /**
+     * Rich response for a single-item path (create/get/update): at most two
+     * extra queries — one for the parent's title, one for the direct-child
+     * count (design D4). {@code list()} derives both in memory instead.
+     */
+    private WorkItemResponse toRichResponse(WorkItem item) {
+        return toResponse(
+                item,
+                resolveAssignedUserName(item.getAssignedUserId()),
+                resolveParentTitle(item.getParentWorkItemId()),
+                workItemRepository.countByParentWorkItemId(item.getId()));
+    }
+
+    private String resolveParentTitle(Long parentWorkItemId) {
+        if (parentWorkItemId == null) {
+            return null;
+        }
+        return workItemRepository.findById(parentWorkItemId).map(WorkItem::getTitle).orElse(null);
+    }
+
     private Map<Long, String> assignedUserNamesFor(List<WorkItem> items) {
         List<Long> assignedUserIds = items.stream()
                 .map(WorkItem::getAssignedUserId)
@@ -215,6 +292,16 @@ public class WorkItemService {
     }
 
     static WorkItemResponse toResponse(WorkItem item, String assignedUserName) {
+        return toResponse(item, assignedUserName, null, 0);
+    }
+
+    /**
+     * Rich overload (design D4): {@code parentWorkItemTitle}/{@code childCount}
+     * are resolved by the caller — per-item queries on the CRUD paths, an
+     * in-memory pass on {@code list()}. A move response passes {@code null}/{@code 0}.
+     */
+    static WorkItemResponse toResponse(
+            WorkItem item, String assignedUserName, String parentWorkItemTitle, long childCount) {
         return new WorkItemResponse(
                 item.getId(),
                 item.getProjectId(),
@@ -228,8 +315,12 @@ public class WorkItemService {
                 item.getUpdatedAt(),
                 item.getSprintId(),
                 item.getPriority(),
+                null,
                 item.getAcceptanceCriteria(),
                 item.isAiGenerated(),
-                item.getAiModel());
+                item.getAiModel(),
+                item.getParentWorkItemId(),
+                parentWorkItemTitle,
+                childCount);
     }
 }

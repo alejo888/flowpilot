@@ -228,6 +228,47 @@ class WorkItemControllerTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void getByIdIncludesHierarchyFields() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        WorkItemResponse response = new WorkItemResponse(
+                501L, 10L, 200L, "Subtarea", null, null, null, 1024, now, now,
+                null, com.flowpilot.entity.WorkItemPriority.MEDIUM, null, List.of(), false, null,
+                500L, "Historia X", 0);
+        when(workItemService.findById(501L, 1L)).thenReturn(response);
+
+        mockMvc.perform(get("/api/work-items/501").principal(authenticatedAs(1L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.parentWorkItemId").value(500))
+                .andExpect(jsonPath("$.parentWorkItemTitle").value("Historia X"))
+                .andExpect(jsonPath("$.childCount").value(0));
+    }
+
+    @Test
+    void deleteReturns409WhenItemStillHasChildren() throws Exception {
+        org.mockito.Mockito.doThrow(new com.flowpilot.exception.WorkItemHasChildrenException(3))
+                .when(workItemService).delete(500L, 1L);
+
+        mockMvc.perform(delete("/api/work-items/500").principal(authenticatedAs(1L)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(
+                        "No se puede eliminar: la tarea tiene 3 subtareas."));
+    }
+
+    @Test
+    void updateWithInvalidParentReturns400() throws Exception {
+        when(workItemService.update(eq(500L), any(WorkItemUpdateRequest.class), eq(1L)))
+                .thenThrow(new com.flowpilot.exception.InvalidParentException(
+                        "Una tarea no puede ser su propia tarea padre"));
+
+        mockMvc.perform(put("/api/work-items/500")
+                        .principal(authenticatedAs(1L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(
+                                new WorkItemUpdateRequest("X", null, null))))
+                .andExpect(status().isBadRequest());
+    }
+
     private WorkItemResponse workItemResponse(Long id, Long projectId, Long columnId, String title, int position) {
         OffsetDateTime now = OffsetDateTime.now();
         return new WorkItemResponse(id, projectId, columnId, title, null, null, null, position, now, now);
