@@ -317,4 +317,64 @@ describe('BoardStore', () => {
 
     expect(store.error()).toBe('No se pudo mover la tarea');
   });
+
+  it('retains hierarchy fields on loaded items', () => {
+    loadWith([
+      { ...item(500, 1, 1024, 'Child'), parentWorkItemId: 900, parentWorkItemTitle: 'Historia', childCount: 0 },
+    ]);
+
+    const loaded = store.itemsByColumn()[1]?.[0];
+    expect(loaded?.parentWorkItemId).toBe(900);
+    expect(loaded?.parentWorkItemTitle).toBe('Historia');
+    expect(loaded?.childCount).toBe(0);
+  });
+
+  it('keeps hierarchy fields after a move round-trip', () => {
+    loadWith([
+      { ...item(500, 1, 1024, 'Child'), parentWorkItemId: 900, parentWorkItemTitle: 'Historia', childCount: 2 },
+    ]);
+    apiSpy.moveWorkItem.mockReturnValue(
+      of({ ...item(500, 2, 1024, 'Child'), parentWorkItemId: 900, parentWorkItemTitle: 'Historia', childCount: 2 }),
+    );
+
+    store.moveItem(500, 2, 0);
+
+    const moved = store.itemsByColumn()[2]?.[0];
+    expect(moved?.parentWorkItemTitle).toBe('Historia');
+    expect(moved?.childCount).toBe(2);
+  });
+
+  describe('eligibleParents', () => {
+    it('excludes self, items that already have a parent, and items that already have children', () => {
+      loadWith([
+        item(500, 1, 1024, 'Target'),
+        { ...item(501, 1, 2048, 'Already a child'), parentWorkItemId: 999 },
+        { ...item(502, 1, 3072, 'Already a parent'), childCount: 3 },
+        item(503, 1, 4096, 'Free story'),
+      ]);
+      store.selectItem(item(500, 1, 1024, 'Target'));
+
+      expect(store.eligibleParents().map((i) => i.id)).toEqual([503]);
+    });
+
+    it('is empty when no item is selected', () => {
+      loadWith([item(503, 1, 1024, 'Free')]);
+
+      expect(store.eligibleParents()).toEqual([]);
+    });
+
+    it("always keeps the selected item's current parent selectable even though it has children", () => {
+      const currentParent = { ...item(900, 1, 512, 'Historia madre'), childCount: 2 };
+      loadWith([
+        { ...item(500, 1, 1024, 'Subtarea'), parentWorkItemId: 900 },
+        currentParent,
+        item(503, 1, 4096, 'Free story'),
+      ]);
+      store.selectItem({ ...item(500, 1, 1024, 'Subtarea'), parentWorkItemId: 900 });
+
+      const ids = store.eligibleParents().map((i) => i.id);
+      expect(ids).toContain(900);
+      expect(ids).toContain(503);
+    });
+  });
 });

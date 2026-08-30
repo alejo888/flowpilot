@@ -120,6 +120,38 @@ describe('BoardApiService', () => {
     expect(completed).toBe(true);
   });
 
+  it('includes parentWorkItemId in the create request body when set', () => {
+    service
+      .createWorkItem(10, { title: 'Subtarea', description: null, assignedUserId: null, parentWorkItemId: 900 })
+      .subscribe();
+
+    const req = httpMock.expectOne('/api/projects/10/work-items');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({
+      title: 'Subtarea',
+      description: null,
+      assignedUserId: null,
+      parentWorkItemId: 900,
+    });
+    req.flush(item({ parentWorkItemId: 900 }));
+  });
+
+  it('round-trips parentWorkItemId on an update request body', () => {
+    service
+      .updateWorkItem(500, { title: 'Subtarea', description: null, assignedUserId: null, parentWorkItemId: 7 })
+      .subscribe();
+
+    const req = httpMock.expectOne('/api/work-items/500');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({
+      title: 'Subtarea',
+      description: null,
+      assignedUserId: null,
+      parentWorkItemId: 7,
+    });
+    req.flush(item({ parentWorkItemId: 7 }));
+  });
+
   it('sends a move request with the target column and index', () => {
     let result: WorkItem | undefined;
 

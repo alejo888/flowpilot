@@ -94,6 +94,12 @@ export class BacklogStore {
           description: item.description,
           assignedUserId: item.assignedUserId,
           sprintId,
+          // Round-tripped because PUT /api/work-items/{id} applies these
+          // setters unconditionally: an omitted field is read as "clear it",
+          // so a bare sprint-assign here would orphan a subtask or wipe an
+          // AI-generated story's acceptance criteria (same class as sprintId).
+          parentWorkItemId: item.parentWorkItemId,
+          acceptanceCriteria: item.acceptanceCriteria,
         })
         .subscribe({
           next: (updated) => {
