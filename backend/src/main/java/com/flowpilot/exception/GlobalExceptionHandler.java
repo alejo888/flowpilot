@@ -226,6 +226,18 @@ public class GlobalExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "El recurso solicitado no existe");
     }
 
+    /**
+     * Every AI-generation failure mode (LLM unreachable, timeout, non-2xx, or
+     * unparseable output) funnels here as a single Spanish 503 — the cause is
+     * logged upstream, never surfaced to the client. Placed above {@link
+     * #handleUnexpected} so it is not swallowed as a generic 500.
+     */
+    @ExceptionHandler(AiGenerationException.class)
+    public ProblemDetail handleAiGeneration(AiGenerationException ex) {
+        return ProblemDetail.forStatusAndDetail(
+                HttpStatus.SERVICE_UNAVAILABLE, "El asistente de IA no está disponible en este momento.");
+    }
+
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleUnexpected(Exception ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Ocurrió un error inesperado");

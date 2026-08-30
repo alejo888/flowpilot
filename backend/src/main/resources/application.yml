@@ -31,3 +31,12 @@ flowpilot:
     refresh-token-ttl-days: 7
   password-reset:
     ttl-minutes: 30
+  ai:
+    # AI-assisted planning is opt-in and off by default. Empty Ollama defaults
+    # mirror jwt.secret: when `enabled` is true, AiConfig fails context startup
+    # unless both `ollama.base-url` and `ollama.model` are set (design D2). The
+    # compose-layer ${VAR:?msg} guard lives in docker-compose.ai.yml only.
+    enabled: ${FLOWPILOT_AI_ENABLED:false}
+    ollama:
+      base-url: ${FLOWPILOT_AI_OLLAMA_BASE_URL:}
+      model: ${FLOWPILOT_AI_OLLAMA_MODEL:}
