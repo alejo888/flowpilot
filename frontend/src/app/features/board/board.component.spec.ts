@@ -59,6 +59,7 @@ describe('BoardComponent', () => {
   let storeStub: {
     columns: ReturnType<typeof signal<BoardColumn[]>>;
     itemsByColumn: ReturnType<typeof signal<Record<number, WorkItem[]>>>;
+    eligibleParents: ReturnType<typeof signal<WorkItem[]>>;
     selectedItem: ReturnType<typeof signal<WorkItem | null>>;
     error: ReturnType<typeof signal<string | null>>;
     success: ReturnType<typeof signal<string | null>>;
@@ -81,6 +82,7 @@ describe('BoardComponent', () => {
         1: [item(500, 1, 1024, 'Design schema')],
         2: [],
       }),
+      eligibleParents: signal<WorkItem[]>([]),
       selectedItem: signal(null),
       error: signal(null),
       success: signal(null),
@@ -231,6 +233,7 @@ describe('BoardComponent', () => {
       assignedUserId: null,
       sprintId: 7,
       priority: null,
+      parentWorkItemId: null,
     });
   });
 
@@ -247,6 +250,7 @@ describe('BoardComponent', () => {
       assignedUserId: null,
       sprintId: null,
       priority: 'HIGH',
+      parentWorkItemId: null,
     });
   });
 
@@ -445,6 +449,110 @@ describe('BoardComponent', () => {
     expect(fixture.componentInstance.canDeleteWorkItem()).toBe(false);
     expect(fixture.componentInstance.canMoveWorkItem()).toBe(false);
   });
+
+  it('shows a pluralized child-count badge on cards with children', () => {
+    storeStub.itemsByColumn.set({ 1: [{ ...item(500, 1, 1024, 'Parent'), childCount: 3 }], 2: [] });
+    fixture.detectChanges();
+
+    const badge = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="child-count-badge"]');
+    expect(badge?.textContent?.trim()).toBe('3 subtareas');
+  });
+
+  it('uses the singular noun on the child-count badge for a single child', () => {
+    storeStub.itemsByColumn.set({ 1: [{ ...item(500, 1, 1024, 'Parent'), childCount: 1 }], 2: [] });
+    fixture.detectChanges();
+
+    const badge = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="child-count-badge"]');
+    expect(badge?.textContent?.trim()).toBe('1 subtarea');
+  });
+
+  it('renders no child-count badge when childCount is 0 or undefined', () => {
+    storeStub.itemsByColumn.set({
+      1: [{ ...item(500, 1, 1024, 'Zero'), childCount: 0 }, item(501, 1, 2048, 'Undef')],
+      2: [],
+    });
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="child-count-badge"]')).toBeNull();
+  });
+
+  it('shows the parent story hint on a child card', () => {
+    storeStub.itemsByColumn.set({
+      1: [{ ...item(500, 1, 1024, 'Child'), parentWorkItemTitle: 'Historia grande' }],
+      2: [],
+    });
+    fixture.detectChanges();
+
+    const hint = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.board-card .assignee')).find(
+      (el) => el.textContent?.includes('Historia grande'),
+    );
+    expect(hint).toBeTruthy();
+  });
+
+  it('shows the parent title and child count in the detail panel', () => {
+    storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Child'), parentWorkItemTitle: 'Historia X', childCount: 4 });
+    fixture.detectChanges();
+
+    const panel = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="detail-panel"]') as HTMLElement;
+    expect(panel.querySelector('[data-testid="detail-parent"]')?.textContent).toContain('Historia X');
+    expect(panel.querySelector('[data-testid="detail-child-count"]')?.textContent).toContain('4 subtareas');
+  });
+
+  it('lists only the eligible parents (plus a blank option) in the parent selector', () => {
+    storeStub.eligibleParents.set([item(700, 1, 1024, 'Epic A'), item(701, 1, 2048, 'Epic B')]);
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Child'));
+    fixture.detectChanges();
+
+    const select = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="parent-select"]') as HTMLSelectElement;
+    const options = Array.from(select.querySelectorAll('option')).map((o) => o.textContent?.trim());
+    expect(options).toEqual(['Sin tarea padre', 'Epic A', 'Epic B']);
+  });
+
+  it('hides the parent selector when the caller lacks WORKITEM_EDIT', () => {
+    projectsStoreStub.selectedProject.set(project(['WORKITEM_MOVE']));
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Child'));
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="parent-select"]')).toBeNull();
+  });
+
+  it('round-trips the current parentWorkItemId when submitting an edit', () => {
+    storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Child'), parentWorkItemId: 900 });
+    fixture.detectChanges();
+
+    fixture.componentInstance.editForm.title = 'Child editado';
+    fixture.componentInstance.submitUpdate(500);
+
+    expect(storeStub.updateItem).toHaveBeenCalledWith(500, expect.objectContaining({ parentWorkItemId: 900 }));
+  });
+
+  it('clears the parent link when the blank option is selected', () => {
+    storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Child'), parentWorkItemId: 900 });
+    fixture.detectChanges();
+
+    fixture.componentInstance.editForm.parentWorkItemId = null;
+    fixture.componentInstance.submitUpdate(500);
+
+    expect(storeStub.updateItem).toHaveBeenCalledWith(500, expect.objectContaining({ parentWorkItemId: null }));
+  });
+
+  it('disables the delete control and shows a hint when the open item has children', () => {
+    storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Parent'), childCount: 2 });
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect((compiled.querySelector('[data-testid="detail-delete-button"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(compiled.querySelector('[data-testid="delete-child-hint"]')?.textContent).toContain('subtarea');
+  });
+
+  it('keeps the delete control enabled for a childless item', () => {
+    storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Leaf'), childCount: 0 });
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect((compiled.querySelector('[data-testid="detail-delete-button"]') as HTMLButtonElement).disabled).toBe(false);
+    expect(compiled.querySelector('[data-testid="delete-child-hint"]')).toBeNull();
+  });
 });
 
 describe('BoardComponent work-item comments', () => {
@@ -452,6 +560,7 @@ describe('BoardComponent work-item comments', () => {
   let storeStub: {
     columns: ReturnType<typeof signal<BoardColumn[]>>;
     itemsByColumn: ReturnType<typeof signal<Record<number, WorkItem[]>>>;
+    eligibleParents: ReturnType<typeof signal<WorkItem[]>>;
     selectedItem: ReturnType<typeof signal<WorkItem | null>>;
     error: ReturnType<typeof signal<string | null>>;
     success: ReturnType<typeof signal<string | null>>;
@@ -482,6 +591,7 @@ describe('BoardComponent work-item comments', () => {
     storeStub = {
       columns: signal([column(1, 'Por hacer', 1024), column(2, 'En progreso', 2048)]),
       itemsByColumn: signal({ 1: [item(500, 1, 1024, 'Design schema')], 2: [] }),
+      eligibleParents: signal<WorkItem[]>([]),
       selectedItem: signal(item(500, 1, 1024, 'Design schema')),
       error: signal(null),
       success: signal(null),

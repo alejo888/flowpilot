@@ -4,6 +4,7 @@ import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, input, numberAttribute, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
+import { FpBadgeComponent } from '../../shared/ui/badge.component';
 import { FpButtonComponent } from '../../shared/ui/button.component';
 import { FpCardComponent } from '../../shared/ui/card.component';
 import { FpIconComponent } from '../../shared/ui/icon.component';
@@ -32,6 +33,14 @@ type WorkItemForm = {
    * the item's current priority back to the backend default.
    */
   priority?: WorkItemPriority | null;
+  /**
+   * The item's parent work item (single-level hierarchy). Edited by the
+   * detail panel's parent `<select>` and round-tripped like `sprintId`
+   * above so a board edit never silently clears an existing parent link
+   * (`PUT /api/work-items/{id}` treats an omitted `parentWorkItemId` as an
+   * explicit clear).
+   */
+  parentWorkItemId?: number | null;
 };
 
 const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUserId: null });
@@ -53,6 +62,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
     CdkDrag,
     FormsModule,
     DatePipe,
+    FpBadgeComponent,
     FpButtonComponent,
         FpIconComponent,
     FpCardComponent,
@@ -140,6 +150,14 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                     @if (item.assignedUserId !== null) {
                       <span class="assignee">Asignado a {{ item.assignedUserName ?? '#' + item.assignedUserId }}</span>
                     }
+                    @if (item.parentWorkItemTitle) {
+                      <span class="assignee">↳ historia: {{ item.parentWorkItemTitle }}</span>
+                    }
+                    @if (item.childCount) {
+                      <fp-badge data-testid="child-count-badge">
+                        {{ item.childCount }} {{ item.childCount === 1 ? 'subtarea' : 'subtareas' }}
+                      </fp-badge>
+                    }
                   </fp-card>
                 }
               </div>
@@ -165,6 +183,15 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                 icon="close"></fp-button
               >
             </div>
+
+            @if (item.parentWorkItemTitle) {
+              <p data-testid="detail-parent" class="assignee">Tarea padre: {{ item.parentWorkItemTitle }}</p>
+            }
+            @if (item.childCount) {
+              <p data-testid="detail-child-count" class="assignee">
+                {{ item.childCount }} {{ item.childCount === 1 ? 'subtarea' : 'subtareas' }}
+              </p>
+            }
 
             <label class="move-to-column">
               Columna
@@ -199,7 +226,23 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                   Descripción
                   <textarea name="edit-description" rows="6" [(ngModel)]="editForm.description"></textarea>
                 </label>
+                @if (canEditWorkItem()) {
+                  <label>
+                    Tarea padre
+                    <select data-testid="parent-select" name="edit-parent" [(ngModel)]="editForm.parentWorkItemId">
+                      <option [ngValue]="null">Sin tarea padre</option>
+                      @for (candidate of eligibleParents(); track candidate.id) {
+                        <option [ngValue]="candidate.id">{{ candidate.title }}</option>
+                      }
+                    </select>
+                  </label>
+                }
               </div>
+              @if ((item.childCount ?? 0) > 0) {
+                <p data-testid="delete-child-hint" class="assignee">
+                  Esta tarea tiene subtareas: quitá o reasigná las subtareas antes de eliminarla.
+                </p>
+              }
               <div class="panel-actions wrap">
                 <fp-button type="submit" icon="save" [disabled]="isMutating() || !canEditWorkItem()">Guardar cambios</fp-button>
                 <fp-button
@@ -207,7 +250,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                   type="button"
                   icon="delete"
                    testId="detail-delete-button"
-                  [disabled]="isMutating() || !canDeleteWorkItem()"
+                  [disabled]="isMutating() || !canDeleteWorkItem() || (item.childCount ?? 0) > 0"
                   (click)="confirmDelete(item)"
                 >
                   Eliminar tarea
@@ -268,6 +311,8 @@ export class BoardComponent {
   readonly canComment = computed(() => hasPermission(this.project(), 'COMMENT_CREATE'));
 
   readonly columns = this.store.columns;
+  /** Board items the open item may be re-parented to (see {@link BoardStore.eligibleParents}). */
+  readonly eligibleParents = this.store.eligibleParents;
   readonly selectedItem = this.store.selectedItem;
   readonly error = this.store.error;
   readonly success = this.store.success;
@@ -441,6 +486,7 @@ function formFromItem(item: WorkItem): WorkItemForm {
     assignedUserId: item.assignedUserId,
     sprintId: item.sprintId ?? null,
     priority: item.priority ?? null,
+    parentWorkItemId: item.parentWorkItemId ?? null,
   };
 }
 
@@ -468,6 +514,10 @@ function requestFromForm(form: WorkItemForm): WorkItemCreateRequest | WorkItemUp
 
   if (form.priority !== undefined) {
     request.priority = form.priority;
+  }
+
+  if (form.parentWorkItemId !== undefined) {
+    request.parentWorkItemId = form.parentWorkItemId;
   }
 
   return request;
