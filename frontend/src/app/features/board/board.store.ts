@@ -31,6 +31,23 @@ export class BoardStore {
   readonly success = this.successSignal.asReadonly();
   readonly isMutating = this.mutatingSignal.asReadonly();
 
+  /**
+   * Board items eligible to become the currently-selected item's parent
+   * (single-level hierarchy): every project item except the selected item
+   * itself, items that already have a parent, and items that already have
+   * children. Empty when no item is selected.
+   */
+  readonly eligibleParents = computed<WorkItem[]>(() => {
+    const current = this.selectedItemSignal();
+    if (!current) {
+      return [];
+    }
+    return this.itemsSignal().filter(
+      (candidate) =>
+        candidate.id !== current.id && !candidate.parentWorkItemId && !candidate.childCount,
+    );
+  });
+
   /** Work items grouped by columnId, each group ordered by position ascending. */
   readonly itemsByColumn = computed<Record<number, WorkItem[]>>(() => {
     const grouped: Record<number, WorkItem[]> = {};
