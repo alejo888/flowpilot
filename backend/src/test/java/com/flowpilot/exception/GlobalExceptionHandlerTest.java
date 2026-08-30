@@ -187,6 +187,16 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void aiGenerationFailureMapsTo503WithSpanishDetail() {
+        ProblemDetail detail = handler.handleAiGeneration(
+                new AiGenerationException("ollama connection refused: 127.0.0.1:11434"));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value());
+        assertThat(detail.getDetail()).isEqualTo("El asistente de IA no está disponible en este momento.");
+        assertThat(detail.getDetail()).doesNotContain("11434");
+    }
+
+    @Test
     void trulyUnexpectedErrorStillMapsTo500() {
         ProblemDetail detail = handler.handleUnexpected(new IllegalStateException("boom"));
 

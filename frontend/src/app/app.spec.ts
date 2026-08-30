@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 
+import { AiConfigService } from './core/ai/ai-config.service';
 import { AuthStore } from './core/auth/auth.store';
 import { App } from './app';
 
@@ -27,6 +28,7 @@ describe('App', () => {
     isAdmin: ReturnType<typeof signal<boolean>>;
     logout: ReturnType<typeof vi.fn>;
   };
+  let aiConfigStub: { aiEnabled: ReturnType<typeof signal<boolean>>; load: ReturnType<typeof vi.fn> };
 
   function createFixture(): void {
     fixture = TestBed.createComponent(App);
@@ -40,10 +42,15 @@ describe('App', () => {
       isAdmin: signal(false),
       logout: vi.fn(),
     };
+    aiConfigStub = { aiEnabled: signal(false), load: vi.fn() };
 
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter([]), { provide: AuthStore, useValue: authStoreStub }],
+      providers: [
+        provideRouter([]),
+        { provide: AuthStore, useValue: authStoreStub },
+        { provide: AiConfigService, useValue: aiConfigStub },
+      ],
     }).compileComponents();
   });
 
@@ -56,6 +63,15 @@ describe('App', () => {
     createFixture();
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.app-topbar__brand')?.textContent).toContain('FlowPilot');
+  });
+
+  it('does not query AI availability while unauthenticated but does once authenticated', () => {
+    createFixture();
+    expect(aiConfigStub.load).not.toHaveBeenCalled();
+
+    authStoreStub.isAuthenticated.set(true);
+    fixture.detectChanges();
+    expect(aiConfigStub.load).toHaveBeenCalled();
   });
 
   it('hides section nav links when not authenticated', () => {

@@ -9,6 +9,7 @@ import { FpCardComponent } from '../../shared/ui/card.component';
 import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { FpInputComponent } from '../../shared/ui/input.component';
 import { FpSelectComponent } from '../../shared/ui/select.component';
+import { AiConfigService } from '../../core/ai/ai-config.service';
 import { hasPermission, ProjectStatus } from './project.model';
 import { projectStatusBadgeVariant } from './project-status';
 import { ProjectsStore } from './projects.store';
@@ -33,7 +34,7 @@ const STATUS_OPTIONS = [
       @if (error(); as message) { <p data-testid="project-detail-error" class="error">{{ message }}</p> }
       @if (project(); as current) {
         <header class="detail-header">
-          <div class="project-context-links"><a routerLink="/projects" class="project-back-link"><fp-icon name="arrow-left" /> Volver a proyectos</a><a [routerLink]="['/projects', projectId(), 'backlog']" class="project-link"><fp-icon name="list" /> Backlog y sprints</a><a [routerLink]="['/projects', projectId(), 'dashboard']" class="project-link"><fp-icon name="dashboard" /> Dashboard</a><h1 data-testid="project-detail-name">{{ current.name }}</h1></div>
+          <div class="project-context-links"><a routerLink="/projects" class="project-back-link"><fp-icon name="arrow-left" /> Volver a proyectos</a><a [routerLink]="['/projects', projectId(), 'backlog']" class="project-link"><fp-icon name="list" /> Backlog y sprints</a><a [routerLink]="['/projects', projectId(), 'dashboard']" class="project-link"><fp-icon name="dashboard" /> Dashboard</a>@if (aiEnabled()) {<a [routerLink]="['/projects', projectId(), 'ai', 'user-stories']" class="project-link" data-testid="nav-ai-stories"><fp-icon name="edit" /> Historias con IA</a>}<h1 data-testid="project-detail-name">{{ current.name }}</h1></div>
           <fp-badge [variant]="statusBadgeVariant(current.status)" data-testid="project-detail-status">{{ current.status }}</fp-badge>
         </header>
         <fp-card><div class="summary">
@@ -86,6 +87,7 @@ const STATUS_OPTIONS = [
 export class ProjectDetailComponent {
   private readonly store = inject(ProjectsStore);
   private readonly router = inject(Router);
+  protected readonly aiEnabled = inject(AiConfigService).aiEnabled;
   readonly projectId = input.required<number, string>({ transform: numberAttribute });
   readonly project = this.store.selectedProject;
   readonly loading = this.store.detailLoading;

@@ -24,6 +24,12 @@ export interface WorkItem {
   updatedAt: string;
       sprintId?: number | null;
       priority?: WorkItemPriority;
+      /** Ordered structured acceptance criteria (backend `acceptance_criteria` jsonb). */
+      acceptanceCriteria?: string[];
+      /** True when the item was created from a confirmed AI-generated draft. */
+      aiGenerated?: boolean;
+      /** Model name the client asserted for an AI-confirmed create; null otherwise. */
+      aiModel?: string | null;
       /**
        * Populated ONLY on the response of PUT /api/work-items/{id}/move
        * when the gap-based position strategy ran out of room and
@@ -43,6 +49,11 @@ export interface WorkItemCreateRequest {
   assignedUserId?: number | null;
       sprintId?: number | null;
       priority?: WorkItemPriority | null;
+      /** Optional/additive: ordered acceptance criteria to persist with the item. */
+      acceptanceCriteria?: string[];
+      /** Optional/additive: client-asserted provenance for an AI-confirmed create. */
+      aiGenerated?: boolean;
+      aiModel?: string | null;
 }
 
 /** Request body for PUT /api/work-items/{id}. */

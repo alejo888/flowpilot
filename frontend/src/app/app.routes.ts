@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 
+import { aiEnabledGuard } from './core/ai/ai-enabled.guard';
 import { adminGuard, authGuard } from './core/auth/auth.guard';
 import { HomeComponent } from './features/home/home.component';
 
@@ -56,6 +57,12 @@ export const routes: Routes = [
     path: 'projects/:projectId/board',
     canActivate: [authGuard],
     loadComponent: () => import('./features/board/board.component').then((m) => m.BoardComponent)
+  },
+  {
+    path: 'projects/:projectId/ai/user-stories',
+    canActivate: [authGuard, aiEnabledGuard],
+    loadComponent: () =>
+      import('./features/ai-stories/ai-stories.component').then((m) => m.AiStoriesComponent)
   },
   {
     path: 'projects/:projectId/members',

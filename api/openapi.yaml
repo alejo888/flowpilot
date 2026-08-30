@@ -957,6 +957,80 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/SprintId' }]
       responses: { '200': { description: Sprint completed, content: { application/json: { schema: { $ref: '#/components/schemas/SprintResponse' } } } }, '400': { description: Invalid transition } }
+  /api/projects/{projectId}/ai/user-stories:
+    post:
+      summary: Generate a non-persisted user-story draft from a free-text requirement
+      operationId: generateUserStory
+      description: >-
+        Turns a free-text requirement into a single user story plus acceptance
+        criteria. Guarded by the project WORKITEM_CREATE permission (checked in
+        AiUserStoryService, not the controller). Persists nothing — no work
+        item, comment, or activity row is written. When flowpilot.ai.enabled is
+        false the deterministic stub answers (generatedBy=STUB); when true the
+        configured Ollama model answers (generatedBy=OLLAMA). The user edits the
+        draft and confirms via POST /api/projects/{projectId}/work-items.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/NestedProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateUserStoryRequest'
+      responses:
+        '200':
+          description: Generated draft, nothing persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedUserStoryResponse'
+        '400':
+          description: requirement blank or longer than 2000 characters
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller lacks WORKITEM_CREATE on this project
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No project with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '503':
+          description: >-
+            AI assistant unavailable — the LLM refused the connection, exceeded
+            the connect/read timeout, returned a non-2xx status, or produced
+            unparseable output. No retry is attempted.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /api/ai/config:
+    get:
+      summary: Report whether AI-assisted planning is enabled
+      operationId: getAiConfig
+      description: >-
+        Authenticated read used by the frontend to show or hide the AI
+        user-story entrypoint. Reflects the flowpilot.ai.enabled flag.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current AI availability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiConfigResponse'
+        '401':
+          description: No or invalid bearer token
   /api/projects/{projectId}/work-items:
     get:
       summary: List a project's work items
@@ -1891,6 +1965,57 @@ components:
     WorkItemPriority:
       type: string
       enum: [LOW, MEDIUM, HIGH, URGENT]
+    AiProvider:
+      type: string
+      enum: [STUB, OLLAMA]
+    GenerateUserStoryRequest:
+      type: object
+      description: >-
+        Free-text requirement to turn into a user story. Treated purely as
+        content to analyse, never as instructions to the model.
+      required: [requirement]
+      properties:
+        requirement:
+          type: string
+          minLength: 0
+          maxLength: 2000
+    UserStoryDraft:
+      type: object
+      description: >-
+        Parts of the story plus the backend-composed Spanish sentence. text is
+        always "Como {role} quiero {action} para {benefit}" — the model never
+        writes the sentence itself.
+      properties:
+        role:
+          type: string
+        action:
+          type: string
+        benefit:
+          type: string
+        text:
+          type: string
+    GeneratedUserStoryResponse:
+      type: object
+      description: >-
+        Non-persisted draft. model is the Ollama model name for an OLLAMA draft
+        and null for a STUB draft.
+      properties:
+        userStory:
+          $ref: '#/components/schemas/UserStoryDraft'
+        acceptanceCriteria:
+          type: array
+          items:
+            type: string
+        generatedBy:
+          $ref: '#/components/schemas/AiProvider'
+        model:
+          type: string
+          nullable: true
+    AiConfigResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
     ProjectDashboardResponse:
       type: object
       properties:
@@ -1945,6 +2070,23 @@ components:
           format: int64
         priority:
           $ref: '#/components/schemas/WorkItemPriority'
+        acceptanceCriteria:
+          type: array
+          description: >-
+            Ordered acceptance criteria. Optional; omitted or null is stored as
+            an empty list. Never folded into description.
+          items:
+            type: string
+        aiGenerated:
+          type: [boolean, 'null']
+          description: >-
+            Client-asserted provenance flag set when confirming an AI draft.
+            Omitted or null is stored as false.
+        aiModel:
+          type: [string, 'null']
+          description: >-
+            Client-asserted model name for an AI-generated item; null for
+            manual creation or a STUB draft.
     WorkItemUpdateRequest:
       type: object
       description: >-
@@ -1965,6 +2107,13 @@ components:
           format: int64
         priority:
           $ref: '#/components/schemas/WorkItemPriority'
+        acceptanceCriteria:
+          type: array
+          description: >-
+            Ordered acceptance criteria. Optional; omitted or null replaces the
+            stored list with an empty list.
+          items:
+            type: string
     WorkItemResponse:
       type: object
       properties:
@@ -2001,6 +2150,22 @@ components:
           nullable: true
         priority:
           $ref: '#/components/schemas/WorkItemPriority'
+        acceptanceCriteria:
+          type: array
+          description: >-
+            Ordered acceptance criteria; empty list when none were set. Stored
+            as jsonb, never folded into description.
+          items:
+            type: string
+        aiGenerated:
+          type: boolean
+          description: Client-asserted provenance flag; false for manual creation.
+        aiModel:
+          type: string
+          nullable: true
+          description: >-
+            Client-asserted model name for an AI-generated item; null
+            otherwise.
         affectedItems:
           type: array
           nullable: true

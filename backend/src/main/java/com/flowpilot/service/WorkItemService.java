@@ -81,6 +81,9 @@ public class WorkItemService {
         WorkItem item = new WorkItem(
                 projectId, firstColumn.getId(), request.title(), request.description(),
                 request.assignedUserId(), position, request.sprintId(), request.priority());
+        item.setAcceptanceCriteria(request.acceptanceCriteria());
+        item.setAiGenerated(Boolean.TRUE.equals(request.aiGenerated()));
+        item.setAiModel(request.aiModel());
         validateSprint(projectId, item.getSprintId());
         validateAssignee(projectId, item.getAssignedUserId());
         item = workItemRepository.save(item);
@@ -109,6 +112,7 @@ public class WorkItemService {
         requirePermission(requesterId, item.getProjectId(), Permission.WORKITEM_EDIT);
         item.setTitle(request.title());
         item.setDescription(request.description());
+        item.setAcceptanceCriteria(request.acceptanceCriteria());
         validateAssignee(item.getProjectId(), request.assignedUserId());
         item.setAssignedUserId(request.assignedUserId());
         validateSprint(item.getProjectId(), request.sprintId());
@@ -223,6 +227,9 @@ public class WorkItemService {
                 item.getCreatedAt(),
                 item.getUpdatedAt(),
                 item.getSprintId(),
-                item.getPriority());
+                item.getPriority(),
+                item.getAcceptanceCriteria(),
+                item.isAiGenerated(),
+                item.getAiModel());
     }
 }

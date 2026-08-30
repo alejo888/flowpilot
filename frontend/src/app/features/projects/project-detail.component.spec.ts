@@ -2,6 +2,7 @@ import { Component, ViewChild, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router, RouterOutlet, withComponentInputBinding } from '@angular/router';
 
+import { AiConfigService } from '../../core/ai/ai-config.service';
 import { Project } from './project.model';
 import { ProjectDetailComponent } from './project-detail.component';
 import { ProjectsStore } from './projects.store';
@@ -42,6 +43,7 @@ describe('ProjectDetailComponent', () => {
     updateProjectStatus: ReturnType<typeof vi.fn>;
     deleteProject: ReturnType<typeof vi.fn>;
   };
+  let aiConfigStub: { aiEnabled: ReturnType<typeof signal<boolean>>; load: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     storeStub = {
@@ -55,9 +57,14 @@ describe('ProjectDetailComponent', () => {
       updateProjectStatus: vi.fn(),
       deleteProject: vi.fn(),
     };
+    aiConfigStub = { aiEnabled: signal(false), load: vi.fn() };
     await TestBed.configureTestingModule({
       imports: [ProjectDetailComponent],
-      providers: [provideRouter([]), { provide: ProjectsStore, useValue: storeStub }],
+      providers: [
+        provideRouter([]),
+        { provide: ProjectsStore, useValue: storeStub },
+        { provide: AiConfigService, useValue: aiConfigStub },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ProjectDetailComponent);
@@ -87,6 +94,23 @@ describe('ProjectDetailComponent', () => {
       'Dashboard',
     ]);
     expect(links[0].getAttribute('href')).toBe('/projects');
+  });
+
+  it('hides the AI user-stories link while the AI assistant is disabled', () => {
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="nav-ai-stories"]'),
+    ).toBeNull();
+  });
+
+  it('shows a project-scoped AI user-stories link when the AI assistant is enabled', () => {
+    aiConfigStub.aiEnabled.set(true);
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector(
+      '[data-testid="nav-ai-stories"]',
+    ) as HTMLAnchorElement;
+    expect(link).not.toBeNull();
+    expect(link.getAttribute('href')).toBe('/projects/4/ai/user-stories');
   });
 
   it('loads the requested project and renders its detail fields', () => {
