@@ -17,22 +17,23 @@ public record WorkItemUpdateRequest(
         @Size(max = 255, message = "El título no puede superar los 255 caracteres") String title,
         String description, Long assignedUserId,
         @Schema(nullable = true) Long sprintId, WorkItemPriority priority,
-        List<String> acceptanceCriteria) {
+        List<String> acceptanceCriteria,
+        @Schema(nullable = true) Long parentWorkItemId) {
 
     public WorkItemUpdateRequest {
         acceptanceCriteria = acceptanceCriteria == null ? List.of() : List.copyOf(acceptanceCriteria);
     }
 
     public WorkItemUpdateRequest(String title, String description, Long assignedUserId) {
-        this(title, description, assignedUserId, null, null, List.of());
+        this(title, description, assignedUserId, null, null, List.of(), null);
     }
 
     public WorkItemUpdateRequest(String title, String description, Long assignedUserId, Long sprintId) {
-        this(title, description, assignedUserId, sprintId, null, List.of());
+        this(title, description, assignedUserId, sprintId, null, List.of(), null);
     }
 
     public WorkItemUpdateRequest(
             String title, String description, Long assignedUserId, Long sprintId, WorkItemPriority priority) {
-        this(title, description, assignedUserId, sprintId, priority, List.of());
+        this(title, description, assignedUserId, sprintId, priority, List.of(), null);
     }
 }

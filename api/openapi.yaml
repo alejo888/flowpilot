@@ -1184,6 +1184,14 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: >-
+            The work item still has subtasks. Clear or reassign the child
+            links first. The detail names the exact child count.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/work-items/{id}/move:
     put:
       summary: Move a work item to a column and/or position
@@ -2087,6 +2095,14 @@ components:
           description: >-
             Client-asserted model name for an AI-generated item; null for
             manual creation or a STUB draft.
+        parentWorkItemId:
+          type: [integer, 'null']
+          format: int64
+          description: >-
+            Optional single-level parent link. When set, the created item
+            becomes a subtask of that work item; the parent must be in the
+            same project, must not already be a subtask, and the new item
+            must not itself have children.
     WorkItemUpdateRequest:
       type: object
       description: >-
@@ -2114,6 +2130,12 @@ components:
             stored list with an empty list.
           items:
             type: string
+        parentWorkItemId:
+          type: [integer, 'null']
+          format: int64
+          description: >-
+            Single-level parent link. Set to link (or re-link) this item as a
+            subtask, null to clear it. Same validation as create.
     WorkItemResponse:
       type: object
       properties:
@@ -2175,6 +2197,23 @@ components:
             otherwise, including for every non-move response.
           items:
             $ref: '#/components/schemas/WorkItemResponse'
+        parentWorkItemId:
+          type: integer
+          format: int64
+          nullable: true
+          description: Single-level parent link; null when the item has no parent.
+        parentWorkItemTitle:
+          type: string
+          nullable: true
+          description: >-
+            Title of the parent work item; null when the item has no parent.
+            May be null on a move response.
+        childCount:
+          type: integer
+          format: int64
+          description: >-
+            Number of direct subtasks. 0 when none. May be 0 on a move
+            response.
     WorkItemMoveRequest:
       type: object
       description: >-

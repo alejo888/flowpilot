@@ -119,6 +119,10 @@ public class WorkItemController {
                         schema = @Schema(implementation = ProblemDetail.class))),
         @ApiResponse(responseCode = "404", description = "No work item with that id",
                 content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "409",
+                description = "The work item still has subtasks; the detail names the exact child count",
+                content = @Content(mediaType = "application/problem+json",
                         schema = @Schema(implementation = ProblemDetail.class)))
     })
     @DeleteMapping("/api/work-items/{id}")
