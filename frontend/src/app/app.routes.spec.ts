@@ -1,3 +1,4 @@
+import { aiEnabledGuard } from './core/ai/ai-enabled.guard';
 import { adminGuard, authGuard } from './core/auth/auth.guard';
 import { HomeComponent } from './features/home/home.component';
 import { routes } from './app.routes';
@@ -36,6 +37,15 @@ describe('routes', () => {
   it('guards the board route with authGuard only', () => {
     const boardRoute = findRoute('projects/:projectId/board');
     expect(boardRoute.canActivate).toEqual([authGuard]);
+  });
+
+  it('guards the AI user-stories route with authGuard then aiEnabledGuard and lazy-loads it', () => {
+    const aiRoute = findRoute('projects/:projectId/ai/user-stories');
+    // aiEnabledGuard MUST follow authGuard so a disabled AI flag makes the
+    // route unreachable even by direct navigation (spec: ai-runtime-config,
+    // "Frontend entrypoint gating" — hides the nav link AND the route).
+    expect(aiRoute.canActivate).toEqual([authGuard, aiEnabledGuard]);
+    expect(aiRoute.loadComponent).toBeTypeOf('function');
   });
 
   it('guards the admin/users route with authGuard and adminGuard', () => {

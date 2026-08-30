@@ -1,6 +1,7 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
+import { AiConfigService } from './core/ai/ai-config.service';
 import { AuthStore } from './core/auth/auth.store';
 import { decodeEmail } from './core/auth/jwt-claims';
 import { FpButtonComponent } from './shared/ui/button.component';
@@ -23,8 +24,20 @@ import { FpIconComponent } from './shared/ui/icon.component';
 export class App {
   protected readonly authStore = inject(AuthStore);
   private readonly router = inject(Router);
+  private readonly aiConfig = inject(AiConfigService);
 
   protected readonly drawerOpen = signal(false);
+
+  constructor() {
+    // Refresh AI availability whenever the session becomes authenticated
+    // (bootstrap re-hydration or a fresh login). AiConfigService is fail-closed
+    // and de-dupes concurrent calls, so re-running this is safe.
+    effect(() => {
+      if (this.authStore.isAuthenticated()) {
+        this.aiConfig.load();
+      }
+    });
+  }
 
   /** Decoded from the in-memory access token (backend `JwtService` sets the `email` claim). */
   protected readonly currentUserEmail = computed(() => decodeEmail(this.authStore.accessToken()));
