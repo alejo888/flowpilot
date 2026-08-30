@@ -176,27 +176,18 @@ public class WorkItemService {
     }
 
     /**
-     * Mirrors {@link #validateSprint}: no-op on {@code null}, otherwise
-     * confirms the assignee exists AND is a participant of the project
-     * (owner, global admin, or a live {@link com.flowpilot.entity.ProjectMember}
-     * — reusing {@link ProjectAuthorizationService#canView}'s exact membership
-     * formula rather than a raw {@code ProjectMemberRepository} check, so the
-     * project owner/an admin can be assigned even without an explicit
-     * membership row). {@code canView} itself throws {@link
-     * com.flowpilot.exception.UserNotFoundException} when the assignee id
-     * doesn't exist, closing the previous gap where a bogus id fell through
-     * to a misleading 409 FK-violation instead of a proper 404/400.
-     */
-    /**
      * Single-level hierarchy validation (spec: work-item-hierarchy; design
      * D3). No-op when {@code parentId} is {@code null} (clears the link).
-     * Otherwise, cheapest checks first:
+     * Otherwise runs these checks in order, cheapest first, and throws on the
+     * first failure:
      * <ol>
-     *   <li>parent is the item itself &rarr; 400;</li>
-     *   <li>parent does not exist &rarr; 404;</li>
-     *   <li>parent belongs to another project &rarr; 400;</li>
-     *   <li>parent is itself a subtask (grandchild) &rarr; 400;</li>
-     *   <li>the item being linked already has children &rarr; 400.</li>
+     *   <li>parent is the item itself &rarr; {@link InvalidParentException} (400);</li>
+     *   <li>parent does not exist &rarr; {@link WorkItemNotFoundException} (404);</li>
+     *   <li>parent belongs to another project &rarr; {@link InvalidParentException} (400);</li>
+     *   <li>parent is itself a subtask, which would make a grandchild &rarr;
+     *       {@link InvalidParentException} (400);</li>
+     *   <li>the item being linked already has children of its own &rarr;
+     *       {@link InvalidParentException} (400).</li>
      * </ol>
      * {@code childId} is {@code null} on create (a brand-new item has no id
      * and no children yet), non-null on update.
@@ -222,6 +213,18 @@ public class WorkItemService {
         }
     }
 
+    /**
+     * Mirrors {@link #validateSprint}: no-op on {@code null}, otherwise
+     * confirms the assignee exists AND is a participant of the project
+     * (owner, global admin, or a live {@link com.flowpilot.entity.ProjectMember}
+     * — reusing {@link ProjectAuthorizationService#canView}'s exact membership
+     * formula rather than a raw {@code ProjectMemberRepository} check, so the
+     * project owner/an admin can be assigned even without an explicit
+     * membership row). {@code canView} itself throws {@link
+     * com.flowpilot.exception.UserNotFoundException} when the assignee id
+     * doesn't exist, closing the previous gap where a bogus id fell through
+     * to a misleading 409 FK-violation instead of a proper 404/400.
+     */
     private void validateAssignee(Long projectId, Long assignedUserId) {
         if (assignedUserId == null) {
             return;
@@ -291,6 +294,13 @@ public class WorkItemService {
                 .collect(Collectors.toMap(User::getId, User::getName));
     }
 
+    /**
+     * Two-arg overload: {@code parentWorkItemId} still flows through from the
+     * entity, but {@code parentWorkItemTitle}/{@code childCount} default to
+     * {@code null}/{@code 0}. Kept only for callers that have not resolved the
+     * hierarchy metadata; the CRUD, list, and move paths all use the four-arg
+     * overload.
+     */
     static WorkItemResponse toResponse(WorkItem item, String assignedUserName) {
         return toResponse(item, assignedUserName, null, 0);
     }
@@ -298,7 +308,9 @@ public class WorkItemService {
     /**
      * Rich overload (design D4): {@code parentWorkItemTitle}/{@code childCount}
      * are resolved by the caller — per-item queries on the CRUD paths, an
-     * in-memory pass on {@code list()}. A move response passes {@code null}/{@code 0}.
+     * in-memory pass on {@code list()}, and {@code BoardService.richResponse}
+     * on a move response (so a card's badge/hint survive a drag). {@code
+     * parentWorkItemId} is always taken straight from the entity.
      */
     static WorkItemResponse toResponse(
             WorkItem item, String assignedUserName, String parentWorkItemTitle, long childCount) {
