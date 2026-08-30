@@ -82,38 +82,47 @@ public class OllamaAiPlanningService implements AiPlanningService {
 
     @Override
     public GeneratedUserStoryResponse generateUserStory(String requirement) {
-        String rawBody;
+        String rawBody = callWithDowngrade(
+                SYSTEM_PROMPT, requirement, ResponseFormat.schemaFormat("user_story", userStorySchema()));
+        return toDraft(parse(rawBody));
+    }
+
+    /**
+     * The exact 7.1 failure taxonomy, generalised over the system prompt / user content / schema so a
+     * second caller can reuse it (design D2): a schema-related <strong>4xx</strong> triggers exactly one
+     * {@code json_object} downgrade; {@link ResourceAccessException} (timeout/refused) and any other
+     * {@link RestClientException} map straight to 503 with no downgrade.
+     */
+    private String callWithDowngrade(String systemPrompt, String userContent, ResponseFormat schemaFormat) {
         try {
-            rawBody = call(requirement, ResponseFormat.schemaFormat());
+            return call(systemPrompt, userContent, schemaFormat);
         } catch (RestClientResponseException ex) {
             if (ex.getStatusCode().is4xxClientError() && mentionsResponseFormat(ex.getResponseBodyAsString())) {
-                rawBody = downgrade(requirement);
-            } else {
-                throw new AiGenerationException("Ollama respondió " + ex.getStatusCode(), ex);
+                return downgrade(systemPrompt, userContent);
             }
+            throw new AiGenerationException("Ollama respondió " + ex.getStatusCode(), ex);
         } catch (ResourceAccessException ex) {
             throw new AiGenerationException("No se pudo contactar con Ollama", ex);
         } catch (RestClientException ex) {
             throw new AiGenerationException("Fallo al llamar a Ollama", ex);
         }
-        return toDraft(parse(rawBody));
     }
 
     /** Design D6: the single permitted downgrade — only after a schema-related 4xx, never a timeout/5xx. */
-    private String downgrade(String requirement) {
+    private String downgrade(String systemPrompt, String userContent) {
         try {
-            return call(requirement, ResponseFormat.objectFormat());
+            return call(systemPrompt, userContent, ResponseFormat.objectFormat());
         } catch (RestClientException ex) {
             throw new AiGenerationException("Ollama rechazó también la petición degradada", ex);
         }
     }
 
-    private String call(String requirement, ResponseFormat responseFormat) {
+    private String call(String systemPrompt, String userContent, ResponseFormat responseFormat) {
         String payload;
         try {
             payload = objectMapper.writeValueAsString(new ChatRequest(
                     model,
-                    List.of(new Message("system", SYSTEM_PROMPT), new Message("user", requirement)),
+                    List.of(new Message("system", systemPrompt), new Message("user", userContent)),
                     TEMPERATURE,
                     false,
                     responseFormat));
@@ -249,8 +258,8 @@ public class OllamaAiPlanningService implements AiPlanningService {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private record ResponseFormat(String type, @JsonProperty("json_schema") JsonSchemaSpec jsonSchema) {
 
-        static ResponseFormat schemaFormat() {
-            return new ResponseFormat("json_schema", new JsonSchemaSpec("user_story", true, userStorySchema()));
+        static ResponseFormat schemaFormat(String name, Map<String, Object> schema) {
+            return new ResponseFormat("json_schema", new JsonSchemaSpec(name, true, schema));
         }
 
         static ResponseFormat objectFormat() {
