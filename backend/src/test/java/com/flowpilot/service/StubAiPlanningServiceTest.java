@@ -3,6 +3,7 @@ package com.flowpilot.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowpilot.dto.AiProvider;
+import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
 import org.junit.jupiter.api.Test;
 
@@ -68,5 +69,39 @@ class StubAiPlanningServiceTest {
         GeneratedUserStoryResponse response = service.generateUserStory(noisy);
 
         assertThat(response.userStory().action()).isEqualTo("Gestionar permisos de equipo");
+    }
+
+    // --- generateSubtasks (spec: ai-subtask-generation — "Generate from an existing story") ---
+
+    @Test
+    void generateSubtasksReturnsThreeStubDraftsWithNoModel() {
+        GeneratedSubtasksResponse response =
+                service.generateSubtasks("Título: Exportar informes\nDescripción: en PDF");
+
+        assertThat(response.generatedBy()).isEqualTo(AiProvider.STUB);
+        assertThat(response.model()).isNull();
+        assertThat(response.subtasks()).hasSize(3);
+        assertThat(response.subtasks()).allSatisfy(s -> {
+            assertThat(s.title()).isNotBlank();
+            assertThat(s.description()).isNotBlank();
+        });
+    }
+
+    @Test
+    void generateSubtasksPrefixesTitlesWithDisenarImplementarProbarAndTheNormalisedContextHead() {
+        GeneratedSubtasksResponse response =
+                service.generateSubtasks("  Exportar   \n  informes  de  ventas  ");
+
+        assertThat(response.subtasks().get(0).title()).isEqualTo("Diseñar: Exportar informes de ventas");
+        assertThat(response.subtasks().get(1).title()).isEqualTo("Implementar: Exportar informes de ventas");
+        assertThat(response.subtasks().get(2).title()).isEqualTo("Probar: Exportar informes de ventas");
+    }
+
+    @Test
+    void generateSubtasksIsDeterministicForTheSameContext() {
+        GeneratedSubtasksResponse first = service.generateSubtasks("Filtrar tareas por responsable");
+        GeneratedSubtasksResponse second = service.generateSubtasks("Filtrar tareas por responsable");
+
+        assertThat(first).isEqualTo(second);
     }
 }

@@ -13,6 +13,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowpilot.dto.AiProvider;
+import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
 import com.flowpilot.exception.AiGenerationException;
 import java.util.List;
@@ -180,6 +181,111 @@ class OllamaAiPlanningServiceTest {
                 .andRespond(withSuccess(chatCompletion("no soy json, lo siento"), MediaType.APPLICATION_JSON));
 
         assertThatThrownBy(() -> service.generateUserStory("algo"))
+                .isInstanceOf(AiGenerationException.class);
+        server.verify();
+    }
+
+    // --- generateSubtasks (spec: ai-subtask-generation — PR 1 seam) ---
+
+    private static final String VALID_SUBTASKS_JSON =
+            """
+            {"subtasks":[
+              {"title":"Diseñar el endpoint","description":"Definir contrato y validación"},
+              {"title":"Implementar el servicio","description":"Lógica de negocio y persistencia"}]}""";
+
+    @Test
+    void generateSubtasksSendsTheSubtasksSchemaNameAndParsesTheDraftList() {
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(jsonPath("$.response_format.type").value("json_schema"))
+                .andExpect(jsonPath("$.response_format.json_schema.name").value("subtasks"))
+                .andExpect(jsonPath("$.response_format.json_schema.schema.properties.subtasks.type").value("array"))
+                .andRespond(withSuccess(chatCompletion(VALID_SUBTASKS_JSON), MediaType.APPLICATION_JSON));
+
+        GeneratedSubtasksResponse response = service.generateSubtasks("Título: Exportar informes");
+
+        assertThat(response.generatedBy()).isEqualTo(AiProvider.OLLAMA);
+        assertThat(response.model()).isEqualTo("llama3");
+        assertThat(response.subtasks()).hasSize(2);
+        assertThat(response.subtasks().get(0).title()).isEqualTo("Diseñar el endpoint");
+        assertThat(response.subtasks().get(0).description()).isEqualTo("Definir contrato y validación");
+        server.verify();
+    }
+
+    @Test
+    void generateSubtasksDropsLinesWithABlankTitleAndDefaultsNullDescriptions() {
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andRespond(withSuccess(chatCompletion(
+                        "{\"subtasks\":[{\"title\":\"  \",\"description\":\"se descarta\"},"
+                                + "{\"title\":\"Implementar\",\"description\":null},"
+                                + "{\"title\":\"Probar\",\"description\":\"cobertura\"}]}"),
+                        MediaType.APPLICATION_JSON));
+
+        GeneratedSubtasksResponse response = service.generateSubtasks("algo");
+
+        assertThat(response.subtasks()).hasSize(2);
+        assertThat(response.subtasks().get(0).title()).isEqualTo("Implementar");
+        assertThat(response.subtasks().get(0).description()).isEqualTo("");
+        assertThat(response.subtasks().get(1).title()).isEqualTo("Probar");
+        server.verify();
+    }
+
+    @Test
+    void generateSubtasksWithNoSurvivingLinesRaisesAiGenerationException() {
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andRespond(withSuccess(chatCompletion(
+                        "{\"subtasks\":[{\"title\":\"\",\"description\":\"x\"},{\"title\":\"   \",\"description\":\"y\"}]}"),
+                        MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.generateSubtasks("algo"))
+                .isInstanceOf(AiGenerationException.class);
+        server.verify();
+    }
+
+    @Test
+    void generateSubtasksTruncatesToTheFirstTenLines() {
+        StringBuilder items = new StringBuilder();
+        for (int i = 1; i <= 13; i++) {
+            items.append(i == 1 ? "" : ",")
+                    .append("{\"title\":\"Tarea ").append(i).append("\",\"description\":\"d").append(i).append("\"}");
+        }
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andRespond(withSuccess(
+                        chatCompletion("{\"subtasks\":[" + items + "]}"), MediaType.APPLICATION_JSON));
+
+        GeneratedSubtasksResponse response = service.generateSubtasks("algo");
+
+        assertThat(response.subtasks()).hasSize(10);
+        assertThat(response.subtasks().get(0).title()).isEqualTo("Tarea 1");
+        assertThat(response.subtasks().get(9).title()).isEqualTo("Tarea 10");
+        server.verify();
+    }
+
+    @Test
+    void generateSubtasksDowngradesToJsonObjectExactlyOnceOnASchemaRelated4xx() {
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andExpect(jsonPath("$.response_format.type").value("json_schema"))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .body("{\"error\":\"response_format of type json_schema is not supported\"}")
+                        .contentType(MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andExpect(jsonPath("$.response_format.type").value("json_object"))
+                .andRespond(withSuccess(chatCompletion(VALID_SUBTASKS_JSON), MediaType.APPLICATION_JSON));
+
+        GeneratedSubtasksResponse response = service.generateSubtasks("algo");
+
+        assertThat(response.subtasks()).hasSize(2);
+        server.verify();
+    }
+
+    @Test
+    void generateSubtasksServerErrorRaisesAiGenerationExceptionWithNoDowngrade() {
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andRespond(withServerError()
+                        .body("{\"error\":\"internal json_schema failure\"}")
+                        .contentType(MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.generateSubtasks("algo"))
                 .isInstanceOf(AiGenerationException.class);
         server.verify();
     }
