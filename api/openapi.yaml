@@ -1026,8 +1026,10 @@ paths:
         subtask returns 400. Persists nothing — no work item, comment, or
         activity row is written. When flowpilot.ai.enabled is false the
         deterministic stub answers (generatedBy=STUB); when true the configured
-        Ollama model answers (generatedBy=OLLAMA). The caller edits the drafts
-        and confirms them through POST /api/projects/{projectId}/work-items/batch.
+        Ollama model answers (generatedBy=OLLAMA). The response is a
+        non-persisted draft list; the caller reviews and edits it, then creates
+        the items through a separate batch work-item endpoint added in a
+        follow-up change.
       security:
         - bearerAuth: []
       parameters:
