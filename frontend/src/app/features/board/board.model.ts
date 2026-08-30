@@ -78,6 +78,12 @@ export interface WorkItemUpdateRequest {
        * as "clear the parent" (mirrors `sprintId`).
        */
       parentWorkItemId?: number | null;
+      /**
+       * Ordered acceptance criteria. Same unconditional-setter hazard as
+       * `parentWorkItemId`: a partial PUT that omits this wipes an
+       * AI-generated story's criteria, so callers must round-trip it.
+       */
+      acceptanceCriteria?: string[];
 }
 
 /**

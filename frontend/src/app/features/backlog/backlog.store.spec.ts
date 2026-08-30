@@ -165,6 +165,29 @@ describe('BacklogStore', () => {
       assignedUserId: child.assignedUserId,
       sprintId: 7,
       parentWorkItemId: 900,
+      acceptanceCriteria: undefined,
+    });
+  });
+
+  it('preserves an existing acceptanceCriteria list when assigning a story to a sprint', async () => {
+    const story: WorkItem = {
+      ...item(1, null, null),
+      acceptanceCriteria: ['Dado X', 'Cuando Y', 'Entonces Z'],
+    };
+    api.getWorkItems.mockReturnValue(of([story]));
+    api.listSprints.mockReturnValue(of([sprint(7)]));
+    store.load(10);
+    api.updateWorkItemSprint.mockReturnValue(of({ ...story, sprintId: 7 }));
+
+    await store.assignItem(story, 7);
+
+    expect(api.updateWorkItemSprint).toHaveBeenCalledWith(1, {
+      title: story.title,
+      description: story.description,
+      assignedUserId: story.assignedUserId,
+      sprintId: 7,
+      parentWorkItemId: undefined,
+      acceptanceCriteria: ['Dado X', 'Cuando Y', 'Entonces Z'],
     });
   });
 

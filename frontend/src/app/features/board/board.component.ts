@@ -229,7 +229,12 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                 @if (canEditWorkItem()) {
                   <label>
                     Tarea padre
-                    <select data-testid="parent-select" name="edit-parent" [(ngModel)]="editForm.parentWorkItemId">
+                    <select
+                      data-testid="parent-select"
+                      name="edit-parent"
+                      [disabled]="(item.childCount ?? 0) > 0"
+                      [(ngModel)]="editForm.parentWorkItemId"
+                    >
                       <option [ngValue]="null">Sin tarea padre</option>
                       @for (candidate of eligibleParents(); track candidate.id) {
                         <option [ngValue]="candidate.id">{{ candidate.title }}</option>

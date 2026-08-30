@@ -553,6 +553,56 @@ describe('BoardComponent', () => {
     expect((compiled.querySelector('[data-testid="detail-delete-button"]') as HTMLButtonElement).disabled).toBe(false);
     expect(compiled.querySelector('[data-testid="delete-child-hint"]')).toBeNull();
   });
+
+  it('disables the parent selector when the open item already has children (one-level cap)', async () => {
+    storeStub.eligibleParents.set([item(700, 1, 1024, 'Epic A')]);
+    storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Parent'), childCount: 2 });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const select = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="parent-select"]') as HTMLSelectElement;
+    expect(select.disabled).toBe(true);
+  });
+
+  it('keeps the parent selector enabled for an item without children', async () => {
+    storeStub.eligibleParents.set([item(700, 1, 1024, 'Epic A')]);
+    storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Leaf'), childCount: 0 });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const select = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="parent-select"]') as HTMLSelectElement;
+    expect(select.disabled).toBe(false);
+  });
+
+  it("renders the subtask's current parent as the selected option", async () => {
+    const currentParent = { ...item(900, 1, 512, 'Historia madre'), childCount: 2 };
+    storeStub.eligibleParents.set([currentParent, item(701, 1, 2048, 'Epic B')]);
+    storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Subtarea'), parentWorkItemId: 900 });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const select = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="parent-select"]') as HTMLSelectElement;
+    const optionLabels = Array.from(select.querySelectorAll('option')).map((o) => o.textContent?.trim());
+    expect(optionLabels).toContain('Historia madre');
+    expect(select.selectedOptions[0]?.textContent?.trim()).toBe('Historia madre');
+  });
+
+  it('derives the card badge and the detail-panel child count from the same childCount value', () => {
+    const parent = { ...item(500, 1, 1024, 'Parent'), childCount: 5 };
+    storeStub.itemsByColumn.set({ 1: [parent], 2: [] });
+    storeStub.selectedItem.set(parent);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const badgeText = compiled.querySelector('[data-testid="child-count-badge"]')?.textContent?.trim();
+    const panelText = compiled
+      .querySelector('[data-testid="detail-panel"]')
+      ?.querySelector('[data-testid="detail-child-count"]')
+      ?.textContent?.trim();
+    expect(badgeText).toBe('5 subtareas');
+    expect(panelText).toBe('5 subtareas');
+  });
 });
 
 describe('BoardComponent work-item comments', () => {

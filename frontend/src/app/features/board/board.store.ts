@@ -42,10 +42,22 @@ export class BoardStore {
     if (!current) {
       return [];
     }
-    return this.itemsSignal().filter(
+    const items = this.itemsSignal();
+    const eligible = items.filter(
       (candidate) =>
         candidate.id !== current.id && !candidate.parentWorkItemId && !candidate.childCount,
     );
+    // The item's CURRENT parent necessarily has a child (this item), so the
+    // filter above drops it — keep it in the list anyway, otherwise the
+    // detail-panel <select> renders with nothing selected (visually
+    // identical to "no parent").
+    if (current.parentWorkItemId && !eligible.some((c) => c.id === current.parentWorkItemId)) {
+      const currentParent = items.find((c) => c.id === current.parentWorkItemId);
+      if (currentParent) {
+        return [currentParent, ...eligible];
+      }
+    }
+    return eligible;
   });
 
   /** Work items grouped by columnId, each group ordered by position ascending. */

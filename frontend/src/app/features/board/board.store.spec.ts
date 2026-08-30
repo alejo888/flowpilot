@@ -362,5 +362,19 @@ describe('BoardStore', () => {
 
       expect(store.eligibleParents()).toEqual([]);
     });
+
+    it("always keeps the selected item's current parent selectable even though it has children", () => {
+      const currentParent = { ...item(900, 1, 512, 'Historia madre'), childCount: 2 };
+      loadWith([
+        { ...item(500, 1, 1024, 'Subtarea'), parentWorkItemId: 900 },
+        currentParent,
+        item(503, 1, 4096, 'Free story'),
+      ]);
+      store.selectItem({ ...item(500, 1, 1024, 'Subtarea'), parentWorkItemId: 900 });
+
+      const ids = store.eligibleParents().map((i) => i.id);
+      expect(ids).toContain(900);
+      expect(ids).toContain(503);
+    });
   });
 });
