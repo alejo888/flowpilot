@@ -1,5 +1,6 @@
 import { aiEnabledGuard } from './core/ai/ai-enabled.guard';
 import { adminGuard, authGuard } from './core/auth/auth.guard';
+import { workItemCreateGuard } from './features/projects/work-item-create.guard';
 import { HomeComponent } from './features/home/home.component';
 import { routes } from './app.routes';
 
@@ -39,12 +40,14 @@ describe('routes', () => {
     expect(boardRoute.canActivate).toEqual([authGuard]);
   });
 
-  it('guards the AI user-stories route with authGuard then aiEnabledGuard and lazy-loads it', () => {
+  it('guards the AI user-stories route with authGuard, then aiEnabledGuard, then workItemCreateGuard, and lazy-loads it', () => {
     const aiRoute = findRoute('projects/:projectId/ai/user-stories');
-    // aiEnabledGuard MUST follow authGuard so a disabled AI flag makes the
-    // route unreachable even by direct navigation (spec: ai-runtime-config,
-    // "Frontend entrypoint gating" — hides the nav link AND the route).
-    expect(aiRoute.canActivate).toEqual([authGuard, aiEnabledGuard]);
+    // Order matters: authGuard first (must be signed in), then aiEnabledGuard so
+    // a disabled AI flag makes the route unreachable even by direct navigation
+    // (spec: ai-runtime-config, "Frontend entrypoint gating"), then
+    // workItemCreateGuard so a caller without WORKITEM_CREATE cannot deep-link
+    // to the form only to hit a 403 on submit.
+    expect(aiRoute.canActivate).toEqual([authGuard, aiEnabledGuard, workItemCreateGuard]);
     expect(aiRoute.loadComponent).toBeTypeOf('function');
   });
 
