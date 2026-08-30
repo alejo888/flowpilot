@@ -1,7 +1,10 @@
 package com.flowpilot.controller;
 
+import com.flowpilot.dto.GenerateSubtasksRequest;
 import com.flowpilot.dto.GenerateUserStoryRequest;
+import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
+import com.flowpilot.service.AiSubtaskService;
 import com.flowpilot.service.AiUserStoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -17,22 +20,25 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * AI-assisted user-story generation (spec: ai-user-story-generation). A single
- * endpoint turns a free-text requirement into a non-persisted draft; the caller
- * edits it and confirms via {@code POST /api/projects/{projectId}/work-items}.
+ * AI-assisted planning (spec: ai-user-story-generation, ai-subtask-generation).
+ * Turns a free-text requirement into a user-story draft, or a story into a
+ * subtask breakdown — both non-persisted; the caller edits and confirms them
+ * through the work-item endpoints.
  *
  * <p>The controller carries no authorization logic — exactly like every other
  * slice in this codebase, the {@code WORKITEM_CREATE} permission check and the
- * project-existence guard live in {@link AiUserStoryService}. Nothing is
- * persisted here.
+ * project/work-item existence guards live in {@link AiUserStoryService} /
+ * {@link AiSubtaskService}. Nothing is persisted here.
  */
 @RestController
 public class AiController {
 
     private final AiUserStoryService aiUserStoryService;
+    private final AiSubtaskService aiSubtaskService;
 
-    public AiController(AiUserStoryService aiUserStoryService) {
+    public AiController(AiUserStoryService aiUserStoryService, AiSubtaskService aiSubtaskService) {
         this.aiUserStoryService = aiUserStoryService;
+        this.aiSubtaskService = aiSubtaskService;
     }
 
     @Operation(summary = "Generate a non-persisted user-story draft from a free-text requirement")
@@ -57,6 +63,32 @@ public class AiController {
             @Valid @RequestBody GenerateUserStoryRequest request,
             Authentication authentication) {
         return aiUserStoryService.generate(projectId, request.requirement(), currentUserId(authentication));
+    }
+
+    @Operation(summary = "Generate a non-persisted subtask breakdown from a story or pasted text")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Generated subtask drafts, nothing persisted"),
+        @ApiResponse(responseCode = "400",
+                description = "Not exactly one of workItemId/storyText, storyText too long, "
+                        + "or the source story is itself a subtask",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "403", description = "Caller lacks WORKITEM_CREATE on this project",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "404", description = "No project with that id, or no such work item in it",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "503", description = "AI assistant unavailable; no retry is attempted",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @PostMapping("/api/projects/{projectId}/ai/subtasks")
+    public GeneratedSubtasksResponse generateSubtasks(
+            @PathVariable Long projectId,
+            @Valid @RequestBody GenerateSubtasksRequest request,
+            Authentication authentication) {
+        return aiSubtaskService.generate(projectId, request, currentUserId(authentication));
     }
 
     private Long currentUserId(Authentication authentication) {
