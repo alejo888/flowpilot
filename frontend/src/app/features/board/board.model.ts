@@ -24,6 +24,12 @@ export interface WorkItem {
   updatedAt: string;
       sprintId?: number | null;
       priority?: WorkItemPriority;
+      /** Id of the parent work item this item is a subtask of; null/undefined when it is top-level. */
+      parentWorkItemId?: number | null;
+      /** Title of the parent work item (backend-derived), when this item has a parent. */
+      parentWorkItemTitle?: string | null;
+      /** Number of direct children (backend `COUNT`); `0`/undefined when the item is a leaf. */
+      childCount?: number;
       /** Ordered structured acceptance criteria (backend `acceptance_criteria` jsonb). */
       acceptanceCriteria?: string[];
       /** True when the item was created from a confirmed AI-generated draft. */
@@ -49,6 +55,8 @@ export interface WorkItemCreateRequest {
   assignedUserId?: number | null;
       sprintId?: number | null;
       priority?: WorkItemPriority | null;
+      /** Optional/additive: link the new item to a parent work item (single-level hierarchy). */
+      parentWorkItemId?: number | null;
       /** Optional/additive: ordered acceptance criteria to persist with the item. */
       acceptanceCriteria?: string[];
       /** Optional/additive: client-asserted provenance for an AI-confirmed create. */
@@ -63,6 +71,19 @@ export interface WorkItemUpdateRequest {
   assignedUserId?: number | null;
       sprintId?: number | null;
       priority?: WorkItemPriority | null;
+      /**
+       * Set, change (a number) or clear (`null`) the item's parent link.
+       * Every partial PUT MUST round-trip the item's current value: the
+       * backend update setter is unconditional, so an omitted field is read
+       * as "clear the parent" (mirrors `sprintId`).
+       */
+      parentWorkItemId?: number | null;
+      /**
+       * Ordered acceptance criteria. Same unconditional-setter hazard as
+       * `parentWorkItemId`: a partial PUT that omits this wipes an
+       * AI-generated story's criteria, so callers must round-trip it.
+       */
+      acceptanceCriteria?: string[];
 }
 
 /**

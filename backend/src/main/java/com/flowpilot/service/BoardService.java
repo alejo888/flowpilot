@@ -91,14 +91,28 @@ public class BoardService {
 
         item.moveTo(targetColumn.getId(), newPosition);
             if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_MOVED, "Se movió la tarea \"" + item.getTitle() + "\" a la columna \"" + targetColumn.getName() + "\"", "{}");
-        WorkItemResponse response = toResponse(item, resolveAssignedUserName(item.getAssignedUserId()));
+        WorkItemResponse response = richResponse(item);
         if (resequenced && !siblings.isEmpty()) {
             List<WorkItemResponse> affectedItems = siblings.stream()
-                    .map(sibling -> toResponse(sibling, resolveAssignedUserName(sibling.getAssignedUserId())))
+                    .map(this::richResponse)
                     .toList();
             response = response.withAffectedItems(affectedItems);
         }
         return response;
+    }
+
+    /**
+     * Keeps the hierarchy fields correct on a move response so the board
+     * card's child-count badge and parent hint do not vanish after a drag
+     * (design D4/D6). One extra count query per item, plus a title lookup
+     * only when the item has a parent.
+     */
+    private WorkItemResponse richResponse(WorkItem item) {
+        return WorkItemService.toResponse(
+                item,
+                resolveAssignedUserName(item.getAssignedUserId()),
+                resolveParentTitle(item.getParentWorkItemId()),
+                workItemRepository.countByParentWorkItemId(item.getId()));
     }
 
     private String resolveAssignedUserName(Long assignedUserId) {
@@ -106,6 +120,13 @@ public class BoardService {
             return null;
         }
         return userRepository.findById(assignedUserId).map(User::getName).orElse(null);
+    }
+
+    private String resolveParentTitle(Long parentWorkItemId) {
+        if (parentWorkItemId == null) {
+            return null;
+        }
+        return workItemRepository.findById(parentWorkItemId).map(WorkItem::getTitle).orElse(null);
     }
 
     private int computeCandidate(Integer beforePosition, Integer afterPosition) {
@@ -154,9 +175,5 @@ public class BoardService {
             newPosition = position;
         }
         return newPosition;
-    }
-
-    private static WorkItemResponse toResponse(WorkItem item, String assignedUserName) {
-        return WorkItemService.toResponse(item, assignedUserName);
     }
 }

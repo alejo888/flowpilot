@@ -20,6 +20,9 @@ npm-debug.log*
 .env
 *.env.local
 
+# Local Compose overrides (per-developer, not vendored)
+docker-compose.override.yml
+
 # OS
 Thumbs.db
 nul

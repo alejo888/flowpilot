@@ -96,6 +96,16 @@ public class GlobalExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
+    @ExceptionHandler(InvalidParentException.class)
+    public ProblemDetail handleInvalidParent(InvalidParentException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(WorkItemHasChildrenException.class)
+    public ProblemDetail handleWorkItemHasChildren(WorkItemHasChildrenException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
     @ExceptionHandler(CommentNotFoundException.class)
     public ProblemDetail handleCommentNotFound(CommentNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());

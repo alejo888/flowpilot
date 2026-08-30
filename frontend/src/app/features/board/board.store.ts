@@ -31,6 +31,35 @@ export class BoardStore {
   readonly success = this.successSignal.asReadonly();
   readonly isMutating = this.mutatingSignal.asReadonly();
 
+  /**
+   * Board items eligible to become the currently-selected item's parent
+   * (single-level hierarchy): every project item except the selected item
+   * itself, items that already have a parent, and items that already have
+   * children. Empty when no item is selected.
+   */
+  readonly eligibleParents = computed<WorkItem[]>(() => {
+    const current = this.selectedItemSignal();
+    if (!current) {
+      return [];
+    }
+    const items = this.itemsSignal();
+    const eligible = items.filter(
+      (candidate) =>
+        candidate.id !== current.id && !candidate.parentWorkItemId && !candidate.childCount,
+    );
+    // The item's CURRENT parent necessarily has a child (this item), so the
+    // filter above drops it — keep it in the list anyway, otherwise the
+    // detail-panel <select> renders with nothing selected (visually
+    // identical to "no parent").
+    if (current.parentWorkItemId && !eligible.some((c) => c.id === current.parentWorkItemId)) {
+      const currentParent = items.find((c) => c.id === current.parentWorkItemId);
+      if (currentParent) {
+        return [currentParent, ...eligible];
+      }
+    }
+    return eligible;
+  });
+
   /** Work items grouped by columnId, each group ordered by position ascending. */
   readonly itemsByColumn = computed<Record<number, WorkItem[]>>(() => {
     const grouped: Record<number, WorkItem[]> = {};

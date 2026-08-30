@@ -131,6 +131,26 @@ class BoardServiceTest {
     }
 
     @Test
+    void moveResponseCarriesParentTitleAndChildCount() throws Exception {
+        WorkItem item = workItem(500L, 10L, 200L, 1024);
+        item.setParentWorkItemId(900L);
+        BoardColumn targetColumn = column(300L, 10L, 2048);
+        WorkItem parent = workItem(900L, 10L, 200L, 1024);
+        when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_MOVE)).thenReturn(true);
+        when(boardColumnRepository.findById(300L)).thenReturn(Optional.of(targetColumn));
+        when(workItemRepository.findByColumnIdOrderByPositionAsc(300L)).thenReturn(List.of());
+        when(workItemRepository.findById(900L)).thenReturn(Optional.of(parent));
+        when(workItemRepository.countByParentWorkItemId(500L)).thenReturn(2L);
+
+        WorkItemResponse response = boardService.move(500L, new WorkItemMoveRequest(300L, 0), 1L);
+
+        assertThat(response.parentWorkItemId()).isEqualTo(900L);
+        assertThat(response.parentWorkItemTitle()).isEqualTo("Task 900");
+        assertThat(response.childCount()).isEqualTo(2);
+    }
+
+    @Test
     void moveByUnauthorizedUserThrows403() throws Exception {
         WorkItem item = workItem(500L, 10L, 200L, 1024);
         when(workItemRepository.findById(500L)).thenReturn(Optional.of(item));

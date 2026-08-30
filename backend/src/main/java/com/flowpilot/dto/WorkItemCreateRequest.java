@@ -24,22 +24,23 @@ public record WorkItemCreateRequest(
         @Schema(nullable = true) Long sprintId, WorkItemPriority priority,
         List<String> acceptanceCriteria,
         @Schema(nullable = true) Boolean aiGenerated,
-        @Schema(nullable = true) String aiModel) {
+        @Schema(nullable = true) String aiModel,
+        @Schema(nullable = true) Long parentWorkItemId) {
 
     public WorkItemCreateRequest {
         acceptanceCriteria = acceptanceCriteria == null ? List.of() : List.copyOf(acceptanceCriteria);
     }
 
     public WorkItemCreateRequest(String title, String description, Long assignedUserId) {
-        this(title, description, assignedUserId, null, null, List.of(), null, null);
+        this(title, description, assignedUserId, null, null, List.of(), null, null, null);
     }
 
     public WorkItemCreateRequest(String title, String description, Long assignedUserId, Long sprintId) {
-        this(title, description, assignedUserId, sprintId, null, List.of(), null, null);
+        this(title, description, assignedUserId, sprintId, null, List.of(), null, null, null);
     }
 
     public WorkItemCreateRequest(
             String title, String description, Long assignedUserId, Long sprintId, WorkItemPriority priority) {
-        this(title, description, assignedUserId, sprintId, priority, List.of(), null, null);
+        this(title, description, assignedUserId, sprintId, priority, List.of(), null, null, null);
     }
 }

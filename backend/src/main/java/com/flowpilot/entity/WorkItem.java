@@ -61,6 +61,18 @@ public class WorkItem {
     @Column(name = "sprint_id")
     private Long sprintId;
 
+    /**
+     * Single-level parent link (spec: work-item-hierarchy). Plain {@code Long}
+     * mirroring {@code sprintId} rather than a {@code @ManyToOne} self-relation
+     * (design D2): avoids a self-referential lazy proxy and its serialization
+     * cycle in {@code WorkItemResponse}. Set via {@link #setParentWorkItemId}
+     * after construction — no constructor overload. {@code null} means the item
+     * has no parent. The one-level-hierarchy and delete-with-children rules are
+     * enforced in {@link com.flowpilot.service.WorkItemService}.
+     */
+    @Column(name = "parent_work_item_id")
+    private Long parentWorkItemId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private WorkItemPriority priority;
@@ -181,6 +193,14 @@ public class WorkItem {
 
     public void setSprintId(Long sprintId) {
         this.sprintId = sprintId;
+    }
+
+    public Long getParentWorkItemId() {
+        return parentWorkItemId;
+    }
+
+    public void setParentWorkItemId(Long parentWorkItemId) {
+        this.parentWorkItemId = parentWorkItemId;
     }
 
     public WorkItemPriority getPriority() {
