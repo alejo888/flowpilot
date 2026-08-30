@@ -94,6 +94,11 @@ export class BacklogStore {
           description: item.description,
           assignedUserId: item.assignedUserId,
           sprintId,
+          // Round-tripped because PUT /api/work-items/{id} applies the parent
+          // setter unconditionally: an omitted parentWorkItemId is read as
+          // "clear the parent", so a bare sprint-assign here would orphan a
+          // subtask (mirrors sprintId).
+          parentWorkItemId: item.parentWorkItemId,
         })
         .subscribe({
           next: (updated) => {

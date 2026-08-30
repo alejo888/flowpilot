@@ -150,6 +150,24 @@ describe('BacklogStore', () => {
     expect(store.backlogItems()[0].sprintId).toBeNull();
   });
 
+  it('preserves an existing parent link when assigning a subtask to a sprint', async () => {
+    const child: WorkItem = { ...item(1, null, null), parentWorkItemId: 900 };
+    api.getWorkItems.mockReturnValue(of([child]));
+    api.listSprints.mockReturnValue(of([sprint(7)]));
+    store.load(10);
+    api.updateWorkItemSprint.mockReturnValue(of({ ...child, sprintId: 7 }));
+
+    await store.assignItem(child, 7);
+
+    expect(api.updateWorkItemSprint).toHaveBeenCalledWith(1, {
+      title: child.title,
+      description: child.description,
+      assignedUserId: child.assignedUserId,
+      sprintId: 7,
+      parentWorkItemId: 900,
+    });
+  });
+
   it('resolves false and leaves the item unchanged when assignment fails (e.g. COMPLETED sprint)', async () => {
     const original = item(1, null, 9);
     api.getWorkItems.mockReturnValue(of([original]));
