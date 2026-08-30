@@ -1,0 +1,48 @@
+# AI-assisted planning override — opt-in only.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ai.yml up --build
+#
+# Base docker-compose.yml stays untouched: without this override the stack boots
+# with flowpilot.ai.enabled=false and the StubAiPlanningService, exactly as
+# before. This file adds a local Ollama service and points the backend at it.
+#
+# A model name is mandatory when the override is used (there is no sensible
+# default). Set it in your .env or the shell before `up`, then pull it once the
+# stack is running:
+#
+#   FLOWPILOT_AI_OLLAMA_MODEL=llama3 docker compose -f docker-compose.yml -f docker-compose.ai.yml up --build
+#   docker compose -f docker-compose.yml -f docker-compose.ai.yml exec ollama ollama pull llama3
+services:
+  ollama:
+    # Pinned (design D + risk register): a floating tag can ship an Ollama build
+    # that rejects the json_schema response_format, reintroducing exactly the
+    # risk the D6 downgrade + pinned tag were chosen to close.
+    image: ollama/ollama:0.5.7
+    volumes:
+      - flowpilot-ollama-models:/root/.ollama
+    # `ollama list` queries the daemon's local /api/tags; it needs no curl/wget
+    # in the image and returns non-zero until the HTTP server is accepting
+    # connections, which is the readiness signal the backend waits on below.
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  backend:
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    environment:
+      FLOWPILOT_AI_ENABLED: "true"
+      FLOWPILOT_AI_OLLAMA_BASE_URL: "http://ollama:11434"
+      # ${VAR:?msg} — compose aborts with this message if the model name is unset,
+      # mirroring the base file's db-credential guards and the backend's own
+      # fail-fast when flowpilot.ai.enabled=true without a model (design D2).
+      FLOWPILOT_AI_OLLAMA_MODEL: ${FLOWPILOT_AI_OLLAMA_MODEL:?set FLOWPILOT_AI_OLLAMA_MODEL to a pulled Ollama model name}
+
+volumes:
+  flowpilot-ollama-models:

@@ -31,10 +31,11 @@ Full product vision: [`FlowPilot_Gestor_Proyectos_IA.md`](FlowPilot_Gestor_Proye
 - **Profile**: view your own name/email and change your password, which revokes your other active sessions.
 - **Project dashboard**: per-project metrics — item totals, completion and backlog counts, per-column flow, priority distribution, active sprint progress, and per-assignee workload.
 - **Comments & activity feed**: threaded comments on projects and individual work items (create/read/update), plus an authorization-checked project activity feed surfacing membership, status, sprint, and comment events.
+- **AI user-story generation** (vision-doc slice 7.1): turn a free-text requirement into a draft user story (`Como … quiero … para …`) plus acceptance criteria, which you edit and confirm before it becomes a work item. **Off by default** — with the flag off, a deterministic stub keeps the endpoint and screen answering; with it on, generation runs against a local [Ollama](https://ollama.com) model. Nothing is persisted until you confirm. See ["Turning on AI generation"](#turning-on-ai-generation) below.
 - **Spanish-localized errors**: auth, projects, members, board, admin, and profile error/validation messages are translated end-to-end (see [`CLAUDE.md`](CLAUDE.md) for the few remaining English-only paths).
 - **API contract**: [`api/openapi.yaml`](api/openapi.yaml) is hand-authored and contract-first, with a CI job that diffs it against the live-generated spec for breaking changes.
 
-See [`CLAUDE.md`](CLAUDE.md) for the full current-status breakdown and what remains toward a complete MVP (AI-assisted planning, comment deletion, etc.).
+See [`CLAUDE.md`](CLAUDE.md) for the full current-status breakdown and what remains toward a complete MVP (the rest of the vision-doc 7.x AI features, comment deletion, etc.).
 
 ## Tech stack
 
@@ -70,6 +71,22 @@ On first boot, Flyway seeds the database with demo data so the app isn't empty:
 | `diego.torres@flowpilot.local` | `Demo1234!` | Miembro del equipo |
 
 These are local/dev-only bootstrap credentials — rotate them before any real deployment.
+
+### Turning on AI generation
+
+AI user-story generation is opt-in. The default `docker compose up --build` runs with `flowpilot.ai.enabled=false` and a deterministic stub generator, so the endpoint and the `/projects/:id/ai/user-stories` screen work without any model — the stub just returns a canned draft.
+
+To generate against a real local model, add the `docker-compose.ai.yml` override (it starts an [Ollama](https://ollama.com) container, points the backend at it, and flips the flag on) and pick a model:
+
+```bash
+# FLOWPILOT_AI_OLLAMA_MODEL is mandatory with the override — compose aborts without it.
+FLOWPILOT_AI_OLLAMA_MODEL=llama3 docker compose -f docker-compose.yml -f docker-compose.ai.yml up --build
+
+# One-time: pull the model into the Ollama volume.
+docker compose -f docker-compose.yml -f docker-compose.ai.yml exec ollama ollama pull llama3
+```
+
+The backend calls Ollama's OpenAI-compatible `/v1/chat/completions` with a 5s connect / 60s read timeout and no retry; if the model is unreachable, slow, or returns unusable output you get a Spanish RFC 7807 **503** rather than a partial result. Setting `FLOWPILOT_AI_ENABLED=false` (or just dropping the override) instantly restores the stub with no rebuild. AI provenance recorded on a confirmed work item (`aiGenerated` / `aiModel`) is what the client claims, not something the server verifies.
 
 ### Running the backend or frontend on their own
 
