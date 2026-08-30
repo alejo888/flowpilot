@@ -12,4 +12,10 @@ public interface WorkItemRepository extends JpaRepository<WorkItem, Long> {
     Optional<WorkItem> findFirstByColumnIdOrderByPositionDesc(Long columnId);
 
     List<WorkItem> findByColumnIdOrderByPositionAsc(Long columnId);
+
+    /** Direct-subtask count for the delete-with-children 409 guard (spec: work-item-hierarchy). */
+    long countByParentWorkItemId(Long parentWorkItemId);
+
+    /** Whether the given work item is itself a parent — blocks it from becoming a subtask. */
+    boolean existsByParentWorkItemId(Long parentWorkItemId);
 }
