@@ -102,8 +102,9 @@ describe('ProjectDetailComponent', () => {
     ).toBeNull();
   });
 
-  it('shows a project-scoped AI user-stories link when the AI assistant is enabled', () => {
+  it('shows a project-scoped AI user-stories link when the assistant is enabled and the caller can create work items', () => {
     aiConfigStub.aiEnabled.set(true);
+    storeStub.selectedProject.set(project(4, 'PLANIFICACION', ['WORKITEM_CREATE']));
     fixture.detectChanges();
 
     const link = fixture.nativeElement.querySelector(
@@ -111,6 +112,14 @@ describe('ProjectDetailComponent', () => {
     ) as HTMLAnchorElement;
     expect(link).not.toBeNull();
     expect(link.getAttribute('href')).toBe('/projects/4/ai/user-stories');
+  });
+
+  it('hides the AI user-stories link when the caller lacks WORKITEM_CREATE, even with the assistant enabled', () => {
+    aiConfigStub.aiEnabled.set(true);
+    storeStub.selectedProject.set(project(4, 'PLANIFICACION', ['PROJECT_EDIT_SETTINGS']));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-ai-stories"]')).toBeNull();
   });
 
   it('loads the requested project and renders its detail fields', () => {
