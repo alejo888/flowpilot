@@ -25,12 +25,17 @@ export class AiConfigService {
   readonly aiEnabled: Signal<boolean> = this.enabledSignal.asReadonly();
 
   /**
-   * Fetches `/api/ai/config` unless a request is already in flight. Resolves
-   * with the resolved flag; fail-closed, so any error resolves `false` and
-   * leaves {@link aiEnabled} `false`. Returning a promise lets the route guard
-   * await a definitive answer; the app shell can still call it fire-and-forget.
+   * Fetches `/api/ai/config` unless a response has already settled (the flag is
+   * a static server-side setting, so re-auth must not re-fetch it) or a request
+   * is already in flight. Resolves with the resolved flag; fail-closed, so any
+   * error resolves `false` and leaves {@link aiEnabled} `false`. Returning a
+   * promise lets the route guard await a definitive answer; the app shell can
+   * still call it fire-and-forget.
    */
   load(): Promise<boolean> {
+    if (this.settled) {
+      return Promise.resolve(this.enabledSignal());
+    }
     if (this.inFlight) {
       return this.inFlight;
     }

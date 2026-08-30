@@ -48,6 +48,14 @@ describe('AiConfigService', () => {
     expect(service.aiEnabled()).toBe(false);
   });
 
+  it('does not re-fetch once a config response has settled (re-auth must not re-hit the endpoint)', async () => {
+    service.load();
+    httpMock.expectOne('/api/ai/config').flush({ enabled: true });
+
+    await expect(service.load()).resolves.toBe(true);
+    // afterEach's httpMock.verify() asserts no second request was issued.
+  });
+
   it('does not fire a second request while one is already in flight', () => {
     service.load();
     service.load();

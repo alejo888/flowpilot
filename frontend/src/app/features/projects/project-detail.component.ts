@@ -34,7 +34,7 @@ const STATUS_OPTIONS = [
       @if (error(); as message) { <p data-testid="project-detail-error" class="error">{{ message }}</p> }
       @if (project(); as current) {
         <header class="detail-header">
-          <div class="project-context-links"><a routerLink="/projects" class="project-back-link"><fp-icon name="arrow-left" /> Volver a proyectos</a><a [routerLink]="['/projects', projectId(), 'backlog']" class="project-link"><fp-icon name="list" /> Backlog y sprints</a><a [routerLink]="['/projects', projectId(), 'dashboard']" class="project-link"><fp-icon name="dashboard" /> Dashboard</a>@if (aiEnabled()) {<a [routerLink]="['/projects', projectId(), 'ai', 'user-stories']" class="project-link" data-testid="nav-ai-stories"><fp-icon name="edit" /> Historias con IA</a>}<h1 data-testid="project-detail-name">{{ current.name }}</h1></div>
+          <div class="project-context-links"><a routerLink="/projects" class="project-back-link"><fp-icon name="arrow-left" /> Volver a proyectos</a><a [routerLink]="['/projects', projectId(), 'backlog']" class="project-link"><fp-icon name="list" /> Backlog y sprints</a><a [routerLink]="['/projects', projectId(), 'dashboard']" class="project-link"><fp-icon name="dashboard" /> Dashboard</a>@if (canGenerateAiStories()) {<a [routerLink]="['/projects', projectId(), 'ai', 'user-stories']" class="project-link" data-testid="nav-ai-stories"><fp-icon name="edit" /> Historias con IA</a>}<h1 data-testid="project-detail-name">{{ current.name }}</h1></div>
           <fp-badge [variant]="statusBadgeVariant(current.status)" data-testid="project-detail-status">{{ current.status }}</fp-badge>
         </header>
         <fp-card><div class="summary">
@@ -130,6 +130,16 @@ export class ProjectDetailComponent {
   readonly statusResetToken = signal(0);
   readonly canEditSettings = computed(() => hasPermission(this.project(), 'PROJECT_EDIT_SETTINGS'));
   readonly canDelete = computed(() => hasPermission(this.project(), 'PROJECT_DELETE'));
+  /**
+   * The AI user-story screen only ever ends in a `POST /work-items` the backend
+   * guards with `WORKITEM_CREATE`. Gate the entrypoint on that same permission
+   * (same control-gating convention as the edit/status/delete controls) so a
+   * viewer never reaches the form only to hit a 403 on submit. Fail-closed:
+   * hidden until the project has loaded and the assistant is enabled.
+   */
+  readonly canGenerateAiStories = computed(
+    () => this.aiEnabled() && hasPermission(this.project(), 'WORKITEM_CREATE'),
+  );
 
   constructor() {
     effect(() => {

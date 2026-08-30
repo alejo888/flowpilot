@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 
 import { aiEnabledGuard } from './core/ai/ai-enabled.guard';
 import { adminGuard, authGuard } from './core/auth/auth.guard';
+import { workItemCreateGuard } from './features/projects/work-item-create.guard';
 import { HomeComponent } from './features/home/home.component';
 
 export const routes: Routes = [
@@ -60,7 +61,7 @@ export const routes: Routes = [
   },
   {
     path: 'projects/:projectId/ai/user-stories',
-    canActivate: [authGuard, aiEnabledGuard],
+    canActivate: [authGuard, aiEnabledGuard, workItemCreateGuard],
     loadComponent: () =>
       import('./features/ai-stories/ai-stories.component').then((m) => m.AiStoriesComponent)
   },
