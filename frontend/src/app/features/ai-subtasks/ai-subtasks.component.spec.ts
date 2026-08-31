@@ -87,6 +87,21 @@ describe('AiSubtasksComponent', () => {
     expect(q('subtasks-story-select')).not.toBeNull();
   });
 
+  it('exposes the active mode to assistive tech via aria-pressed', () => {
+    build();
+    fixture.detectChanges();
+
+    fixture.componentInstance.setMode('text');
+    fixture.detectChanges();
+    expect(q('mode-text')?.getAttribute('aria-pressed')).toBe('true');
+    expect(q('mode-existing')?.getAttribute('aria-pressed')).toBe('false');
+
+    fixture.componentInstance.setMode('existing');
+    fixture.detectChanges();
+    expect(q('mode-existing')?.getAttribute('aria-pressed')).toBe('true');
+    expect(q('mode-text')?.getAttribute('aria-pressed')).toBe('false');
+  });
+
   it('toggles between mode (a) and mode (b)', () => {
     build();
     fixture.detectChanges();

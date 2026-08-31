@@ -23,12 +23,14 @@
       <button
         type="button"
         data-testid="mode-existing"
+        [attr.aria-pressed]="mode() === 'existing'"
         [class.active]="mode() === 'existing'"
         (click)="setMode('existing')"
       >Historia existente</button>
       <button
         type="button"
         data-testid="mode-text"
+        [attr.aria-pressed]="mode() === 'text'"
         [class.active]="mode() === 'text'"
         (click)="setMode('text')"
       >Texto libre</button>
