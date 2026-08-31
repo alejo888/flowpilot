@@ -4,9 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.flowpilot.dto.BatchWorkItemLine;
+import com.flowpilot.dto.WorkItemBatchCreateRequest;
 import com.flowpilot.dto.WorkItemCreateRequest;
 import com.flowpilot.dto.WorkItemResponse;
 import com.flowpilot.dto.WorkItemUpdateRequest;
@@ -59,18 +63,21 @@ class WorkItemServiceTest {
     private SprintRepository sprintRepository;
 
     private ProjectAuthorizationService authorizationService;
+    private ProjectActivityService activityService;
 
     private WorkItemService workItemService;
 
     @BeforeEach
     void setUp() {
         authorizationService = mock(ProjectAuthorizationService.class);
+        activityService = mock(ProjectActivityService.class);
         workItemService = new WorkItemService(
                 workItemRepository,
                 boardColumnRepository,
                 userRepository,
                 authorizationService,
                 sprintRepository);
+        workItemService.setActivityService(activityService);
     }
 
     @Test
@@ -743,6 +750,158 @@ class WorkItemServiceTest {
         assertThat(childResponse.parentWorkItemId()).isEqualTo(900L);
         assertThat(childResponse.childCount()).isZero();
         verify(workItemRepository, org.mockito.Mockito.never()).countByParentWorkItemId(any());
+    }
+
+    // --- Transactional batch create (spec: ai-subtask-generation) ---
+
+    private static BatchWorkItemLine line(String title) {
+        return new BatchWorkItemLine(title, null, List.of(), null, null);
+    }
+
+    private WorkItemBatchCreateRequest batch(Long columnId, Long parentId, Long sprintId,
+            Boolean aiGenerated, String aiModel, BatchWorkItemLine... lines) {
+        return new WorkItemBatchCreateRequest(
+                columnId, parentId, sprintId, aiGenerated, aiModel, List.of(lines));
+    }
+
+    @Test
+    void createBatchRequiresWorkItemCreatePermission() {
+        when(authorizationService.hasPermission(2L, 10L, Permission.WORKITEM_CREATE)).thenReturn(false);
+
+        assertThatThrownBy(() -> workItemService.createBatch(
+                10L, batch(200L, null, null, null, null, line("A")), 2L))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(workItemRepository, never()).save(any(WorkItem.class));
+    }
+
+    @Test
+    void createBatchWithUnknownColumnThrows404() {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> workItemService.createBatch(
+                10L, batch(999L, null, null, null, null, line("A")), 1L))
+                .isInstanceOf(com.flowpilot.exception.BoardColumnNotFoundException.class);
+    }
+
+    @Test
+    void createBatchWithCrossProjectColumnThrows400() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findById(200L)).thenReturn(Optional.of(column(200L, 99L, 1024)));
+
+        assertThatThrownBy(() -> workItemService.createBatch(
+                10L, batch(200L, null, null, null, null, line("A")), 1L))
+                .isInstanceOf(com.flowpilot.exception.CrossProjectColumnException.class);
+        verify(workItemRepository, never()).save(any(WorkItem.class));
+    }
+
+    @Test
+    void createBatchValidatesSprintOnceForTheWholeBatch() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findById(200L)).thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(sprintRepository.findByIdAndProjectId(7L, 10L)).thenReturn(Optional.of(completedSprint(10L)));
+
+        assertThatThrownBy(() -> workItemService.createBatch(
+                10L, batch(200L, null, 7L, null, null, line("A"), line("B"), line("C")), 1L))
+                .isInstanceOf(InvalidSprintException.class);
+        verify(sprintRepository, times(1)).findByIdAndProjectId(7L, 10L);
+        verify(workItemRepository, never()).save(any(WorkItem.class));
+    }
+
+    @Test
+    void createBatchValidatesParentOnceAtBatchLevelBeforeAnySave() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findById(200L)).thenReturn(Optional.of(column(200L, 10L, 1024)));
+        WorkItem parentThatIsItselfASubtask = workItem(900L, 10L, 200L, "Ya es subtarea", 1024);
+        parentThatIsItselfASubtask.setParentWorkItemId(700L);
+        when(workItemRepository.findById(900L)).thenReturn(Optional.of(parentThatIsItselfASubtask));
+
+        assertThatThrownBy(() -> workItemService.createBatch(
+                10L, batch(200L, 900L, null, null, null, line("A"), line("B"), line("C")), 1L))
+                .isInstanceOf(com.flowpilot.exception.InvalidParentException.class);
+        verify(workItemRepository, never()).save(any(WorkItem.class));
+    }
+
+    @Test
+    void createBatchLinksEveryCreatedRowToTheBatchParent() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findById(200L)).thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(workItemRepository.findById(900L))
+                .thenReturn(Optional.of(workItem(900L, 10L, 200L, "Historia padre", 1024)));
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        List<WorkItemResponse> created = workItemService.createBatch(
+                10L, batch(200L, 900L, null, null, null, line("A"), line("B"), line("C")), 1L);
+
+        assertThat(created).allSatisfy(r -> assertThat(r.parentWorkItemId()).isEqualTo(900L));
+    }
+
+    @Test
+    void createBatchWalksSequentialGapPositions() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findById(200L)).thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        List<WorkItemResponse> created = workItemService.createBatch(
+                10L, batch(200L, null, null, null, null, line("A"), line("B"), line("C")), 1L);
+
+        assertThat(created).extracting(WorkItemResponse::position).containsExactly(1024, 2048, 3072);
+        assertThat(created).extracting(WorkItemResponse::title).containsExactly("A", "B", "C");
+        assertThat(created).allSatisfy(r -> assertThat(r.columnId()).isEqualTo(200L));
+    }
+
+    @Test
+    void createBatchStampsBatchProvenanceOnEveryRow() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findById(200L)).thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        List<WorkItemResponse> created = workItemService.createBatch(
+                10L, batch(200L, null, null, true, "llama3", line("A"), line("B")), 1L);
+
+        assertThat(created).allSatisfy(r -> {
+            assertThat(r.aiGenerated()).isTrue();
+            assertThat(r.aiModel()).isEqualTo("llama3");
+        });
+    }
+
+    @Test
+    void createBatchRecordsOneCreatedActivityEventPerRow() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findById(200L)).thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        workItemService.createBatch(
+                10L, batch(200L, null, null, null, null, line("A"), line("B"), line("C")), 1L);
+
+        verify(activityService, times(3)).record(
+                org.mockito.ArgumentMatchers.eq(10L),
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq(com.flowpilot.entity.ActivityEventType.WORK_ITEM_CREATED),
+                org.mockito.ArgumentMatchers.startsWith("Se creó la tarea "),
+                org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void createBatchBadLinePropagatesAndSavesOnlyThePrecedingRows() throws Exception {
+        when(authorizationService.hasPermission(1L, 10L, Permission.WORKITEM_CREATE)).thenReturn(true);
+        when(boardColumnRepository.findById(200L)).thenReturn(Optional.of(column(200L, 10L, 1024)));
+        when(workItemRepository.findFirstByColumnIdOrderByPositionDesc(200L)).thenReturn(Optional.empty());
+        when(workItemRepository.save(any(WorkItem.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(authorizationService.canView(42L, 10L)).thenReturn(false);
+
+        BatchWorkItemLine bad = new BatchWorkItemLine("C", null, List.of(), 42L, null);
+        assertThatThrownBy(() -> workItemService.createBatch(
+                10L, batch(200L, null, null, null, null, line("A"), line("B"), bad, line("D")), 1L))
+                .isInstanceOf(ProjectMemberNotFoundException.class);
+
+        verify(workItemRepository, times(2)).save(any(WorkItem.class));
+        verify(activityService, times(2)).record(any(), any(), any(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
     }
 
     private WorkItem workItem(Long id, Long projectId, Long columnId, String title, int position) throws Exception {

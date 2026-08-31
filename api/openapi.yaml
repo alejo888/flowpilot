@@ -1158,6 +1158,59 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/projects/{projectId}/work-items/batch:
+    post:
+      summary: Create a batch of subtasks in one transaction
+      operationId: createWorkItemBatch
+      description: >-
+        All-or-nothing create of 1..10 subtasks into one explicitly named
+        column. The endpoint is transactional: a single invalid line (blank
+        title, non-participant assignee, cross-project column, completed
+        sprint) creates zero rows and records zero activity events, and the
+        error body names the offending index (subtasks[i].title). The column
+        must belong to the project; parentWorkItemId, sprintId, and the
+        aiGenerated/aiModel provenance are batch-level and applied to every
+        created row. Same WORKITEM_CREATE gate as the single create. Generic
+        capability — the AI-subtasks flow is the first caller.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/NestedProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkItemBatchCreateRequest'
+      responses:
+        '201':
+          description: Every subtask created in the named column
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkItemResponse'
+        '400':
+          description: >-
+            Validation failed (no subtasks, over 10, blank/over-long title,
+            cross-project column) — zero rows created
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller lacks WORKITEM_CREATE on the project
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No project, column, parent, or sprint with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/work-items/{id}:
     get:
       summary: Get a work item by id
@@ -2160,6 +2213,64 @@ components:
         goal: {type: string, nullable: true}
         startDate: {type: string, format: date}
         endDate: {type: string, format: date}
+    BatchWorkItemLine:
+      type: object
+      description: One subtask line of a WorkItemBatchCreateRequest.
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        acceptanceCriteria:
+          type: array
+          description: >-
+            Ordered acceptance criteria. Optional; omitted or null is stored as
+            an empty list. Never folded into description.
+          items:
+            type: string
+        assignedUserId:
+          type: [integer, 'null']
+          format: int64
+        priority:
+          $ref: '#/components/schemas/WorkItemPriority'
+    WorkItemBatchCreateRequest:
+      type: object
+      description: >-
+        Transactional batch create of 1..10 subtasks into one named column
+        (spec: ai-subtask-generation). columnId and subtasks are required.
+      required: [columnId, subtasks]
+      properties:
+        columnId:
+          type: integer
+          format: int64
+        parentWorkItemId:
+          type: [integer, 'null']
+          format: int64
+          description: >-
+            Optional single-level parent link applied to every created row.
+        sprintId:
+          type: [integer, 'null']
+          format: int64
+          description: >-
+            Optional sprint for every created row; PLANNED or ACTIVE only, a
+            COMPLETED sprint is rejected.
+        aiGenerated:
+          type: [boolean, 'null']
+          description: >-
+            Batch-level client-asserted provenance flag stamped on every row.
+            Omitted or null is stored as false.
+        aiModel:
+          type: [string, 'null']
+          description: >-
+            Batch-level client-asserted model name stamped on every row.
+        subtasks:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/BatchWorkItemLine'
     WorkItemCreateRequest:
       type: object
       description: >-

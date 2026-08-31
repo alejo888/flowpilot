@@ -234,6 +234,7 @@ describe('BoardComponent', () => {
       sprintId: 7,
       priority: null,
       parentWorkItemId: null,
+      acceptanceCriteria: [],
     });
   });
 
@@ -251,7 +252,24 @@ describe('BoardComponent', () => {
       sprintId: null,
       priority: 'HIGH',
       parentWorkItemId: null,
+      acceptanceCriteria: [],
     });
+  });
+
+  it('keeps acceptanceCriteria when saving a detail-panel edit', () => {
+    storeStub.selectedItem.set({
+      ...item(500, 1, 1024, 'Design schema'),
+      acceptanceCriteria: ['Dado A', 'Cuando B', 'Entonces C'],
+    });
+    fixture.detectChanges();
+
+    fixture.componentInstance.editForm.title = 'Schema editado';
+    fixture.componentInstance.submitUpdate(500);
+
+    expect(storeStub.updateItem).toHaveBeenCalledWith(
+      500,
+      expect.objectContaining({ acceptanceCriteria: ['Dado A', 'Cuando B', 'Entonces C'] }),
+    );
   });
 
   it('opens an accessible delete confirmation dialog', () => {

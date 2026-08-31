@@ -1,5 +1,6 @@
 package com.flowpilot.controller;
 
+import com.flowpilot.dto.WorkItemBatchCreateRequest;
 import com.flowpilot.dto.WorkItemCreateRequest;
 import com.flowpilot.dto.WorkItemMoveRequest;
 import com.flowpilot.dto.WorkItemResponse;
@@ -64,6 +65,29 @@ public class WorkItemController {
             @Valid @RequestBody WorkItemCreateRequest request,
             Authentication authentication) {
         return workItemService.create(projectId, request, currentUserId(authentication));
+    }
+
+    @Operation(summary = "Create a batch of subtasks in one transaction")
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "All subtasks created in the named column"),
+        @ApiResponse(responseCode = "400",
+                description = "Validation failed (no/blank title, over 10 lines, cross-project column) — 0 rows created",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "403", description = "Caller lacks WORKITEM_CREATE on the project",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "404", description = "No project, column, parent, or sprint with that id",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @PostMapping("/api/projects/{projectId}/work-items/batch")
+    @ResponseStatus(HttpStatus.CREATED)
+    public List<WorkItemResponse> createBatch(
+            @PathVariable Long projectId,
+            @Valid @RequestBody WorkItemBatchCreateRequest request,
+            Authentication authentication) {
+        return workItemService.createBatch(projectId, request, currentUserId(authentication));
     }
 
     @Operation(summary = "List a project's work items")

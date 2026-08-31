@@ -41,6 +41,15 @@ type WorkItemForm = {
    * explicit clear).
    */
   parentWorkItemId?: number | null;
+  /**
+   * The item's structured acceptance criteria. Not edited in this screen, but
+   * round-tripped like `sprintId`/`priority`/`parentWorkItemId` above so a
+   * board-panel edit never wipes an AI story's criteria: `PUT /api/work-items/{id}`
+   * replaces the stored list with whatever it receives (an omitted value
+   * becomes `[]`). `emptyForm()` leaves it `undefined` so the create path
+   * posts nothing and the backend stores `[]`.
+   */
+  acceptanceCriteria?: string[];
 };
 
 const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUserId: null });
@@ -492,6 +501,7 @@ function formFromItem(item: WorkItem): WorkItemForm {
     sprintId: item.sprintId ?? null,
     priority: item.priority ?? null,
     parentWorkItemId: item.parentWorkItemId ?? null,
+    acceptanceCriteria: item.acceptanceCriteria ?? [],
   };
 }
 
@@ -523,6 +533,10 @@ function requestFromForm(form: WorkItemForm): WorkItemCreateRequest | WorkItemUp
 
   if (form.parentWorkItemId !== undefined) {
     request.parentWorkItemId = form.parentWorkItemId;
+  }
+
+  if (form.acceptanceCriteria !== undefined) {
+    request.acceptanceCriteria = form.acceptanceCriteria;
   }
 
   return request;
