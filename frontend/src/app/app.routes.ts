@@ -66,6 +66,12 @@ export const routes: Routes = [
       import('./features/ai-stories/ai-stories.component').then((m) => m.AiStoriesComponent)
   },
   {
+    path: 'projects/:projectId/ai/subtasks',
+    canActivate: [authGuard, aiEnabledGuard, workItemCreateGuard],
+    loadComponent: () =>
+      import('./features/ai-subtasks/ai-subtasks.component').then((m) => m.AiSubtasksComponent)
+  },
+  {
     path: 'projects/:projectId/members',
     canActivate: [authGuard],
     loadComponent: () =>

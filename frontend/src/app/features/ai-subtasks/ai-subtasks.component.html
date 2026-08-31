@@ -1,0 +1,174 @@
+<main class="ai-subtasks">
+  <header class="ai-subtasks-header">
+    <a class="project-back-link" [routerLink]="['/projects', projectId()]">
+      <fp-icon name="arrow-left" /> Volver al proyecto
+    </a>
+    <p class="eyebrow">Asistente de IA</p>
+    <h1>Subtareas con IA</h1>
+    <p class="lead">
+      Elige una historia existente o describe una en texto libre. La IA propone hasta
+      {{ maxDrafts }} subtareas técnicas; puedes editarlas antes de crearlas.
+    </p>
+  </header>
+
+  @if (store.error(); as error) {
+    <p class="error" role="alert" data-testid="ai-subtasks-error">{{ error }}</p>
+  }
+  @if (store.success(); as success) {
+    <p class="success" role="status" data-testid="ai-subtasks-success">{{ success }}</p>
+  }
+
+  <fp-card>
+    <div class="mode-toggle" role="group" aria-label="Origen de la historia">
+      <button
+        type="button"
+        data-testid="mode-existing"
+        [class.active]="mode() === 'existing'"
+        (click)="setMode('existing')"
+      >Historia existente</button>
+      <button
+        type="button"
+        data-testid="mode-text"
+        [class.active]="mode() === 'text'"
+        (click)="setMode('text')"
+      >Texto libre</button>
+    </div>
+
+    @if (mode() === 'existing') {
+      <div class="field">
+        <label for="subtasks-story-field">Historia</label>
+        <select
+          id="subtasks-story-field"
+          data-testid="subtasks-story-select"
+          [value]="selectedStoryId() ?? ''"
+          (change)="selectStory(inputValue($event))"
+        >
+          <option value="">Selecciona una historia…</option>
+          @for (story of stories(); track story.id) {
+            <option [value]="story.id">{{ story.title }}</option>
+          }
+        </select>
+        @if (selectedStory(); as story) {
+          @if (story.childCount) {
+            <p class="hint" data-testid="subtasks-existing-count">
+              Esta historia ya tiene {{ story.childCount }}
+              {{ story.childCount === 1 ? 'subtarea' : 'subtareas' }}.
+            </p>
+          }
+        }
+      </div>
+    } @else {
+      <div class="field">
+        <label for="subtasks-story-text-field">Descripción de la historia</label>
+        <textarea
+          id="subtasks-story-text-field"
+          data-testid="subtasks-story-text"
+          rows="4"
+          [value]="storyText()"
+          (input)="storyText.set(inputValue($event))"
+          placeholder="Como responsable de proyecto necesito…"
+        ></textarea>
+      </div>
+    }
+
+    <fp-button
+      type="button"
+      icon="add"
+      testId="subtasks-generate"
+      [disabled]="
+        store.loading() ||
+        (mode() === 'existing' ? selectedStoryId() === null : !storyText().trim())
+      "
+      (click)="generate()"
+    >Generar subtareas</fp-button>
+    @if (store.loading()) {
+      <p class="hint" role="status">Generando subtareas…</p>
+    }
+  </fp-card>
+
+  @if (store.generated()) {
+    <fp-card>
+      <h2>Subtareas propuestas</h2>
+      @if (store.generatedBy(); as provider) {
+        <p class="provenance" data-testid="ai-subtasks-provenance">
+          Generado por: {{ provider }}@if (store.model(); as model) { ({{ model }}) }
+        </p>
+      }
+
+      <ol class="drafts">
+        @for (draft of drafts(); track $index) {
+          <li class="draft-row">
+            <fp-input
+              label="Título"
+              [testId]="'subtask-title-' + $index"
+              [value]="draft.title"
+              (valueChange)="updateDraftTitle($index, $event)"
+            />
+            <div class="field">
+              <label [attr.for]="'subtask-description-field-' + $index">Descripción</label>
+              <textarea
+                [id]="'subtask-description-field-' + $index"
+                [attr.data-testid]="'subtask-description-' + $index"
+                rows="2"
+                [value]="draft.description"
+                (input)="updateDraftDescription($index, inputValue($event))"
+              ></textarea>
+            </div>
+            <button
+              type="button"
+              class="link-button"
+              [attr.data-testid]="'subtask-remove-' + $index"
+              (click)="removeDraft($index)"
+            >Eliminar subtarea</button>
+          </li>
+        }
+      </ol>
+
+      <fp-button
+        type="button"
+        icon="add"
+        testId="subtask-add"
+        [disabled]="drafts().length >= maxDrafts"
+        (click)="addDraft()"
+      >Añadir subtarea</fp-button>
+      @if (drafts().length >= maxDrafts) {
+        <p class="hint">Máximo {{ maxDrafts }} subtareas.</p>
+      }
+
+      <!-- PR 3b seam: column/sprint pickers + confirm() batch create + navigation. -->
+      <p class="hint" data-testid="subtasks-confirm-pending">
+        La creación de las subtareas se habilitará en el siguiente paso.
+      </p>
+    </fp-card>
+  }
+
+  @if (confirming()) {
+    <fp-dialog
+      data-testid="subtasks-regenerate-dialog"
+      label="subtasks-regenerate-title"
+      describedById="subtasks-regenerate-description"
+      (closed)="cancelGenerate()"
+    >
+      <h2 id="subtasks-regenerate-title">Generar más subtareas</h2>
+      <p id="subtasks-regenerate-description">
+        Esta historia ya tiene {{ selectedStory()?.childCount }}
+        {{ selectedStory()?.childCount === 1 ? 'subtarea' : 'subtareas' }}. ¿Generar más?
+      </p>
+      <div class="actions">
+        <fp-button
+          type="button"
+          icon="check"
+          testId="subtasks-regenerate-confirm"
+          (click)="confirmGenerate()"
+        >Sí, generar</fp-button>
+        <fp-button
+          type="button"
+          variant="secondary"
+          icon="close"
+          testId="subtasks-regenerate-cancel"
+          (click)="cancelGenerate()"
+        >Cancelar</fp-button>
+      </div>
+    </fp-dialog>
+  }
+</main>
