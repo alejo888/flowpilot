@@ -1013,6 +1013,69 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/projects/{projectId}/ai/subtasks:
+    post:
+      summary: Generate a non-persisted subtask breakdown from a story or pasted text
+      operationId: generateSubtasks
+      description: >-
+        Breaks a user story into 1..10 subtask drafts. Accepts exactly one of
+        workItemId (mode a: an existing story in the project) or storyText
+        (mode b: pasted text). Guarded by the project WORKITEM_CREATE permission
+        (checked in AiSubtaskService, not the controller); a work item that is
+        not in projectId returns 404, and a source story that is itself a
+        subtask returns 400. Persists nothing — no work item, comment, or
+        activity row is written. When flowpilot.ai.enabled is false the
+        deterministic stub answers (generatedBy=STUB); when true the configured
+        Ollama model answers (generatedBy=OLLAMA). The response is a
+        non-persisted draft list; the caller reviews and edits it, then creates
+        the items through a separate batch work-item endpoint added in a
+        follow-up change.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/NestedProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateSubtasksRequest'
+      responses:
+        '200':
+          description: Generated subtask drafts, nothing persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedSubtasksResponse'
+        '400':
+          description: >-
+            Not exactly one of workItemId/storyText was supplied, storyText is
+            longer than 4000 characters, or the source story is itself a subtask
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller lacks WORKITEM_CREATE on this project
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No project with that id, or no such work item in that project
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '503':
+          description: >-
+            AI assistant unavailable — the LLM refused the connection, exceeded
+            the connect/read timeout, returned a non-2xx status, or produced
+            unparseable or empty output. No retry is attempted.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/ai/config:
     get:
       summary: Report whether AI-assisted planning is enabled
@@ -2014,6 +2077,45 @@ components:
           type: array
           items:
             type: string
+        generatedBy:
+          $ref: '#/components/schemas/AiProvider'
+        model:
+          type: string
+          nullable: true
+    GenerateSubtasksRequest:
+      type: object
+      description: >-
+        Exactly one of workItemId (mode a) or storyText (mode b) must be
+        present; both or neither is a 400. Text is treated purely as content to
+        analyse, never as instructions to the model.
+      properties:
+        workItemId:
+          type: [integer, 'null']
+          format: int64
+        storyText:
+          type: [string, 'null']
+          minLength: 0
+          maxLength: 4000
+    SubtaskDraft:
+      type: object
+      description: >-
+        One non-persisted subtask draft. description is never null — an absent
+        model description becomes "".
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+    GeneratedSubtasksResponse:
+      type: object
+      description: >-
+        Non-persisted list of 1..10 subtask drafts. model is the Ollama model
+        name for an OLLAMA result and null for a STUB result.
+      properties:
+        subtasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubtaskDraft'
         generatedBy:
           $ref: '#/components/schemas/AiProvider'
         model:

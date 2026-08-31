@@ -1,5 +1,6 @@
 package com.flowpilot.service;
 
+import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
 
 /**
@@ -23,6 +24,21 @@ public interface AiPlanningService {
      *     is attempted
      */
     GeneratedUserStoryResponse generateUserStory(String requirement);
+
+    /**
+     * Breaks a story down into 1..10 non-persisted subtask drafts (spec:
+     * ai-subtask-generation — PR 1). Adding this to the existing seam forces
+     * both implementations to provide it — the compiler is the completeness
+     * gate (design D1).
+     *
+     * @param storyContext the composed story context (mode a) or the raw
+     *     pasted text (mode b), already length-validated by the caller;
+     *     treated purely as content, never as instructions
+     * @return a non-persisted draft list of 1..10 items
+     * @throws com.flowpilot.exception.AiGenerationException if generation fails
+     *     or the model returns no usable subtask; no retry is attempted
+     */
+    GeneratedSubtasksResponse generateSubtasks(String storyContext);
 
     /**
      * Composes the Spanish user-story sentence backend-side (spec:

@@ -1,7 +1,9 @@
 package com.flowpilot.service;
 
 import com.flowpilot.dto.AiProvider;
+import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
+import com.flowpilot.dto.SubtaskDraft;
 import com.flowpilot.dto.UserStoryDraft;
 import java.util.List;
 
@@ -21,6 +23,7 @@ public class StubAiPlanningService implements AiPlanningService {
     private static final String ROLE = "usuario del equipo";
     private static final String BENEFIT = "trabajar de forma más eficiente";
     private static final int MAX_ACTION_LENGTH = 200;
+    private static final int MAX_CONTEXT_HEAD_LENGTH = 180;
 
     @Override
     public GeneratedUserStoryResponse generateUserStory(String requirement) {
@@ -32,6 +35,39 @@ public class StubAiPlanningService implements AiPlanningService {
                 "Dado un caso inválido o incompleto cuando se intenta la acción entonces el sistema muestra un mensaje de error claro");
         return new GeneratedUserStoryResponse(
                 new UserStoryDraft(ROLE, action, BENEFIT, text), acceptanceCriteria, AiProvider.STUB, null);
+    }
+
+    /**
+     * Deterministic 3-item breakdown (design D1): {@code Diseñar} / {@code
+     * Implementar} / {@code Probar}, each embedding the whitespace-normalised
+     * head of the story context, so the same context always yields the same
+     * drafts. {@code generatedBy=STUB}, {@code model=null}.
+     */
+    @Override
+    public GeneratedSubtasksResponse generateSubtasks(String storyContext) {
+        String head = contextHead(storyContext);
+        List<SubtaskDraft> subtasks = List.of(
+                new SubtaskDraft(
+                        "Diseñar: " + head,
+                        "Definir el enfoque técnico y los criterios de aceptación de: " + head),
+                new SubtaskDraft(
+                        "Implementar: " + head,
+                        "Desarrollar la funcionalidad necesaria para: " + head),
+                new SubtaskDraft(
+                        "Probar: " + head,
+                        "Añadir pruebas automáticas que verifiquen: " + head));
+        return new GeneratedSubtasksResponse(subtasks, AiProvider.STUB, null);
+    }
+
+    private static String contextHead(String storyContext) {
+        String collapsed = storyContext == null ? "" : storyContext.strip().replaceAll("\\s+", " ");
+        if (collapsed.isEmpty()) {
+            return "la historia indicada";
+        }
+        if (collapsed.length() > MAX_CONTEXT_HEAD_LENGTH) {
+            return collapsed.substring(0, MAX_CONTEXT_HEAD_LENGTH).strip();
+        }
+        return collapsed;
     }
 
     private static String normaliseAction(String requirement) {

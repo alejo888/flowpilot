@@ -12,12 +12,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.flowpilot.dto.AiProvider;
+import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
+import com.flowpilot.dto.SubtaskDraft;
 import com.flowpilot.dto.UserStoryDraft;
 import com.flowpilot.exception.AiGenerationException;
 import com.flowpilot.exception.ProjectNotFoundException;
+import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.security.JwtService;
 import com.flowpilot.security.SecurityConfig;
+import com.flowpilot.service.AiSubtaskService;
 import com.flowpilot.service.AiUserStoryService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -48,6 +52,9 @@ class AiControllerTest {
 
     @MockitoBean
     private AiUserStoryService aiUserStoryService;
+
+    @MockitoBean
+    private AiSubtaskService aiSubtaskService;
 
     @MockitoBean
     private JwtService jwtService;
@@ -157,5 +164,114 @@ class AiControllerTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    // --- POST /api/projects/{projectId}/ai/subtasks (spec: ai-subtask-generation — PR 1) ---
+
+    private static GeneratedSubtasksResponse sampleSubtasks() {
+        return new GeneratedSubtasksResponse(
+                List.of(
+                        new SubtaskDraft("Diseñar el endpoint", "Contrato y validación"),
+                        new SubtaskDraft("Implementar el servicio", "Lógica y persistencia"),
+                        new SubtaskDraft("Probar", "Cobertura automática")),
+                AiProvider.OLLAMA,
+                "llama3");
+    }
+
+    @Test
+    void generatesSubtasksAndReturns200() throws Exception {
+        when(aiSubtaskService.generate(
+                        org.mockito.ArgumentMatchers.eq(PROJECT_ID),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.eq(CALLER_ID)))
+                .thenReturn(sampleSubtasks());
+
+        mockMvc.perform(post("/api/projects/{projectId}/ai/subtasks", PROJECT_ID)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"workItemId\":55}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.subtasks.length()").value(3))
+                .andExpect(jsonPath("$.subtasks[0].title").value("Diseñar el endpoint"))
+                .andExpect(jsonPath("$.subtasks[0].description").value("Contrato y validación"))
+                .andExpect(jsonPath("$.generatedBy").value("OLLAMA"))
+                .andExpect(jsonPath("$.model").value("llama3"));
+    }
+
+    @Test
+    void bothWorkItemIdAndStoryTextReturns400WithExactlyOneInputError() throws Exception {
+        mockMvc.perform(post("/api/projects/{projectId}/ai/subtasks", PROJECT_ID)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"workItemId\":55,\"storyText\":\"texto libre\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.errors.exactlyOneInput")
+                        .value("Indica una tarea existente O un texto libre, pero no ambos"))
+                .andExpect(jsonPath("$.detail").value("Error de validación"));
+
+        verifyNoInteractions(aiSubtaskService);
+    }
+
+    @Test
+    void neitherInputReturns400WithExactlyOneInputError() throws Exception {
+        mockMvc.perform(post("/api/projects/{projectId}/ai/subtasks", PROJECT_ID)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.exactlyOneInput")
+                        .value("Indica una tarea existente O un texto libre, pero no ambos"));
+
+        verifyNoInteractions(aiSubtaskService);
+    }
+
+    @Test
+    void subtaskCallerWithoutPermissionReturns403() throws Exception {
+        when(aiSubtaskService.generate(
+                        org.mockito.ArgumentMatchers.eq(PROJECT_ID),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.eq(CALLER_ID)))
+                .thenThrow(new AccessDeniedException("Falta el permiso WORKITEM_CREATE en el proyecto 10"));
+
+        mockMvc.perform(post("/api/projects/{projectId}/ai/subtasks", PROJECT_ID)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"workItemId\":55}"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
+    }
+
+    @Test
+    void subtaskUnknownWorkItemReturns404() throws Exception {
+        when(aiSubtaskService.generate(
+                        org.mockito.ArgumentMatchers.eq(PROJECT_ID),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.eq(CALLER_ID)))
+                .thenThrow(new WorkItemNotFoundException(55L));
+
+        mockMvc.perform(post("/api/projects/{projectId}/ai/subtasks", PROJECT_ID)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"workItemId\":55}"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
+    }
+
+    @Test
+    void subtaskAiGenerationFailureReturns503WithSpanishDetail() throws Exception {
+        when(aiSubtaskService.generate(
+                        org.mockito.ArgumentMatchers.eq(PROJECT_ID),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.eq(CALLER_ID)))
+                .thenThrow(new AiGenerationException("empty subtask list"));
+
+        mockMvc.perform(post("/api/projects/{projectId}/ai/subtasks", PROJECT_ID)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"storyText\":\"texto libre\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.detail").value("El asistente de IA no está disponible en este momento."));
     }
 }
