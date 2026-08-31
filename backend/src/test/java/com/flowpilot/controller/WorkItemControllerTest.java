@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flowpilot.dto.BatchWorkItemLine;
+import com.flowpilot.dto.WorkItemBatchCreateRequest;
 import com.flowpilot.dto.WorkItemCreateRequest;
 import com.flowpilot.dto.WorkItemMoveRequest;
 import com.flowpilot.dto.WorkItemResponse;
@@ -267,6 +269,76 @@ class WorkItemControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new WorkItemUpdateRequest("X", null, null))))
                 .andExpect(status().isBadRequest());
+    }
+
+    // --- Transactional batch create (spec: ai-subtask-generation) ---
+
+    private static BatchWorkItemLine batchLine(String title) {
+        return new BatchWorkItemLine(title, null, List.of(), null, null);
+    }
+
+    @Test
+    void createBatchReturns201WithWorkItemArray() throws Exception {
+        when(workItemService.createBatch(eq(10L), any(WorkItemBatchCreateRequest.class), eq(1L)))
+                .thenReturn(List.of(
+                        workItemResponse(501L, 10L, 200L, "Sub A", 1024),
+                        workItemResponse(502L, 10L, 200L, "Sub B", 2048)));
+
+        WorkItemBatchCreateRequest request = new WorkItemBatchCreateRequest(
+                200L, 900L, null, true, "llama3", List.of(batchLine("Sub A"), batchLine("Sub B")));
+
+        mockMvc.perform(post("/api/projects/10/work-items/batch")
+                        .principal(authenticatedAs(1L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].title").value("Sub A"))
+                .andExpect(jsonPath("$[1].title").value("Sub B"));
+    }
+
+    @Test
+    void createBatchWithEmptySubtasksReturns400() throws Exception {
+        WorkItemBatchCreateRequest request = new WorkItemBatchCreateRequest(
+                200L, null, null, null, null, List.of());
+
+        mockMvc.perform(post("/api/projects/10/work-items/batch")
+                        .principal(authenticatedAs(1L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.subtasks").exists());
+    }
+
+    @Test
+    void createBatchWithElevenLinesReturns400OnSubtasks() throws Exception {
+        java.util.List<BatchWorkItemLine> lines = new java.util.ArrayList<>();
+        for (int i = 0; i < 11; i++) {
+            lines.add(batchLine("Sub " + i));
+        }
+        WorkItemBatchCreateRequest request = new WorkItemBatchCreateRequest(
+                200L, null, null, null, null, lines);
+
+        mockMvc.perform(post("/api/projects/10/work-items/batch")
+                        .principal(authenticatedAs(1L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.subtasks").value("No se pueden crear más de 10 subtareas a la vez"));
+    }
+
+    @Test
+    void createBatchWithBlankTitleAtIndexOneReturns400NamingThatIndex() throws Exception {
+        WorkItemBatchCreateRequest request = new WorkItemBatchCreateRequest(
+                200L, null, null, null, null,
+                List.of(batchLine("Válida"), batchLine("   ")));
+
+        mockMvc.perform(post("/api/projects/10/work-items/batch")
+                        .principal(authenticatedAs(1L))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors['subtasks[1].title']").value("El título no puede estar vacío"));
     }
 
     private WorkItemResponse workItemResponse(Long id, Long projectId, Long columnId, String title, int position) {

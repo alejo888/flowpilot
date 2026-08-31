@@ -11,6 +11,7 @@ import com.flowpilot.entity.SprintStatus;
 import com.flowpilot.entity.User;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.exception.BoardColumnNotFoundException;
+import com.flowpilot.exception.CrossProjectColumnException;
 import com.flowpilot.exception.InvalidParentException;
 import com.flowpilot.exception.InvalidSprintException;
 import com.flowpilot.exception.ProjectMemberNotFoundException;
@@ -93,6 +94,53 @@ public class WorkItemService {
         item = workItemRepository.save(item);
             if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED, "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
         return toRichResponse(item);
+    }
+
+    /**
+     * All-or-nothing batch create of 1..10 subtasks into one explicitly named
+     * column (spec: ai-subtask-generation — "Transactional batch work-item
+     * creation"). Unlike {@link #create}, the caller names the target column
+     * ({@code create} always uses the first column); it is resolved and
+     * project-checked here. Sprint and parent are batch-level and validated
+     * once. Positions walk the gap-based step in memory from the column's
+     * current tail so N cards land sequentially with a single position query.
+     * One {@code WORK_ITEM_CREATED} activity event is recorded per created
+     * row, inside the same transaction — a rolled-back batch records none.
+     */
+    @Transactional
+    public List<WorkItemResponse> createBatch(
+            Long projectId, com.flowpilot.dto.WorkItemBatchCreateRequest request, Long requesterId) {
+        requirePermission(requesterId, projectId, Permission.WORKITEM_CREATE);
+        BoardColumn column = boardColumnRepository.findById(request.columnId())
+                .orElseThrow(() -> new BoardColumnNotFoundException(request.columnId()));
+        if (!column.getProjectId().equals(projectId)) {
+            throw new CrossProjectColumnException(request.columnId(), projectId);
+        }
+        validateSprint(projectId, request.sprintId());
+        validateParent(projectId, null, request.parentWorkItemId());
+
+        boolean aiGenerated = Boolean.TRUE.equals(request.aiGenerated());
+        String aiModel = request.aiModel();
+        int position = nextPosition(column.getId());
+        List<WorkItemResponse> created = new java.util.ArrayList<>();
+        for (com.flowpilot.dto.BatchWorkItemLine line : request.subtasks()) {
+            validateAssignee(projectId, line.assignedUserId());
+            WorkItem item = new WorkItem(
+                    projectId, column.getId(), line.title(), line.description(),
+                    line.assignedUserId(), position, request.sprintId(), line.priority());
+            item.setAcceptanceCriteria(line.acceptanceCriteria());
+            item.setAiGenerated(aiGenerated);
+            item.setAiModel(aiModel);
+            item.setParentWorkItemId(request.parentWorkItemId());
+            item = workItemRepository.save(item);
+            if (activityService != null) {
+                activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED,
+                        "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
+            }
+            created.add(toRichResponse(item));
+            position += POSITION_STEP;
+        }
+        return created;
     }
 
     public WorkItemResponse findById(Long id, Long requesterId) {
