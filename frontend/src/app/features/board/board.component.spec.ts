@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
+import { AiConfigService } from '../../core/ai/ai-config.service';
 import { BoardComponent } from './board.component';
 import { BoardStore } from './board.store';
 import { BoardColumn, WorkItem } from './board.model';
@@ -74,8 +75,10 @@ describe('BoardComponent', () => {
     moveItem: ReturnType<typeof vi.fn>;
   };
   let projectsStoreStub: { selectedProject: ReturnType<typeof signal<Project | null>>; loadProject: ReturnType<typeof vi.fn> };
+  let aiConfigStub: { aiEnabled: ReturnType<typeof signal<boolean>>; load: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
+    aiConfigStub = { aiEnabled: signal(false), load: vi.fn() };
     storeStub = {
       columns: signal([column(1, 'Por hacer', 1024), column(2, 'En progreso', 2048)]),
       itemsByColumn: signal({
@@ -104,6 +107,7 @@ describe('BoardComponent', () => {
         provideRouter([]),
         { provide: BoardStore, useValue: storeStub },
         { provide: ProjectsStore, useValue: projectsStoreStub },
+        { provide: AiConfigService, useValue: aiConfigStub },
       ],
     }).compileComponents();
 
@@ -159,6 +163,44 @@ describe('BoardComponent', () => {
     (compiled.querySelector('[data-testid="detail-backdrop"]') as HTMLElement).click();
 
     expect(storeStub.selectItem).toHaveBeenCalledWith(null);
+  });
+
+  it('hides the "Generar subtareas" action while the AI assistant is disabled', () => {
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="generate-subtasks"]')).toBeNull();
+  });
+
+  it('shows the "Generar subtareas" action linking to the AI route with the item id when AI is enabled and the caller can create work items', () => {
+    aiConfigStub.aiEnabled.set(true);
+    projectsStoreStub.selectedProject.set(project(['WORKITEM_CREATE']));
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector(
+      '[data-testid="generate-subtasks"]',
+    ) as HTMLAnchorElement;
+    expect(link).not.toBeNull();
+    expect(link.getAttribute('href')).toBe('/projects/10/ai/subtasks?workItemId=500');
+  });
+
+  it('hides the "Generar subtareas" action when the caller lacks WORKITEM_CREATE', () => {
+    aiConfigStub.aiEnabled.set(true);
+    projectsStoreStub.selectedProject.set(project(['WORKITEM_EDIT']));
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="generate-subtasks"]')).toBeNull();
+  });
+
+  it('hides the "Generar subtareas" action when the selected item is itself a subtask', () => {
+    aiConfigStub.aiEnabled.set(true);
+    projectsStoreStub.selectedProject.set(project(['WORKITEM_CREATE']));
+    storeStub.selectedItem.set({ ...item(501, 1, 1024, 'Subtarea'), parentWorkItemId: 500 });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="generate-subtasks"]')).toBeNull();
   });
 
   it('renders successful task creation feedback', () => {
@@ -654,8 +696,10 @@ describe('BoardComponent work-item comments', () => {
     delete: ReturnType<typeof vi.fn>;
   };
   let projectsStoreStub: { selectedProject: ReturnType<typeof signal<Project | null>>; loadProject: ReturnType<typeof vi.fn> };
+  let aiConfigStub: { aiEnabled: ReturnType<typeof signal<boolean>>; load: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
+    aiConfigStub = { aiEnabled: signal(false), load: vi.fn() };
     storeStub = {
       columns: signal([column(1, 'Por hacer', 1024), column(2, 'En progreso', 2048)]),
       itemsByColumn: signal({ 1: [item(500, 1, 1024, 'Design schema')], 2: [] }),
@@ -693,6 +737,7 @@ describe('BoardComponent work-item comments', () => {
         { provide: BoardStore, useValue: storeStub },
         { provide: CommentsStore, useValue: commentsStub },
         { provide: ProjectsStore, useValue: projectsStoreStub },
+        { provide: AiConfigService, useValue: aiConfigStub },
       ],
     }).compileComponents();
 

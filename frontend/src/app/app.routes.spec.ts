@@ -51,6 +51,12 @@ describe('routes', () => {
     expect(aiRoute.loadComponent).toBeTypeOf('function');
   });
 
+  it('guards the AI subtasks route with authGuard, then aiEnabledGuard, then workItemCreateGuard, and lazy-loads it', () => {
+    const aiRoute = findRoute('projects/:projectId/ai/subtasks');
+    expect(aiRoute.canActivate).toEqual([authGuard, aiEnabledGuard, workItemCreateGuard]);
+    expect(aiRoute.loadComponent).toBeTypeOf('function');
+  });
+
   it('guards the admin/users route with authGuard and adminGuard', () => {
     const route = findRoute('admin/users');
     expect(route.canActivate).toEqual([authGuard, adminGuard]);

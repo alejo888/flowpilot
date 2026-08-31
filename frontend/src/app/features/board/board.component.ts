@@ -9,6 +9,7 @@ import { FpButtonComponent } from '../../shared/ui/button.component';
 import { FpCardComponent } from '../../shared/ui/card.component';
 import { FpIconComponent } from '../../shared/ui/icon.component';
 import { FpDialogComponent } from '../../shared/ui/dialog.component';
+import { AiConfigService } from '../../core/ai/ai-config.service';
 import { columnAccent } from './column-accent';
 import { WorkItem, WorkItemCreateRequest, WorkItemPriority, WorkItemUpdateRequest } from './board.model';
 import { BoardStore } from './board.store';
@@ -202,6 +203,15 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
               </p>
             }
 
+            @if (canGenerateSubtasks() && !item.parentWorkItemId) {
+              <a
+                class="panel-link"
+                data-testid="generate-subtasks"
+                [routerLink]="['/projects', projectId(), 'ai', 'subtasks']"
+                [queryParams]="{ workItemId: item.id }"
+              ><fp-icon name="add" /> Generar subtareas</a>
+            }
+
             <label class="move-to-column">
               Columna
               <select
@@ -323,6 +333,16 @@ export class BoardComponent {
   readonly canDeleteWorkItem = computed(() => hasPermission(this.project(), 'WORKITEM_DELETE'));
   readonly canMoveWorkItem = computed(() => hasPermission(this.project(), 'WORKITEM_MOVE'));
   readonly canComment = computed(() => hasPermission(this.project(), 'COMMENT_CREATE'));
+  private readonly aiEnabled = inject(AiConfigService).aiEnabled;
+  /**
+   * The "Generar subtareas" panel action ends in a `WORKITEM_CREATE`-guarded
+   * batch create, so gate the entrypoint on the assistant flag AND that same
+   * permission (same control-gating convention as the other panel controls).
+   * The per-item "not itself a subtask" check stays in the template.
+   */
+  readonly canGenerateSubtasks = computed(
+    () => this.aiEnabled() && hasPermission(this.project(), 'WORKITEM_CREATE'),
+  );
 
   readonly columns = this.store.columns;
   /** Board items the open item may be re-parented to (see {@link BoardStore.eligibleParents}). */
