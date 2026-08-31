@@ -122,6 +122,30 @@ describe('ProjectDetailComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="nav-ai-stories"]')).toBeNull();
   });
 
+  it('hides the AI subtasks link while the AI assistant is disabled', () => {
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-ai-subtasks"]')).toBeNull();
+  });
+
+  it('shows a project-scoped AI subtasks link when the assistant is enabled and the caller can create work items', () => {
+    aiConfigStub.aiEnabled.set(true);
+    storeStub.selectedProject.set(project(4, 'PLANIFICACION', ['WORKITEM_CREATE']));
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector(
+      '[data-testid="nav-ai-subtasks"]',
+    ) as HTMLAnchorElement;
+    expect(link).not.toBeNull();
+    expect(link.getAttribute('href')).toBe('/projects/4/ai/subtasks');
+  });
+
+  it('hides the AI subtasks link when the caller lacks WORKITEM_CREATE, even with the assistant enabled', () => {
+    aiConfigStub.aiEnabled.set(true);
+    storeStub.selectedProject.set(project(4, 'PLANIFICACION', ['PROJECT_EDIT_SETTINGS']));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="nav-ai-subtasks"]')).toBeNull();
+  });
+
   it('loads the requested project and renders its detail fields', () => {
     expect(storeStub.loadProject).toHaveBeenCalledWith(4);
     const compiled = fixture.nativeElement as HTMLElement;
