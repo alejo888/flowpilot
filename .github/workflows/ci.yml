@@ -28,7 +28,19 @@ jobs:
         # compares everything byte-for-byte (descriptions, operationIds,
         # tags, schema `format` metadata), which is far too strict for two
         # independently-authored documents and creates cosmetic noise.
-        uses: oasdiff/oasdiff-action/breaking@v0
+        #
+        # Pinned deliberately. The floating `@v0` tag bundles whatever
+        # `tufin/oasdiff` image is current, and the jump to oasdiff v1.30.0
+        # re-classified `request-property-max-length-set` from WARNING to
+        # ERROR and started emitting `api-security-removed` for every
+        # operation (springdoc does not render `components.securitySchemes`
+        # / per-operation `security` into the live spec, while the
+        # hand-authored contract does). That turned ~40 pre-existing,
+        # contract-vs-springdoc cosmetic differences into hard failures on
+        # untouched endpoints. v0.1.13 is the last release main was green on
+        # (oasdiff v1.29.1); bump it together with a real security-scheme
+        # fix for the generated spec, not on its own.
+        uses: oasdiff/oasdiff-action/breaking@2649ebe137aeb72a95707671204e829f86e091fc # v0.1.13 (oasdiff v1.29.1)
         with:
           base: api/openapi.yaml
           revision: backend/target/openapi-generated.json
