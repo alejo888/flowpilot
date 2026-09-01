@@ -23,12 +23,14 @@
       <button
         type="button"
         data-testid="mode-existing"
+        [attr.aria-pressed]="mode() === 'existing'"
         [class.active]="mode() === 'existing'"
         (click)="setMode('existing')"
       >Historia existente</button>
       <button
         type="button"
         data-testid="mode-text"
+        [attr.aria-pressed]="mode() === 'text'"
         [class.active]="mode() === 'text'"
         (click)="setMode('text')"
       >Texto libre</button>
@@ -135,10 +137,46 @@
         <p class="hint">Máximo {{ maxDrafts }} subtareas.</p>
       }
 
-      <!-- PR 3b seam: column/sprint pickers + confirm() batch create + navigation. -->
-      <p class="hint" data-testid="subtasks-confirm-pending">
-        La creación de las subtareas se habilitará en el siguiente paso.
-      </p>
+      <div class="field">
+        <label for="subtasks-column-field">Columna</label>
+        <select
+          id="subtasks-column-field"
+          data-testid="subtasks-column-select"
+          [value]="columnId() ?? ''"
+          (change)="selectColumn(inputValue($event))"
+        >
+          <option value="">Selecciona una columna…</option>
+          @for (column of columns(); track column.id) {
+            <option [value]="column.id">{{ column.name }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="subtasks-sprint-field">Sprint (opcional)</label>
+        <select
+          id="subtasks-sprint-field"
+          data-testid="subtasks-sprint-select"
+          [value]="sprintId() ?? ''"
+          (change)="selectSprint(inputValue($event))"
+        >
+          <option value="">Sin sprint</option>
+          @for (sprint of selectableSprints(); track sprint.id) {
+            <option [value]="sprint.id">{{ sprint.name }}</option>
+          }
+        </select>
+      </div>
+
+      <fp-button
+        type="button"
+        icon="check"
+        testId="subtasks-confirm"
+        [disabled]="!canConfirm()"
+        (click)="confirm()"
+      >Crear subtareas</fp-button>
+      @if (store.submitting()) {
+        <p class="hint" role="status">Creando subtareas…</p>
+      }
     </fp-card>
   }
 

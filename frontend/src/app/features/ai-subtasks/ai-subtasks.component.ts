@@ -1,14 +1,16 @@
 import { Component, computed, effect, inject, input, numberAttribute, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { FpButtonComponent } from '../../shared/ui/button.component';
 import { FpCardComponent } from '../../shared/ui/card.component';
 import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { FpIconComponent } from '../../shared/ui/icon.component';
 import { FpInputComponent } from '../../shared/ui/input.component';
+import { BacklogApiService } from '../backlog/backlog-api.service';
+import { Sprint } from '../backlog/backlog.model';
 import { BoardApiService } from '../board/board-api.service';
-import { WorkItem } from '../board/board.model';
-import { SubtaskDraft } from './ai-subtasks.model';
+import { BoardColumn, WorkItem } from '../board/board.model';
+import { SubtaskDraft, WorkItemBatchCreateRequest } from './ai-subtasks.model';
 import { AiSubtasksStore } from './ai-subtasks.store';
 
 /** Client-side cap — mirrors the backend batch limit (`subtasks` maxItems 10). */
@@ -26,10 +28,11 @@ type GenerationMode = 'existing' | 'text';
  * resolves `false` and this component only replaces its editable drafts on a
  * confirmed `true` (same contract as `CommentsStore`/`AiStoriesStore`).
  *
- * The confirm step (column/sprint pickers + transactional batch create +
- * navigation) lands in PR 3b — until then the route is inert in every default
- * deployment because `flowpilot.ai.enabled` is off and `aiEnabledGuard` blocks
- * it.
+ * The confirm step (PR 3b) presents a required column `<select>` and an
+ * optional sprint `<select>` (PLANNED/ACTIVE only), then calls the
+ * transactional batch endpoint through {@link AiSubtasksStore.confirm}. On a
+ * confirmed 201 the editable state is cleared and the screen navigates back to
+ * the board; on failure nothing is discarded.
  */
 @Component({
   selector: 'app-ai-subtasks',
@@ -54,6 +57,8 @@ export class AiSubtasksComponent {
 
   readonly store = inject(AiSubtasksStore);
   private readonly board = inject(BoardApiService);
+  private readonly backlog = inject(BacklogApiService);
+  private readonly router = inject(Router);
 
   readonly mode = signal<GenerationMode>('text');
   readonly storyText = signal('');
@@ -61,6 +66,17 @@ export class AiSubtasksComponent {
   readonly drafts = signal<SubtaskDraft[]>([]);
   /** True while the "story already has N subtasks" confirmation dialog is open. */
   readonly confirming = signal(false);
+
+  /** Confirm-step selections. `columnId` is required before the batch can be created. */
+  readonly columnId = signal<number | null>(null);
+  readonly sprintId = signal<number | null>(null);
+
+  readonly columns = signal<BoardColumn[]>([]);
+  private readonly sprints = signal<Sprint[]>([]);
+  /** Only PLANNED/ACTIVE sprints accept new work items (`validateSprint` rejects COMPLETED). */
+  readonly selectableSprints = computed(() =>
+    this.sprints().filter((sprint) => sprint.status !== 'COMPLETED'),
+  );
 
   private readonly workItems = signal<WorkItem[]>([]);
   /** Only top-level items can be a subtask parent (a subtask cannot have subtasks). */
@@ -85,6 +101,14 @@ export class AiSubtasksComponent {
         this.board.getWorkItems(projectId).subscribe({
           next: (items) => this.workItems.set(items),
           error: () => this.workItems.set([]),
+        });
+        this.board.getBoardColumns(projectId).subscribe({
+          next: (columns) => this.columns.set(columns),
+          error: () => this.columns.set([]),
+        });
+        this.backlog.listSprints(projectId).subscribe({
+          next: (sprints) => this.sprints.set(sprints),
+          error: () => this.sprints.set([]),
         });
       }
     });
@@ -112,6 +136,14 @@ export class AiSubtasksComponent {
 
   selectStory(value: string): void {
     this.selectedStoryId.set(value ? Number(value) : null);
+  }
+
+  selectColumn(value: string): void {
+    this.columnId.set(value ? Number(value) : null);
+  }
+
+  selectSprint(value: string): void {
+    this.sprintId.set(value ? Number(value) : null);
   }
 
   async generate(): Promise<void> {
@@ -150,6 +182,42 @@ export class AiSubtasksComponent {
         ? { workItemId: this.selectedStoryId() as number }
         : { storyText: this.storyText().trim() };
     await this.store.generate(this.projectId(), request);
+  }
+
+  /** Disabled until a column is picked, at least one draft exists, and no create is in flight. */
+  readonly canConfirm = computed(
+    () => this.columnId() !== null && this.drafts().length > 0 && !this.store.submitting(),
+  );
+
+  async confirm(): Promise<void> {
+    if (!this.canConfirm()) {
+      return;
+    }
+    const request: WorkItemBatchCreateRequest = {
+      columnId: this.columnId() as number,
+      aiGenerated: true,
+      aiModel: this.store.model(),
+      subtasks: this.drafts().map((draft) => ({
+        title: draft.title.trim(),
+        description: draft.description,
+      })),
+    };
+    if (this.mode() === 'existing' && this.selectedStoryId() != null) {
+      request.parentWorkItemId = this.selectedStoryId() as number;
+    }
+    if (this.sprintId() != null) {
+      request.sprintId = this.sprintId() as number;
+    }
+
+    const ok = await this.store.confirm(this.projectId(), request);
+    if (!ok) {
+      return;
+    }
+    this.drafts.set([]);
+    this.columnId.set(null);
+    this.sprintId.set(null);
+    this.seededList = null;
+    await this.router.navigate(['/projects', this.projectId(), 'board']);
   }
 
   addDraft(): void {

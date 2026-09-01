@@ -29,3 +29,27 @@ export interface GeneratedSubtasksResponse {
   /** Ollama model name for an OLLAMA draft, `null` for a STUB draft. */
   model: string | null;
 }
+
+/** One subtask line of a {@link WorkItemBatchCreateRequest} (`subtasks[i]`). */
+export interface BatchWorkItemLine {
+  title: string;
+  description?: string | null;
+  acceptanceCriteria?: string[];
+}
+
+/**
+ * Request body for `POST /api/projects/{projectId}/work-items/batch` — the
+ * transactional all-or-nothing batch create the confirm step calls (PR 3b).
+ * `columnId` and `subtasks` (1..10) are required. `parentWorkItemId`,
+ * `sprintId` and the `aiGenerated`/`aiModel` provenance are batch-level: one
+ * confirm action has one parent, one sprint and one provenance, applied to
+ * every created row.
+ */
+export interface WorkItemBatchCreateRequest {
+  columnId: number;
+  parentWorkItemId?: number | null;
+  sprintId?: number | null;
+  aiGenerated?: boolean;
+  aiModel?: string | null;
+  subtasks: BatchWorkItemLine[];
+}

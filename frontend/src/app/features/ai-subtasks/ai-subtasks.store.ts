@@ -1,7 +1,12 @@
 import { Injectable, inject, signal } from '@angular/core';
 
 import { AiSubtasksApiService } from './ai-subtasks.api';
-import { AiProvider, GenerateSubtasksRequest, SubtaskDraft } from './ai-subtasks.model';
+import {
+  AiProvider,
+  GenerateSubtasksRequest,
+  SubtaskDraft,
+  WorkItemBatchCreateRequest,
+} from './ai-subtasks.model';
 
 /**
  * Signals store for AI subtask generation (spec: ai-subtask-generation).
@@ -21,6 +26,7 @@ export class AiSubtasksStore {
   private readonly api = inject(AiSubtasksApiService);
 
   readonly loading = signal(false);
+  readonly submitting = signal(false);
   readonly error = signal<string | null>(null);
   readonly success = signal<string | null>(null);
   readonly generated = signal<SubtaskDraft[] | null>(null);
@@ -44,6 +50,35 @@ export class AiSubtasksStore {
         error: (err: unknown) => {
           this.loading.set(false);
           this.error.set(message(err, 'No se pudieron generar las subtareas'));
+          resolve(false);
+        },
+      }),
+    );
+  }
+
+  /**
+   * Turn the edited drafts into real work items through the transactional
+   * batch endpoint. Resolves `true` only once the server returned 201, at
+   * which point the generated state is cleared (the component then navigates
+   * back to the board). On failure nothing is cleared — the component keeps
+   * the drafts and the column/sprint selections.
+   */
+  confirm(projectId: number, request: WorkItemBatchCreateRequest): Promise<boolean> {
+    this.submitting.set(true);
+    this.error.set(null);
+    this.success.set(null);
+
+    return new Promise((resolve) =>
+      this.api.createBatch(projectId, request).subscribe({
+        next: () => {
+          this.submitting.set(false);
+          this.success.set('Subtareas creadas.');
+          this.reset();
+          resolve(true);
+        },
+        error: (err: unknown) => {
+          this.submitting.set(false);
+          this.error.set(message(err, 'No se pudieron crear las subtareas'));
           resolve(false);
         },
       }),

@@ -18,11 +18,14 @@ function generated(overrides: Partial<GeneratedSubtasksResponse> = {}): Generate
 }
 
 describe('AiSubtasksStore', () => {
-  let api: { generateSubtasks: ReturnType<typeof vi.fn> };
+  let api: {
+    generateSubtasks: ReturnType<typeof vi.fn>;
+    createBatch: ReturnType<typeof vi.fn>;
+  };
   let store: AiSubtasksStore;
 
   beforeEach(() => {
-    api = { generateSubtasks: vi.fn() };
+    api = { generateSubtasks: vi.fn(), createBatch: vi.fn() };
     TestBed.configureTestingModule({
       providers: [AiSubtasksStore, { provide: AiSubtasksApiService, useValue: api }],
     });
@@ -65,6 +68,51 @@ describe('AiSubtasksStore', () => {
     await store.generate(10, { storyText: 'algo' });
 
     expect(store.error()).toBe('No se pudieron generar las subtareas');
+  });
+
+  it('creates the batch, clears the generated state and resolves true on success', async () => {
+    api.generateSubtasks.mockReturnValue(of(generated()));
+    await store.generate(10, { workItemId: 55 });
+    api.createBatch.mockReturnValue(of([{ id: 1 }, { id: 2 }]));
+
+    const request = {
+      columnId: 3,
+      parentWorkItemId: 55,
+      aiGenerated: true,
+      aiModel: 'llama3',
+      subtasks: [{ title: 'A', description: '' }],
+    };
+    const ok = await store.confirm(10, request);
+
+    expect(ok).toBe(true);
+    expect(api.createBatch).toHaveBeenCalledWith(10, request);
+    expect(store.generated()).toBeNull();
+    expect(store.success()).not.toBeNull();
+    expect(store.submitting()).toBe(false);
+    expect(store.error()).toBeNull();
+  });
+
+  it('keeps the generated list and surfaces the detail when the batch fails', async () => {
+    api.generateSubtasks.mockReturnValue(of(generated()));
+    await store.generate(10, { workItemId: 55 });
+    api.createBatch.mockReturnValue(
+      throwError(() => ({ error: { detail: 'La columna no pertenece al proyecto' } })),
+    );
+
+    const ok = await store.confirm(10, { columnId: 3, subtasks: [{ title: 'A' }] });
+
+    expect(ok).toBe(false);
+    expect(store.error()).toBe('La columna no pertenece al proyecto');
+    expect(store.generated()).not.toBeNull();
+    expect(store.submitting()).toBe(false);
+  });
+
+  it('falls back to a generic message when the batch error has no detail', async () => {
+    api.createBatch.mockReturnValue(throwError(() => ({})));
+
+    await store.confirm(10, { columnId: 3, subtasks: [{ title: 'A' }] });
+
+    expect(store.error()).toBe('No se pudieron crear las subtareas');
   });
 
   it('resets the generated state', async () => {

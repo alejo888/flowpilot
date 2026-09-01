@@ -2,8 +2,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
+import { WorkItem } from '../board/board.model';
 import { AiSubtasksApiService } from './ai-subtasks.api';
-import { GeneratedSubtasksResponse } from './ai-subtasks.model';
+import { GeneratedSubtasksResponse, WorkItemBatchCreateRequest } from './ai-subtasks.model';
 
 function response(overrides: Partial<GeneratedSubtasksResponse> = {}): GeneratedSubtasksResponse {
   return {
@@ -50,6 +51,46 @@ describe('AiSubtasksApiService', () => {
     const request = httpMock.expectOne('/api/projects/7/ai/subtasks');
     expect(request.request.body).toEqual({ storyText: 'Como usuario quiero exportar datos' });
     request.flush(response());
+  });
+
+  it('POSTs a WorkItemBatchCreateRequest to the transactional batch endpoint', () => {
+    const batch: WorkItemBatchCreateRequest = {
+      columnId: 3,
+      parentWorkItemId: 55,
+      sprintId: 8,
+      aiGenerated: true,
+      aiModel: 'llama3',
+      subtasks: [
+        { title: 'Diseñar', description: 'algo' },
+        { title: 'Implementar', description: '' },
+      ],
+    };
+    let received: WorkItem[] | undefined;
+    service.createBatch(10, batch).subscribe((r) => (received = r));
+
+    const request = httpMock.expectOne('/api/projects/10/work-items/batch');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual(batch);
+
+    const created = [{ id: 1 }, { id: 2 }] as WorkItem[];
+    request.flush(created);
+    expect(received).toEqual(created);
+  });
+
+  it('propagates a batch error to the caller', () => {
+    let failed = false;
+    service
+      .createBatch(7, { columnId: 1, subtasks: [{ title: 'x' }] })
+      .subscribe({ error: () => (failed = true) });
+
+    httpMock
+      .expectOne('/api/projects/7/work-items/batch')
+      .flush(
+        { detail: 'La columna no pertenece al proyecto' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+
+    expect(failed).toBe(true);
   });
 
   it('propagates a backend error to the caller', () => {
