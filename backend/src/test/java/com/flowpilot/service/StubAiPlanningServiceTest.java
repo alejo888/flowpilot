@@ -3,6 +3,7 @@ package com.flowpilot.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.flowpilot.dto.AiProvider;
+import com.flowpilot.dto.GeneratedAcceptanceCriteriaResponse;
 import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
 import org.junit.jupiter.api.Test;
@@ -101,6 +102,41 @@ class StubAiPlanningServiceTest {
     void generateSubtasksIsDeterministicForTheSameContext() {
         GeneratedSubtasksResponse first = service.generateSubtasks("Filtrar tareas por responsable");
         GeneratedSubtasksResponse second = service.generateSubtasks("Filtrar tareas por responsable");
+
+        assertThat(first).isEqualTo(second);
+    }
+
+    // --- generateAcceptanceCriteria (spec: ai-acceptance-criteria-generation — PR 1) ---
+
+    @Test
+    void generateAcceptanceCriteriaReturnsDeterministicSpanishListWithNoModel() {
+        GeneratedAcceptanceCriteriaResponse response =
+                service.generateAcceptanceCriteria("Título: Exportar informes\nDescripción: en PDF");
+
+        assertThat(response.generatedBy()).isEqualTo(AiProvider.STUB);
+        assertThat(response.model()).isNull();
+        assertThat(response.criteria()).hasSize(3);
+        assertThat(response.criteria()).allSatisfy(c -> {
+            assertThat(c).isNotBlank();
+            assertThat(c).startsWith("Dado ");
+        });
+    }
+
+    @Test
+    void generateAcceptanceCriteriaEmbedsTheNormalisedContextHead() {
+        GeneratedAcceptanceCriteriaResponse response =
+                service.generateAcceptanceCriteria("  Exportar   \n  informes  de  ventas  ");
+
+        assertThat(response.criteria())
+                .allSatisfy(c -> assertThat(c).contains("Exportar informes de ventas"));
+    }
+
+    @Test
+    void generateAcceptanceCriteriaIsDeterministicForTheSameContext() {
+        GeneratedAcceptanceCriteriaResponse first =
+                service.generateAcceptanceCriteria("Filtrar tareas por responsable");
+        GeneratedAcceptanceCriteriaResponse second =
+                service.generateAcceptanceCriteria("Filtrar tareas por responsable");
 
         assertThat(first).isEqualTo(second);
     }

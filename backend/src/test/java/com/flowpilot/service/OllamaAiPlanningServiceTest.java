@@ -13,6 +13,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowpilot.dto.AiProvider;
+import com.flowpilot.dto.GeneratedAcceptanceCriteriaResponse;
 import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
 import com.flowpilot.exception.AiGenerationException;
@@ -286,6 +287,152 @@ class OllamaAiPlanningServiceTest {
                         .contentType(MediaType.APPLICATION_JSON));
 
         assertThatThrownBy(() -> service.generateSubtasks("algo"))
+                .isInstanceOf(AiGenerationException.class);
+        server.verify();
+    }
+
+    // --- generateAcceptanceCriteria (spec: ai-acceptance-criteria-generation — PR 1 seam) ---
+
+    private static final String VALID_CRITERIA_JSON =
+            """
+            {"acceptanceCriteria":[
+              "Dado un informe cuando pulso exportar entonces se descarga un PDF",
+              "Dado un informe vacío cuando pulso exportar entonces veo un aviso"]}""";
+
+    @Test
+    void generateAcceptanceCriteriaSendsTheSchemaNameStrictFlagAndBoundsThenParsesTheList() {
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(jsonPath("$.response_format.type").value("json_schema"))
+                .andExpect(jsonPath("$.response_format.json_schema.name").value("acceptance_criteria"))
+                .andExpect(jsonPath("$.response_format.json_schema.strict").value(true))
+                .andExpect(jsonPath(
+                                "$.response_format.json_schema.schema.properties.acceptanceCriteria.type")
+                        .value("array"))
+                .andExpect(jsonPath(
+                                "$.response_format.json_schema.schema.properties.acceptanceCriteria.minItems")
+                        .value(1))
+                .andExpect(jsonPath(
+                                "$.response_format.json_schema.schema.properties.acceptanceCriteria.maxItems")
+                        .value(8))
+                .andExpect(jsonPath("$.messages[0].role").value("system"))
+                .andExpect(jsonPath("$.messages[1].content").value("Título: Exportar informes"))
+                .andRespond(withSuccess(chatCompletion(VALID_CRITERIA_JSON), MediaType.APPLICATION_JSON));
+
+        GeneratedAcceptanceCriteriaResponse response =
+                service.generateAcceptanceCriteria("Título: Exportar informes");
+
+        assertThat(response.generatedBy()).isEqualTo(AiProvider.OLLAMA);
+        assertThat(response.model()).isEqualTo("llama3");
+        assertThat(response.criteria())
+                .containsExactly(
+                        "Dado un informe cuando pulso exportar entonces se descarga un PDF",
+                        "Dado un informe vacío cuando pulso exportar entonces veo un aviso");
+        server.verify();
+    }
+
+    @Test
+    void generateAcceptanceCriteriaDropsBlankAndNullLines() {
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andRespond(withSuccess(
+                        chatCompletion(
+                                "{\"acceptanceCriteria\":[\"  \",null,\"Dado X cuando Y entonces Z\",\"\"]}"),
+                        MediaType.APPLICATION_JSON));
+
+        GeneratedAcceptanceCriteriaResponse response = service.generateAcceptanceCriteria("algo");
+
+        assertThat(response.criteria()).containsExactly("Dado X cuando Y entonces Z");
+        server.verify();
+    }
+
+    @Test
+    void generateAcceptanceCriteriaTruncatesToTheFirstEight() {
+        StringBuilder items = new StringBuilder();
+        for (int i = 1; i <= 12; i++) {
+            items.append(i == 1 ? "" : ",").append("\"Criterio ").append(i).append("\"");
+        }
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andRespond(withSuccess(
+                        chatCompletion("{\"acceptanceCriteria\":[" + items + "]}"), MediaType.APPLICATION_JSON));
+
+        GeneratedAcceptanceCriteriaResponse response = service.generateAcceptanceCriteria("algo");
+
+        assertThat(response.criteria()).hasSize(8);
+        assertThat(response.criteria().get(0)).isEqualTo("Criterio 1");
+        assertThat(response.criteria().get(7)).isEqualTo("Criterio 8");
+        server.verify();
+    }
+
+    @Test
+    void generateAcceptanceCriteriaWithNoSurvivingLinesRaisesAiGenerationException() {
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andRespond(withSuccess(
+                        chatCompletion("{\"acceptanceCriteria\":[\"  \",\"\"]}"), MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.generateAcceptanceCriteria("algo"))
+                .isInstanceOf(AiGenerationException.class);
+        server.verify();
+    }
+
+    @Test
+    void generateAcceptanceCriteriaUnparseableContentRaisesAiGenerationException() {
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andRespond(withSuccess(chatCompletion("no soy json"), MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.generateAcceptanceCriteria("algo"))
+                .isInstanceOf(AiGenerationException.class);
+        server.verify();
+    }
+
+    @Test
+    void generateAcceptanceCriteriaDowngradesToJsonObjectExactlyOnceOnASchemaRelated4xx() {
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andExpect(jsonPath("$.response_format.type").value("json_schema"))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .body("{\"error\":\"response_format of type json_schema is not supported\"}")
+                        .contentType(MediaType.APPLICATION_JSON));
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andExpect(jsonPath("$.response_format.type").value("json_object"))
+                .andRespond(withSuccess(chatCompletion(VALID_CRITERIA_JSON), MediaType.APPLICATION_JSON));
+
+        GeneratedAcceptanceCriteriaResponse response = service.generateAcceptanceCriteria("algo");
+
+        assertThat(response.criteria()).hasSize(2);
+        server.verify();
+    }
+
+    @Test
+    void generateAcceptanceCriteriaParsesContentWrappedInCodeFences() {
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andRespond(withSuccess(
+                        chatCompletion("```json\n" + VALID_CRITERIA_JSON + "\n```"), MediaType.APPLICATION_JSON));
+
+        GeneratedAcceptanceCriteriaResponse response = service.generateAcceptanceCriteria("algo");
+
+        assertThat(response.criteria()).hasSize(2);
+        server.verify();
+    }
+
+    @Test
+    void generateAcceptanceCriteriaTimeoutRaisesAiGenerationExceptionWithNoSecondCall() {
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andRespond(request -> {
+                    throw new ResourceAccessException("simulated read timeout");
+                });
+
+        assertThatThrownBy(() -> service.generateAcceptanceCriteria("algo"))
+                .isInstanceOf(AiGenerationException.class);
+        server.verify();
+    }
+
+    @Test
+    void generateAcceptanceCriteriaServerErrorRaisesAiGenerationExceptionWithNoDowngrade() {
+        server.expect(once(), requestTo("http://ollama.test/v1/chat/completions"))
+                .andRespond(withServerError()
+                        .body("{\"error\":\"internal json_schema failure\"}")
+                        .contentType(MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.generateAcceptanceCriteria("algo"))
                 .isInstanceOf(AiGenerationException.class);
         server.verify();
     }

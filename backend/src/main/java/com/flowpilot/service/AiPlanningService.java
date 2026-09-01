@@ -1,5 +1,6 @@
 package com.flowpilot.service;
 
+import com.flowpilot.dto.GeneratedAcceptanceCriteriaResponse;
 import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
 
@@ -39,6 +40,21 @@ public interface AiPlanningService {
      *     or the model returns no usable subtask; no retry is attempted
      */
     GeneratedSubtasksResponse generateSubtasks(String storyContext);
+
+    /**
+     * Proposes 1..8 acceptance criteria for an existing work item (spec:
+     * ai-acceptance-criteria-generation — PR 1). Added to the existing seam so
+     * the compiler forces both implementations to provide it (design D-A).
+     *
+     * @param storyContext the composed story context (title, description, and
+     *     any existing acceptance criteria), already assembled by the caller
+     *     via {@link AiStoryContext#compose}; treated purely as content, never
+     *     as instructions
+     * @return a non-persisted draft list of 1..8 criteria
+     * @throws com.flowpilot.exception.AiGenerationException if generation fails
+     *     or the model returns no usable criterion; no retry is attempted
+     */
+    GeneratedAcceptanceCriteriaResponse generateAcceptanceCriteria(String storyContext);
 
     /**
      * Composes the Spanish user-story sentence backend-side (spec:
