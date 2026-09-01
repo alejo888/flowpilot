@@ -9,7 +9,6 @@ import com.flowpilot.exception.ProjectNotFoundException;
 import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.repository.ProjectRepository;
 import com.flowpilot.repository.WorkItemRepository;
-import java.util.List;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -99,22 +98,12 @@ public class AiSubtaskService {
 
     /**
      * Backend-side story-context composition (design D3), like {@link
-     * AiPlanningService#composeText} — the provider never builds this. The
-     * acceptance-criteria block is omitted entirely when the list is empty.
+     * AiPlanningService#composeText} — the provider never builds this. Delegates
+     * to the shared {@link AiStoryContext#compose(WorkItem)} helper (spec:
+     * ai-acceptance-criteria-generation — design D-B); kept as a one-line
+     * delegate so this class's callers and tests are unchanged by the hoist.
      */
     static String composeStoryContext(WorkItem item) {
-        StringBuilder context = new StringBuilder();
-        context.append("Título: ").append(item.getTitle()).append('\n');
-        String description = item.getDescription();
-        context.append("Descripción: ")
-                .append(description == null || description.isBlank() ? "(sin descripción)" : description.strip());
-        List<String> criteria = item.getAcceptanceCriteria();
-        if (criteria != null && !criteria.isEmpty()) {
-            context.append('\n').append("Criterios de aceptación:");
-            for (String criterion : criteria) {
-                context.append('\n').append("- ").append(criterion);
-            }
-        }
-        return context.toString();
+        return AiStoryContext.compose(item);
     }
 }
