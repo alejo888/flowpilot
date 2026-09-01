@@ -314,6 +314,70 @@ describe('BoardComponent', () => {
     );
   });
 
+  it('renders the acceptance-criteria editor in the detail panel bound to the item criteria', () => {
+    storeStub.selectedItem.set({
+      ...item(500, 1, 1024, 'Design schema'),
+      acceptanceCriteria: ['Dado A', 'Cuando B'],
+    });
+    fixture.detectChanges();
+
+    const editor = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="acceptance-criteria-editor"]',
+    );
+    expect(editor).not.toBeNull();
+    const values = Array.from(editor!.querySelectorAll('[data-testid="criteria-input"]')).map(
+      (el) => (el as HTMLInputElement).value,
+    );
+    expect(values).toEqual(['Dado A', 'Cuando B']);
+  });
+
+  it('persists an added criterion through the work-item PUT after editing it in the panel', () => {
+    storeStub.selectedItem.set({
+      ...item(500, 1, 1024, 'Design schema'),
+      acceptanceCriteria: ['Dado A'],
+    });
+    fixture.detectChanges();
+
+    const editor = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="acceptance-criteria-editor"]',
+    ) as HTMLElement;
+    (editor.querySelector('[data-testid="criteria-add"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const inputs = Array.from(
+      editor.querySelectorAll('[data-testid="criteria-input"]'),
+    ) as HTMLInputElement[];
+    inputs[1].value = 'Cuando B';
+    inputs[1].dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    fixture.componentInstance.submitUpdate(500);
+
+    expect(storeStub.updateItem).toHaveBeenCalledWith(
+      500,
+      expect.objectContaining({ acceptanceCriteria: ['Dado A', 'Cuando B'] }),
+    );
+  });
+
+  it('renders the criteria editor read-only when the caller lacks WORKITEM_EDIT', () => {
+    projectsStoreStub.selectedProject.set(project(['WORKITEM_MOVE']));
+    storeStub.selectedItem.set({
+      ...item(500, 1, 1024, 'Design schema'),
+      acceptanceCriteria: ['Dado A'],
+    });
+    fixture.detectChanges();
+
+    const editor = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="acceptance-criteria-editor"]',
+    ) as HTMLElement;
+    expect(editor).not.toBeNull();
+    const input = editor.querySelector('[data-testid="criteria-input"]') as HTMLInputElement;
+    expect(input.disabled).toBe(true);
+    expect((editor.querySelector('[data-testid="criteria-add"]') as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
   it('opens an accessible delete confirmation dialog', () => {
     fixture.componentInstance.confirmDelete(item(500, 1, 1024, 'Design schema'));
     fixture.detectChanges();

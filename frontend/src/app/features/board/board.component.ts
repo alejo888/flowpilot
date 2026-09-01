@@ -10,6 +10,7 @@ import { FpCardComponent } from '../../shared/ui/card.component';
 import { FpIconComponent } from '../../shared/ui/icon.component';
 import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { AiConfigService } from '../../core/ai/ai-config.service';
+import { AcceptanceCriteriaEditorComponent } from './acceptance-criteria-editor.component';
 import { columnAccent } from './column-accent';
 import { WorkItem, WorkItemCreateRequest, WorkItemPriority, WorkItemUpdateRequest } from './board.model';
 import { BoardStore } from './board.store';
@@ -77,6 +78,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
         FpIconComponent,
     FpCardComponent,
     FpDialogComponent,
+    AcceptanceCriteriaEditorComponent,
   ],
   template: `
     <div class="board" cdkDropListGroup>
@@ -262,6 +264,14 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                   </label>
                 }
               </div>
+
+              <fp-acceptance-criteria-editor
+                data-testid="acceptance-criteria-editor"
+                [criteria]="editForm.acceptanceCriteria ?? []"
+                [disabled]="!canEditWorkItem()"
+                (criteriaChange)="onCriteriaChange($event)"
+              />
+
               @if ((item.childCount ?? 0) > 0) {
                 <p data-testid="delete-child-hint" class="assignee">
                   Esta tarea tiene subtareas: quitá o reasigná las subtareas antes de eliminarla.
@@ -466,6 +476,15 @@ export class BoardComponent {
     if (id === null || !this.commentsStore) return;
     const deleted = await this.commentsStore.delete(id, 'workItem');
     if (deleted) this.deletingCommentId.set(null);
+  }
+
+  /**
+   * The acceptance-criteria editor is a controlled child: it never mutates its
+   * input, so a change event replaces the form's list with the emitted array.
+   * Nothing is persisted until the edit form is submitted (`submitUpdate`).
+   */
+  onCriteriaChange(next: string[]): void {
+    this.editForm = { ...this.editForm, acceptanceCriteria: next };
   }
 
   submitUpdate(itemId: number): void {
