@@ -2189,8 +2189,10 @@ components:
         completedItems: {type: integer, format: int64}
         columnCounts: {type: array, items: {$ref: '#/components/schemas/ColumnCount'}}
         activeSprint:
-          allOf: [{$ref: '#/components/schemas/SprintSummary'}]
-          nullable: true
+          # Nullable in practice (absent when no sprint is active); springdoc
+          # emits a bare $ref for this record component, so the contract matches
+          # that shape rather than an allOf/nullable wrapper.
+          $ref: '#/components/schemas/SprintSummary'
         activeSprintTotalItems: {type: integer, format: int64}
         activeSprintCompletedItems: {type: integer, format: int64}
         backlogPendingCount: {type: integer, format: int64}
