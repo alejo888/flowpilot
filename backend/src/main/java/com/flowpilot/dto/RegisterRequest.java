@@ -14,6 +14,6 @@ public record RegisterRequest(
                         message = "El email debe tener un formato válido")
                 String email,
         @NotBlank(message = "La contraseña no puede estar vacía")
-                @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
+                @Size(min = 8, max = 72, message = "La contraseña debe tener entre 8 y 72 caracteres")
                 String password) {
 }

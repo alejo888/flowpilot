@@ -1723,6 +1723,7 @@ components:
         password:
           type: string
           minLength: 8
+          maxLength: 72
     LoginRequest:
       type: object
       required: [email, password]
@@ -1842,6 +1843,7 @@ components:
         name:
           type: string
           minLength: 1
+          maxLength: 255
         description:
           type: string
         code:
@@ -1868,6 +1870,7 @@ components:
         name:
           type: string
           minLength: 1
+          maxLength: 255
         description:
           type: string
         code:
@@ -2068,7 +2071,7 @@ components:
       type: object
       required: [name, startDate, endDate]
       properties:
-        name: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1, maxLength: 255 }
         goal: { type: string }
         startDate: { type: string, format: date }
         endDate: { type: string, format: date }
@@ -2221,6 +2224,7 @@ components:
         title:
           type: string
           minLength: 1
+          maxLength: 255
         description:
           type: string
         acceptanceCriteria:
@@ -2281,6 +2285,7 @@ components:
         title:
           type: string
           minLength: 1
+          maxLength: 255
         description:
           type: string
         assignedUserId:
@@ -2326,6 +2331,7 @@ components:
         title:
           type: string
           minLength: 1
+          maxLength: 255
         description:
           type: string
         assignedUserId:
