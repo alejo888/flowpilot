@@ -16,6 +16,8 @@ import com.flowpilot.service.EmailNormalizer;
 import com.flowpilot.service.PasswordResetService;
 import com.flowpilot.service.RefreshTokenService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -132,7 +134,14 @@ public class AuthController {
                 .body(new AccessTokenResponse(accessToken, jwtService.getAccessTokenTtlSeconds()));
     }
 
-    @Operation(summary = "Rotate refresh token and issue a new access token")
+    @Operation(
+            summary = "Rotate refresh token and issue a new access token",
+            parameters = @Parameter(
+                    name = "X-XSRF-TOKEN",
+                    in = ParameterIn.HEADER,
+                    required = true,
+                    description = "Must match the value of the XSRF-TOKEN cookie (double-submit CSRF check). "
+                            + "Enforced by CsrfProtectionFilter, not a controller argument."))
     @ApiResponses({
         @ApiResponse(
                 responseCode = "200",
@@ -161,7 +170,14 @@ public class AuthController {
                 .body(new AccessTokenResponse(accessToken, jwtService.getAccessTokenTtlSeconds()));
     }
 
-    @Operation(summary = "Revoke the refresh token and clear the cookie")
+    @Operation(
+            summary = "Revoke the refresh token and clear the cookie",
+            parameters = @Parameter(
+                    name = "X-XSRF-TOKEN",
+                    in = ParameterIn.HEADER,
+                    required = true,
+                    description = "Must match the value of the XSRF-TOKEN cookie (double-submit CSRF check). "
+                            + "Enforced by CsrfProtectionFilter, not a controller argument."))
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Logged out; refreshToken and XSRF-TOKEN cookies cleared"),
         @ApiResponse(responseCode = "403", description = "Missing or mismatched X-XSRF-TOKEN header (CSRF check failed)")
