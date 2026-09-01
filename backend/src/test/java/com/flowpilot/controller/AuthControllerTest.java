@@ -427,6 +427,24 @@ class AuthControllerTest {
         org.mockito.Mockito.verifyNoInteractions(passwordResetService);
     }
 
+    /**
+     * BCrypt only consumes a password's first 72 bytes; without an upper
+     * {@code @Size} bound the registration DTO silently truncates an
+     * oversized password instead of rejecting it, unlike the reset/change
+     * flows which already cap at 72.
+     */
+    @Test
+    void registerWithOversizedPasswordReturns400NotFiveHundred() throws Exception {
+        RegisterRequest request = new RegisterRequest("Ada", "ada@flowpilot.local", "a".repeat(73));
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isBadRequest());
+
+        org.mockito.Mockito.verifyNoInteractions(authService);
+    }
+
     private User activeUser(Long id) throws Exception {
         User user = new User("Name " + id, "user" + id + "@flowpilot.local", "hash", GlobalRole.MIEMBRO_EQUIPO, true);
         Field field = User.class.getDeclaredField("id");

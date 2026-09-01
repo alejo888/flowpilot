@@ -1723,6 +1723,7 @@ components:
         password:
           type: string
           minLength: 8
+          maxLength: 72
     LoginRequest:
       type: object
       required: [email, password]
