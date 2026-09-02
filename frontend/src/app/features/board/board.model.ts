@@ -86,6 +86,30 @@ export interface WorkItemUpdateRequest {
       acceptanceCriteria?: string[];
 }
 
+/** Which provider produced an AI draft (mirrors the backend `AiProvider` enum). */
+export type AiProvider = 'STUB' | 'OLLAMA';
+
+/**
+ * Request body for `POST /api/projects/{projectId}/ai/acceptance-criteria`
+ * (spec: ai-acceptance-criteria-generation). `workItemId` is required and
+ * non-nullable; the endpoint composes the story context backend-side.
+ */
+export interface GenerateAcceptanceCriteriaRequest {
+  workItemId: number;
+}
+
+/**
+ * Non-persisted draft returned by the AI acceptance-criteria endpoint: 1..8
+ * criteria strings plus provenance. `model` is the Ollama model name for an
+ * `OLLAMA` result and `null` for a `STUB` result. Nothing is persisted until
+ * the caller attaches the criteria through the existing work-item `PUT`.
+ */
+export interface GeneratedAcceptanceCriteriaResponse {
+  criteria: string[];
+  generatedBy: AiProvider;
+  model: string | null;
+}
+
 /**
  * Request body for PUT /api/work-items/{id}/move. `position` is the
  * zero-based insertion index within the target column's OTHER items (the
