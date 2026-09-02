@@ -232,6 +232,37 @@ class AiControllerTest {
     }
 
     @Test
+    void storyTextOver4000CharsReturns400WithSizeError() throws Exception {
+        String tooLong = "a".repeat(4001);
+
+        mockMvc.perform(post("/api/projects/{projectId}/ai/subtasks", PROJECT_ID)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"storyText\":\"" + tooLong + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.errors.storyText")
+                        .value("El texto no puede superar los 4000 caracteres"));
+
+        verifyNoInteractions(aiSubtaskService);
+    }
+
+    @Test
+    void storyTextAtExactly4000CharsIsAccepted() throws Exception {
+        when(aiSubtaskService.generate(
+                        org.mockito.ArgumentMatchers.eq(PROJECT_ID),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.eq(CALLER_ID)))
+                .thenReturn(sampleSubtasks());
+
+        mockMvc.perform(post("/api/projects/{projectId}/ai/subtasks", PROJECT_ID)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"storyText\":\"" + "a".repeat(4000) + "\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void subtaskCallerWithoutPermissionReturns403() throws Exception {
         when(aiSubtaskService.generate(
                         org.mockito.ArgumentMatchers.eq(PROJECT_ID),

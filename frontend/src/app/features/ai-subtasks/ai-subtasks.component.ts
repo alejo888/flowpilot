@@ -184,9 +184,22 @@ export class AiSubtasksComponent {
     await this.store.generate(this.projectId(), request);
   }
 
-  /** Disabled until a column is picked, at least one draft exists, and no create is in flight. */
+  /** True while at least one draft row has an empty/whitespace title — the batch endpoint would 400. */
+  readonly hasBlankDraftTitle = computed(() =>
+    this.drafts().some((draft) => draft.title.trim().length === 0),
+  );
+
+  /**
+   * Disabled until a column is picked, at least one draft exists, every draft
+   * has a non-blank title, and no create is in flight. Blocking blank titles
+   * here avoids a round-trip that the backend batch endpoint rejects with a 400.
+   */
   readonly canConfirm = computed(
-    () => this.columnId() !== null && this.drafts().length > 0 && !this.store.submitting(),
+    () =>
+      this.columnId() !== null &&
+      this.drafts().length > 0 &&
+      !this.hasBlankDraftTitle() &&
+      !this.store.submitting(),
   );
 
   async confirm(): Promise<void> {

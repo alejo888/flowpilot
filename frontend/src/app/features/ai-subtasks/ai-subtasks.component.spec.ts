@@ -295,6 +295,36 @@ describe('AiSubtasksComponent', () => {
     expect((q('subtasks-confirm') as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it('keeps confirm disabled while any draft title is blank and re-enables it once every title is filled', () => {
+    build();
+    fixture.detectChanges();
+    seedDrafts([
+      { title: 'Con título', description: '' },
+      { title: '   ', description: '' },
+    ]);
+
+    fixture.componentInstance.selectColumn('1');
+    fixture.detectChanges();
+    expect((q('subtasks-confirm') as HTMLButtonElement).disabled).toBe(true);
+    expect(q('subtasks-blank-title-hint')).not.toBeNull();
+
+    fixture.componentInstance.updateDraftTitle(1, 'Ahora sí');
+    fixture.detectChanges();
+    expect((q('subtasks-confirm') as HTMLButtonElement).disabled).toBe(false);
+    expect(q('subtasks-blank-title-hint')).toBeNull();
+  });
+
+  it('does not post the batch when a draft title is only whitespace', async () => {
+    build();
+    fixture.detectChanges();
+    seedDrafts([{ title: ' ', description: 'x' }]);
+
+    fixture.componentInstance.selectColumn('1');
+    await fixture.componentInstance.confirm();
+
+    expect(storeStub.confirm).not.toHaveBeenCalled();
+  });
+
   it('lists only PLANNED and ACTIVE sprints plus a "Sin sprint" option, excluding COMPLETED', () => {
     build(
       [workItem()],

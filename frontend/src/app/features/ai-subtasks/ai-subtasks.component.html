@@ -167,6 +167,12 @@
         </select>
       </div>
 
+      @if (drafts().length > 0 && hasBlankDraftTitle()) {
+        <p class="hint" data-testid="subtasks-blank-title-hint">
+          Cada subtarea necesita un título.
+        </p>
+      }
+
       <fp-button
         type="button"
         icon="check"
