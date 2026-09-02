@@ -1,6 +1,7 @@
 package com.flowpilot.service;
 
 import com.flowpilot.dto.AiProvider;
+import com.flowpilot.dto.GeneratedAcceptanceCriteriaResponse;
 import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
 import com.flowpilot.dto.SubtaskDraft;
@@ -57,6 +58,23 @@ public class StubAiPlanningService implements AiPlanningService {
                         "Probar: " + head,
                         "Añadir pruebas automáticas que verifiquen: " + head));
         return new GeneratedSubtasksResponse(subtasks, AiProvider.STUB, null);
+    }
+
+    /**
+     * Deterministic 3-item acceptance-criteria list (design D-A), each in
+     * «Dado … cuando … entonces …» form and embedding the whitespace-normalised
+     * head of the story context, so the same context always yields the same
+     * criteria. {@code generatedBy=STUB}, {@code model=null}.
+     */
+    @Override
+    public GeneratedAcceptanceCriteriaResponse generateAcceptanceCriteria(String storyContext) {
+        String head = contextHead(storyContext);
+        List<String> criteria = List.of(
+                "Dado " + head + " cuando el usuario completa la acción entonces el resultado es visible y verificable",
+                "Dado una entrada inválida en " + head
+                        + " cuando se procesa entonces el sistema muestra un mensaje de error claro",
+                "Dado un usuario sin permiso cuando intenta " + head + " entonces la acción queda bloqueada");
+        return new GeneratedAcceptanceCriteriaResponse(criteria, AiProvider.STUB, null);
     }
 
     private static String contextHead(String storyContext) {

@@ -1076,6 +1076,63 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/projects/{projectId}/ai/acceptance-criteria:
+    post:
+      summary: Generate non-persisted acceptance criteria for an existing work item
+      operationId: generateAcceptanceCriteria
+      description: >-
+        Proposes 1..8 acceptance criteria for an existing work item. Guarded by
+        the project WORKITEM_EDIT permission (checked in
+        AiAcceptanceCriteriaService, not the controller) because the caller
+        attaches the result through PUT /api/work-items/{workItemId}. A work
+        item that is not in projectId returns 404. A work item that is itself a
+        subtask is accepted. Persists nothing. When flowpilot.ai.enabled is
+        false the deterministic stub answers (generatedBy=STUB); when true the
+        configured Ollama model answers (generatedBy=OLLAMA).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/NestedProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateAcceptanceCriteriaRequest'
+      responses:
+        '200':
+          description: Generated acceptance criteria, nothing persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedAcceptanceCriteriaResponse'
+        '400':
+          description: workItemId is missing
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller lacks WORKITEM_EDIT on this project
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No project with that id, or no such work item in that project
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '503':
+          description: >-
+            AI assistant unavailable — the LLM refused the connection, exceeded
+            the connect/read timeout, returned a non-2xx status, or produced
+            unparseable or empty output. No retry is attempted.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/ai/config:
     get:
       summary: Report whether AI-assisted planning is enabled
@@ -2172,6 +2229,33 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SubtaskDraft'
+        generatedBy:
+          $ref: '#/components/schemas/AiProvider'
+        model:
+          type: string
+          nullable: true
+    GenerateAcceptanceCriteriaRequest:
+      type: object
+      description: >-
+        Target work item for acceptance-criteria generation. The target is
+        always an existing work item, so workItemId is required and
+        non-nullable; there is no free-text mode.
+      required:
+        - workItemId
+      properties:
+        workItemId:
+          type: integer
+          format: int64
+    GeneratedAcceptanceCriteriaResponse:
+      type: object
+      description: >-
+        Non-persisted list of 1..8 acceptance criteria. model is the Ollama
+        model name for an OLLAMA result and null for a STUB result.
+      properties:
+        criteria:
+          type: array
+          items:
+            type: string
         generatedBy:
           $ref: '#/components/schemas/AiProvider'
         model:
