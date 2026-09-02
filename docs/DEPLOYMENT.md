@@ -53,6 +53,10 @@ The production profile is `backend/src/main/resources/application-prod.yml`. It 
 
 Do not confuse the Compose inputs (`FLOWPILOT_DB_*`) with the production profile's datasource inputs (`FLOWPILOT_DATASOURCE_*`). A deployment that runs the `prod` profile must provide the latter explicitly.
 
+### Optional: AI-assisted planning
+
+The AI generation features (user stories, subtasks, acceptance criteria) are **off by default** and require no configuration for a normal deployment — the backend serves them from a deterministic stub. To enable real generation, set `FLOWPILOT_AI_ENABLED=true` and provide `FLOWPILOT_AI_OLLAMA_BASE_URL` and `FLOWPILOT_AI_OLLAMA_MODEL` (both have no default; the context fails fast at startup if the flag is on and either is missing). The backend makes a single outbound call per request to an OpenAI-compatible `/v1/chat/completions` endpoint with a 5s connect / 60s read timeout and no retry. The bundled `docker-compose.ai.yml` override wires a local Ollama container for this; a production deployment points the base URL at whatever model host it uses.
+
 ## Database persistence, migrations, and recovery
 
 - Keep PostgreSQL data on persistent storage. The Compose volume is named `flowpilot-db-data`; deleting that volume deletes the local database.

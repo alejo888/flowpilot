@@ -30,14 +30,14 @@ Full product vision: [`FlowPilot_Gestor_Proyectos_IA.md`](FlowPilot_Gestor_Proye
 - **Role-permission matrix**: a dense, project-role × permission grid, editable by admins with optimistic-concurrency protection.
 - **Profile**: view your own name/email and change your password, which revokes your other active sessions.
 - **Project dashboard**: per-project metrics — item totals, completion and backlog counts, per-column flow, priority distribution, active sprint progress, and per-assignee workload.
-- **Comments & activity feed**: threaded comments on projects and individual work items (create/read/update), plus an authorization-checked project activity feed surfacing membership, status, sprint, and comment events.
+- **Comments & activity feed**: threaded comments on projects and individual work items (create/read/update/delete, author-only edits and deletes), plus an authorization-checked project activity feed surfacing membership, status, sprint, and comment events.
 - **AI user-story generation** (vision-doc slice 7.1): turn a free-text requirement into a draft user story (`Como … quiero … para …`) plus acceptance criteria, which you edit and confirm before it becomes a work item. **Off by default** — with the flag off, a deterministic stub keeps the endpoint and screen answering; with it on, generation runs against a local [Ollama](https://ollama.com) model. Nothing is persisted until you confirm. See ["Turning on AI generation"](#turning-on-ai-generation) below.
 - **AI subtask generation** (vision-doc slice 7.3): from an existing story or free text, the assistant proposes up to 10 technical subtasks (`/projects/:id/ai/subtasks`, reachable from the project detail row and the board work-item panel). You edit the drafts, pick a target board column and optional sprint, and confirm — a single transactional batch create turns them into linked child work items and navigates back to the board. Shares the same **off-by-default** flag and stub/Ollama seam; nothing is persisted until you confirm.
 - **AI acceptance-criteria generation** (vision-doc slice 7.2): the board work-item detail panel now shows and lets you edit a work item's acceptance criteria (ordered list, add/edit/remove, capped at 8) — this works with the flag off. With it on, "Generar criterios con IA" (`POST /api/projects/:id/ai/acceptance-criteria`, guarded by `WORKITEM_EDIT`) proposes 1–8 criteria and seeds an **append-only union draft**: your existing criteria first, the suggestions appended, all editable. Accepting merges the draft into the edit form; discarding leaves your saved criteria untouched. Nothing persists until you save the panel (the existing work-item `PUT`).
 - **Spanish-localized errors**: auth, projects, members, board, admin, and profile error/validation messages are translated end-to-end (see [`CLAUDE.md`](CLAUDE.md) for the few remaining English-only paths).
 - **API contract**: [`api/openapi.yaml`](api/openapi.yaml) is hand-authored and contract-first, with a CI job that diffs it against the live-generated spec for breaking changes.
 
-See [`CLAUDE.md`](CLAUDE.md) for the full current-status breakdown and what remains toward a complete MVP (the rest of the vision-doc 7.x AI features, comment deletion, etc.).
+See [`CLAUDE.md`](CLAUDE.md) for the full current-status breakdown and what remains toward the full product vision (vision-doc slices 7.4–7.7: AI project creation, an AI project manager, risk analysis, and story refinement).
 
 ## Tech stack
 
@@ -76,7 +76,7 @@ These are local/dev-only bootstrap credentials — rotate them before any real d
 
 ### Turning on AI generation
 
-AI user-story generation is opt-in. The default `docker compose up --build` runs with `flowpilot.ai.enabled=false` and a deterministic stub generator, so the endpoint and the `/projects/:id/ai/user-stories` screen work without any model — the stub just returns a canned draft.
+All three AI generation features — user stories (7.1), subtasks (7.3), and acceptance criteria (7.2) — share one opt-in flag. The default `docker compose up --build` runs with `flowpilot.ai.enabled=false` and a deterministic stub generator, so every AI endpoint and screen works without a model — the stub just returns a canned draft.
 
 To generate against a real local model, add the `docker-compose.ai.yml` override (it starts an [Ollama](https://ollama.com) container, points the backend at it, and flips the flag on) and pick a model:
 
@@ -123,7 +123,7 @@ The integration tests use Testcontainers 1.21.2 and require a running Docker dae
 | Path | Purpose |
 |---|---|
 | `backend/` | Spring Boot 4 layered monolith, Maven, Flyway migrations, Testcontainers-backed integration coverage. |
-| `frontend/` | Angular 21 standalone-components app with auth, admin, projects, members, board, dashboard, and comments/activity slices. |
+| `frontend/` | Angular 21 standalone-components app with auth, admin, projects, members, board, backlog/sprints, dashboard, profile, comments/activity, and AI-planning (stories/subtasks/criteria) slices. |
 | `api/openapi.yaml` | Hand-authored OpenAPI contract for implemented API path families. |
 | `docker-compose.yml` | Local stack: PostgreSQL, backend, frontend/nginx. |
 | `.github/workflows/ci.yml` | CI for backend tests, frontend tests/build, and e2e. |
