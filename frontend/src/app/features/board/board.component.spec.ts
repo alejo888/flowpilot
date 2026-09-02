@@ -5,7 +5,8 @@ import { provideRouter } from '@angular/router';
 import { AiConfigService } from '../../core/ai/ai-config.service';
 import { BoardComponent } from './board.component';
 import { BoardStore } from './board.store';
-import { BoardColumn, WorkItem } from './board.model';
+import { AiCriteriaStore } from './ai-criteria.store';
+import { AiProvider, BoardColumn, WorkItem } from './board.model';
 import { CommentsStore } from '../comments/comments.store';
 import { Project } from '../projects/project.model';
 import { ProjectsStore } from '../projects/projects.store';
@@ -55,8 +56,34 @@ function item(id: number, columnId: number, position: number, title: string): Wo
   };
 }
 
+type AiCriteriaStub = {
+  loading: ReturnType<typeof signal<boolean>>;
+  error: ReturnType<typeof signal<string | null>>;
+  draft: ReturnType<typeof signal<string[] | null>>;
+  model: ReturnType<typeof signal<string | null>>;
+  generatedBy: ReturnType<typeof signal<AiProvider | null>>;
+  generate: ReturnType<typeof vi.fn>;
+  setDraft: ReturnType<typeof vi.fn>;
+  discard: ReturnType<typeof vi.fn>;
+};
+
+function makeAiCriteriaStub(): AiCriteriaStub {
+  const stub: AiCriteriaStub = {
+    loading: signal(false),
+    error: signal<string | null>(null),
+    draft: signal<string[] | null>(null),
+    model: signal<string | null>(null),
+    generatedBy: signal<AiProvider | null>(null),
+    generate: vi.fn().mockResolvedValue(true),
+    setDraft: vi.fn((next: string[]) => stub.draft.set(next)),
+    discard: vi.fn(() => stub.draft.set(null)),
+  };
+  return stub;
+}
+
 describe('BoardComponent', () => {
   let fixture: ComponentFixture<BoardComponent>;
+  let aiCriteriaStub: AiCriteriaStub;
   let storeStub: {
     columns: ReturnType<typeof signal<BoardColumn[]>>;
     itemsByColumn: ReturnType<typeof signal<Record<number, WorkItem[]>>>;
@@ -79,6 +106,7 @@ describe('BoardComponent', () => {
 
   beforeEach(async () => {
     aiConfigStub = { aiEnabled: signal(false), load: vi.fn() };
+    aiCriteriaStub = makeAiCriteriaStub();
     storeStub = {
       columns: signal([column(1, 'Por hacer', 1024), column(2, 'En progreso', 2048)]),
       itemsByColumn: signal({
@@ -108,6 +136,7 @@ describe('BoardComponent', () => {
         { provide: BoardStore, useValue: storeStub },
         { provide: ProjectsStore, useValue: projectsStoreStub },
         { provide: AiConfigService, useValue: aiConfigStub },
+        { provide: AiCriteriaStore, useValue: aiCriteriaStub },
       ],
     }).compileComponents();
 
@@ -311,6 +340,188 @@ describe('BoardComponent', () => {
     expect(storeStub.updateItem).toHaveBeenCalledWith(
       500,
       expect.objectContaining({ acceptanceCriteria: ['Dado A', 'Cuando B', 'Entonces C'] }),
+    );
+  });
+
+  it('renders the acceptance-criteria editor in the detail panel bound to the item criteria', () => {
+    storeStub.selectedItem.set({
+      ...item(500, 1, 1024, 'Design schema'),
+      acceptanceCriteria: ['Dado A', 'Cuando B'],
+    });
+    fixture.detectChanges();
+
+    const editor = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="acceptance-criteria-editor"]',
+    );
+    expect(editor).not.toBeNull();
+    const values = Array.from(editor!.querySelectorAll('[data-testid="criteria-input"]')).map(
+      (el) => (el as HTMLInputElement).value,
+    );
+    expect(values).toEqual(['Dado A', 'Cuando B']);
+  });
+
+  it('persists an added criterion through the work-item PUT after editing it in the panel', () => {
+    storeStub.selectedItem.set({
+      ...item(500, 1, 1024, 'Design schema'),
+      acceptanceCriteria: ['Dado A'],
+    });
+    fixture.detectChanges();
+
+    const editor = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="acceptance-criteria-editor"]',
+    ) as HTMLElement;
+    (editor.querySelector('[data-testid="criteria-add"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const inputs = Array.from(
+      editor.querySelectorAll('[data-testid="criteria-input"]'),
+    ) as HTMLInputElement[];
+    inputs[1].value = 'Cuando B';
+    inputs[1].dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    fixture.componentInstance.submitUpdate(500);
+
+    expect(storeStub.updateItem).toHaveBeenCalledWith(
+      500,
+      expect.objectContaining({ acceptanceCriteria: ['Dado A', 'Cuando B'] }),
+    );
+  });
+
+  it('renders the criteria editor read-only when the caller lacks WORKITEM_EDIT', () => {
+    projectsStoreStub.selectedProject.set(project(['WORKITEM_MOVE']));
+    storeStub.selectedItem.set({
+      ...item(500, 1, 1024, 'Design schema'),
+      acceptanceCriteria: ['Dado A'],
+    });
+    fixture.detectChanges();
+
+    const editor = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="acceptance-criteria-editor"]',
+    ) as HTMLElement;
+    expect(editor).not.toBeNull();
+    const input = editor.querySelector('[data-testid="criteria-input"]') as HTMLInputElement;
+    expect(input.disabled).toBe(true);
+    expect((editor.querySelector('[data-testid="criteria-add"]') as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('hides the "Generar criterios con IA" button while the AI assistant is disabled', () => {
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="generate-criteria"]')).toBeNull();
+  });
+
+  it('shows the "Generar criterios con IA" button when AI is enabled and the caller can edit work items', () => {
+    aiConfigStub.aiEnabled.set(true);
+    projectsStoreStub.selectedProject.set(project(['WORKITEM_EDIT']));
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="generate-criteria"]')).not.toBeNull();
+  });
+
+  it('hides the "Generar criterios con IA" button when the caller lacks WORKITEM_EDIT', () => {
+    aiConfigStub.aiEnabled.set(true);
+    projectsStoreStub.selectedProject.set(project(['WORKITEM_MOVE']));
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="generate-criteria"]')).toBeNull();
+  });
+
+  it('asks the AI store to generate criteria using the current form list', async () => {
+    aiConfigStub.aiEnabled.set(true);
+    projectsStoreStub.selectedProject.set(project(['WORKITEM_EDIT']));
+    storeStub.selectedItem.set({
+      ...item(500, 1, 1024, 'Design schema'),
+      acceptanceCriteria: ['Dado A'],
+    });
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('[data-testid="generate-criteria"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
+
+    expect(aiCriteriaStub.generate).toHaveBeenCalledWith(10, 500, ['Dado A']);
+  });
+
+  it('merges an accepted suggestion draft into the edit form and persists it through the PUT', () => {
+    aiConfigStub.aiEnabled.set(true);
+    projectsStoreStub.selectedProject.set(project(['WORKITEM_EDIT']));
+    storeStub.selectedItem.set({
+      ...item(500, 1, 1024, 'Design schema'),
+      acceptanceCriteria: ['Dado A'],
+    });
+    fixture.detectChanges();
+
+    aiCriteriaStub.draft.set(['Dado A', 'Sugerencia 1']);
+    fixture.detectChanges();
+
+    findButton(fixture.nativeElement, 'Añadir a la tarea').click();
+    fixture.detectChanges();
+
+    fixture.componentInstance.submitUpdate(500);
+
+    expect(storeStub.updateItem).toHaveBeenCalledWith(
+      500,
+      expect.objectContaining({ acceptanceCriteria: ['Dado A', 'Sugerencia 1'] }),
+    );
+  });
+
+  it('discards a suggestion draft and leaves the form criteria byte-identical', () => {
+    aiConfigStub.aiEnabled.set(true);
+    projectsStoreStub.selectedProject.set(project(['WORKITEM_EDIT']));
+    storeStub.selectedItem.set({
+      ...item(500, 1, 1024, 'Design schema'),
+      acceptanceCriteria: ['Dado A'],
+    });
+    fixture.detectChanges();
+
+    aiCriteriaStub.draft.set(['Dado A', 'Sugerencia 1']);
+    fixture.detectChanges();
+
+    findButton(fixture.nativeElement, 'Descartar').click();
+    fixture.detectChanges();
+
+    expect(aiCriteriaStub.discard).toHaveBeenCalled();
+    fixture.componentInstance.submitUpdate(500);
+    expect(storeStub.updateItem).toHaveBeenCalledWith(
+      500,
+      expect.objectContaining({ acceptanceCriteria: ['Dado A'] }),
+    );
+  });
+
+  it('surfaces the Spanish generation error in the panel without touching the typed criteria', () => {
+    aiConfigStub.aiEnabled.set(true);
+    projectsStoreStub.selectedProject.set(project(['WORKITEM_EDIT']));
+    storeStub.selectedItem.set({
+      ...item(500, 1, 1024, 'Design schema'),
+      acceptanceCriteria: ['Dado A'],
+    });
+    fixture.detectChanges();
+
+    const editor = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="acceptance-criteria-editor"]',
+    ) as HTMLElement;
+    const input = editor.querySelector('[data-testid="criteria-input"]') as HTMLInputElement;
+    input.value = 'Editado a mano';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    aiCriteriaStub.error.set('El asistente de IA no está disponible en este momento.');
+    fixture.detectChanges();
+
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="generate-criteria-error"]')
+        ?.textContent,
+    ).toContain('El asistente de IA no está disponible en este momento.');
+
+    fixture.componentInstance.submitUpdate(500);
+    expect(storeStub.updateItem).toHaveBeenCalledWith(
+      500,
+      expect.objectContaining({ acceptanceCriteria: ['Editado a mano'] }),
     );
   });
 
@@ -700,6 +911,7 @@ describe('BoardComponent work-item comments', () => {
 
   beforeEach(async () => {
     aiConfigStub = { aiEnabled: signal(false), load: vi.fn() };
+    const aiCriteriaStub = makeAiCriteriaStub();
     storeStub = {
       columns: signal([column(1, 'Por hacer', 1024), column(2, 'En progreso', 2048)]),
       itemsByColumn: signal({ 1: [item(500, 1, 1024, 'Design schema')], 2: [] }),
@@ -738,6 +950,7 @@ describe('BoardComponent work-item comments', () => {
         { provide: CommentsStore, useValue: commentsStub },
         { provide: ProjectsStore, useValue: projectsStoreStub },
         { provide: AiConfigService, useValue: aiConfigStub },
+        { provide: AiCriteriaStore, useValue: aiCriteriaStub },
       ],
     }).compileComponents();
 
