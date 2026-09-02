@@ -11,6 +11,7 @@ import { FpIconComponent } from '../../shared/ui/icon.component';
 import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { AiConfigService } from '../../core/ai/ai-config.service';
 import { AcceptanceCriteriaEditorComponent } from './acceptance-criteria-editor.component';
+import { AiCriteriaStore } from './ai-criteria.store';
 import { columnAccent } from './column-accent';
 import { WorkItem, WorkItemCreateRequest, WorkItemPriority, WorkItemUpdateRequest } from './board.model';
 import { BoardStore } from './board.store';
@@ -272,6 +273,35 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                 (criteriaChange)="onCriteriaChange($event)"
               />
 
+              @if (canGenerateCriteria()) {
+                <div class="panel-actions wrap">
+                  <fp-button
+                    type="button"
+                    icon="add"
+                    testId="generate-criteria"
+                    [disabled]="aiCriteriaLoading()"
+                    (click)="generateCriteria(item.id)"
+                  >Generar criterios con IA</fp-button>
+                </div>
+              }
+              @if (aiCriteriaError(); as criteriaError) {
+                <p data-testid="generate-criteria-error" class="board-error" role="alert">{{ criteriaError }}</p>
+              }
+              @if (aiCriteriaDraft(); as draft) {
+                <div data-testid="criteria-suggestion-block">
+                  <fp-acceptance-criteria-editor
+                    data-testid="criteria-suggestion-editor"
+                    label="Criterios sugeridos"
+                    [criteria]="draft"
+                    (criteriaChange)="setCriteriaDraft($event)"
+                  />
+                  <div class="panel-actions wrap">
+                    <fp-button type="button" icon="save" testId="accept-criteria" (click)="acceptCriteria()">Añadir a la tarea</fp-button>
+                    <fp-button type="button" variant="secondary" icon="close" testId="discard-criteria" (click)="discardCriteria()">Descartar</fp-button>
+                  </div>
+                </div>
+              }
+
               @if ((item.childCount ?? 0) > 0) {
                 <p data-testid="delete-child-hint" class="assignee">
                   Esta tarea tiene subtareas: quitá o reasigná las subtareas antes de eliminarla.
@@ -353,6 +383,20 @@ export class BoardComponent {
   readonly canGenerateSubtasks = computed(
     () => this.aiEnabled() && hasPermission(this.project(), 'WORKITEM_CREATE'),
   );
+  /**
+   * The AI acceptance-criteria draft is attached through the same
+   * `PUT /api/work-items/{id}` as a manual criteria edit, so the "Generar
+   * criterios con IA" button is gated on the assistant flag AND `WORKITEM_EDIT`
+   * (diverging from the subtasks entrypoint's `WORKITEM_CREATE`). The criteria
+   * editor itself stays usable without AI — only this button depends on it.
+   */
+  private readonly aiCriteria = inject(AiCriteriaStore);
+  readonly canGenerateCriteria = computed(
+    () => this.aiEnabled() && hasPermission(this.project(), 'WORKITEM_EDIT'),
+  );
+  readonly aiCriteriaDraft = this.aiCriteria.draft;
+  readonly aiCriteriaError = this.aiCriteria.error;
+  readonly aiCriteriaLoading = this.aiCriteria.loading;
 
   readonly columns = this.store.columns;
   /** Board items the open item may be re-parented to (see {@link BoardStore.eligibleParents}). */
@@ -403,6 +447,10 @@ export class BoardComponent {
       if (item) {
         this.editForm = formFromItem(item);
       }
+      // Drop any stale AI criteria suggestions/error when the open item changes
+      // (or the panel closes) so the next item never inherits them.
+      this.aiCriteria.discard();
+      this.aiCriteria.error.set(null);
     });
 
     effect(() => {
@@ -485,6 +533,38 @@ export class BoardComponent {
    */
   onCriteriaChange(next: string[]): void {
     this.editForm = { ...this.editForm, acceptanceCriteria: next };
+  }
+
+  /**
+   * Requests an AI acceptance-criteria draft for the open item, seeded from the
+   * form's current list so unsaved manual edits are the "existing" half of the
+   * union. A failed generate never touches the form (`Promise<boolean>`
+   * contract) — it only surfaces the Spanish 503 via {@link aiCriteriaError}.
+   */
+  async generateCriteria(itemId: number): Promise<void> {
+    if (this.aiCriteriaLoading()) {
+      return;
+    }
+    await this.aiCriteria.generate(this.projectId(), itemId, this.editForm.acceptanceCriteria ?? []);
+  }
+
+  setCriteriaDraft(next: string[]): void {
+    this.aiCriteria.setDraft(next);
+  }
+
+  /** Writes the accepted union draft into the edit form; the form submit persists it. */
+  acceptCriteria(): void {
+    const draft = this.aiCriteria.draft();
+    if (!draft) {
+      return;
+    }
+    this.editForm = { ...this.editForm, acceptanceCriteria: [...draft] };
+    this.aiCriteria.discard();
+  }
+
+  /** Drops the suggestions and leaves the item's saved criteria byte-identical. */
+  discardCriteria(): void {
+    this.aiCriteria.discard();
   }
 
   submitUpdate(itemId: number): void {
