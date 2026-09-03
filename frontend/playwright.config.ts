@@ -146,5 +146,37 @@ export default defineConfig({
         ignoreHTTPSErrors: true,
       },
     },
+    // Interactive flow suite (`*.flow.spec.ts`): real form login, project CRUD,
+    // board move, comment CRUD — one flow per feature, driven through the UI on
+    // all three engines. Every spec authenticates as its own per-file throwaway
+    // user (see flow-helpers.ts), never the captured admin session, so there is
+    // no shared refresh-cookie to serialize around — but the projects are still
+    // chained so the flow suite runs after the static sweeps and the three
+    // engines don't all launch at once. Desktop viewport: layout/responsive is
+    // already covered by the `*.authenticated.spec.ts` sweeps; these assert
+    // behavior. No `storageState` here — the specs start logged out.
+    {
+      name: 'chromium-flow',
+      testMatch: /\.flow\.spec\.ts$/,
+      dependencies: ['webkit-desktop'],
+      use: { browserName: 'chromium', viewport: DESKTOP_VIEWPORT },
+    },
+    {
+      name: 'firefox-flow',
+      testMatch: /\.flow\.spec\.ts$/,
+      dependencies: ['chromium-flow'],
+      use: { browserName: 'firefox', viewport: DESKTOP_VIEWPORT },
+    },
+    {
+      name: 'webkit-flow',
+      testMatch: /\.flow\.spec\.ts$/,
+      dependencies: ['firefox-flow'],
+      use: {
+        browserName: 'webkit',
+        viewport: DESKTOP_VIEWPORT,
+        baseURL: HTTPS_BASE_URL,
+        ignoreHTTPSErrors: true,
+      },
+    },
   ],
 });
