@@ -98,6 +98,13 @@ body {
   height: 100%;
 }
 
+// The public landing (features/home) uses the blue/slate redesign palette;
+// match the page ground so the warm --fp-bg never shows at the edges or on
+// overscroll. Scoped via :has() to the landing root — /login etc. are untouched.
+body:has(.lp) {
+  background-color: #f8fafc;
+}
+
 // Global utilities (design D6) — previously duplicated per-component
 // (board.component.ts had its own `.eyebrow` and referenced an undefined
 // `.sr-only`). Promoted here so any feature can reuse them without

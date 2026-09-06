@@ -8,7 +8,7 @@ import {
   provideAppInitializer,
   provideBrowserGlobalErrorListeners
 } from '@angular/core';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 
 import { routes } from './app.routes';
 import { AuthStore } from './core/auth/auth.store';
@@ -20,7 +20,13 @@ export const appConfig: ApplicationConfig = {
   providers: [
     { provide: LOCALE_ID, useValue: 'es' },
     provideBrowserGlobalErrorListeners(),
-    provideRouter(routes, withComponentInputBinding()),
+    // anchorScrolling lets the public landing's in-page nav (routerLink="/"
+    // fragment="…") scroll to a section, including when arriving from /login.
+    provideRouter(
+      routes,
+      withComponentInputBinding(),
+      withInMemoryScrolling({ anchorScrolling: 'enabled' })
+    ),
     // withNoXsrfProtection(): Angular's built-in XSRF interceptor shares the
     // same XSRF-TOKEN/X-XSRF-TOKEN cookie/header names as our explicit
     // double-submit implementation (AuthApiService + xsrf-cookie.ts) and would

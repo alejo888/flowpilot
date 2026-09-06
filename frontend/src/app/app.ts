@@ -1,5 +1,7 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, map, startWith } from 'rxjs';
 
 import { AiConfigService } from './core/ai/ai-config.service';
 import { AuthStore } from './core/auth/auth.store';
@@ -27,6 +29,21 @@ export class App {
   private readonly aiConfig = inject(AiConfigService);
 
   protected readonly drawerOpen = signal(false);
+
+  /**
+   * True only on the public landing route (`''`). Gates the marketing header's
+   * in-page nav + CTAs so auth pages (`/login` etc.) keep a plain brand-only
+   * header. Path-only compare so query params don't matter.
+   */
+  private readonly landingPath = (url: string) => url.split('?')[0].split('#')[0] === '/';
+  protected readonly onLanding = toSignal(
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map((event) => this.landingPath(event.urlAfterRedirects)),
+      startWith(this.landingPath(this.router.url))
+    ),
+    { initialValue: this.landingPath(this.router.url) }
+  );
 
   constructor() {
     // Refresh AI availability whenever the session becomes authenticated
