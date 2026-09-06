@@ -23,7 +23,7 @@ import { FpInputComponent } from '../../shared/ui/input.component';
   standalone: true,
   imports: [FpButtonComponent, FpCardComponent, FpInputComponent, RouterLink],
   template: `
-    <div class="login-page">
+    <div class="login-page auth-page">
       <fp-card class="login-card">
         <form class="login-form" (submit)="onSubmit($event)">
           <h1 class="login-title">Iniciar sesión</h1>

@@ -45,8 +45,21 @@
     </div>
   </aside>
 } @else {
-  <header class="app-topbar app-topbar--minimal" data-testid="app-topbar">
-    <a routerLink="/" class="app-topbar__brand">FlowPilot</a>
+  <header class="app-topbar app-topbar--public" data-testid="app-topbar">
+    <a routerLink="/" class="app-topbar__brand app-topbar__brand--public">
+      <span class="app-topbar__logo" aria-hidden="true">FP</span>
+      <span>FlowPilot</span>
+    </a>
+    @if (onLanding()) {
+      <nav class="app-topbar__public-nav" aria-label="Secciones de la página">
+        <a routerLink="/" fragment="flujo" class="app-topbar__public-link">Tablero Kanban</a>
+        <a routerLink="/" fragment="caracteristicas" class="app-topbar__public-link">Características</a>
+      </nav>
+      <div class="app-topbar__public-actions">
+        <a routerLink="/login" class="app-topbar__public-link" data-testid="nav-login">Iniciar sesión</a>
+        <a routerLink="/projects" class="app-topbar__cta" data-testid="nav-projects-cta"><fp-icon name="folder" /> Mis proyectos</a>
+      </div>
+    }
   </header>
 }
 

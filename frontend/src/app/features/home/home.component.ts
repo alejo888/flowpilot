@@ -1,45 +1,54 @@
 import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
+import { AuthStore } from '../../core/auth/auth.store';
 import { AccessNoticeStore } from '../../core/notifications/access-notice.store';
 import { FpIconComponent } from '../../shared/ui/icon.component';
+import { LandingComponent } from './landing/landing.component';
 
 /**
- * Minimal authenticated landing page (spec: home route). Registered at `''`
- * — the default post-login destination and the fallback target `adminGuard`
- * redirects a denied non-admin user to. Reads and consumes
- * {@link AccessNoticeStore} exactly once on init so a pending "no access"
- * notice renders here and does not survive a reload. Links to `/projects`
- * unconditionally (design D9) — the route's own `authGuard` is the actual
- * security boundary, not this ad hoc link. Visual layer uses the FlowPilot
- * shared/ui kit (fp-button, styled with routerLink so it still renders an
- * `<a>`) — behavior is unchanged from the raw-HTML version this replaces.
- * Heading copy is a welcome line rather than a repeated "FlowPilot" logo:
- * the root app shell's nav bar already carries the brand.
+ * Route entry for `''`. Branches on the session:
+ *
+ * - Unauthenticated → the public marketing {@link LandingComponent}.
+ * - Authenticated → a compact welcome panel in the warm app palette, matching
+ *   the rest of the signed-in shell. This is also the `adminGuard` fallback
+ *   target for a denied non-admin, so the transient "no access" notice
+ *   surfaces here.
+ *
+ * {@link AccessNoticeStore} is consumed exactly once on init regardless of
+ * branch, so a pending notice never survives a reload. The notice can only be
+ * set by `adminGuard`, which requires an authenticated caller, hence it is
+ * rendered only in the authenticated branch. Links to `/projects`
+ * unconditionally (design D9) — the route's own `authGuard` is the security
+ * boundary, not this link.
  */
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [RouterLink, FpIconComponent],
+  imports: [RouterLink, FpIconComponent, LandingComponent],
   template: `
-    <div class="home">
-      @if (notice(); as message) {
-        <p data-testid="home-notice" class="home-notice">{{ message }}</p>
-      }
-      <section class="home-welcome-panel" data-testid="home-welcome-panel" aria-labelledby="home-title">
-        <div class="home-welcome-copy">
-          <p class="home-eyebrow">Espacio de trabajo</p>
-          <h1 id="home-title" class="home-title">Bienvenido a FlowPilot</h1>
-          <p class="home-subtitle">Gestiona tus proyectos y tareas desde un solo lugar.</p>
-          <p class="home-description">Retomá el control de tu trabajo con una vista clara de lo que importa ahora.</p>
-        </div>
-        <div class="home-quick-actions" data-testid="home-quick-actions" aria-labelledby="home-actions-title">
-          <h2 id="home-actions-title">Accesos rápidos</h2>
-          <a routerLink="/projects" data-testid="home-projects-link" class="home-projects-link"><fp-icon name="folder" /> Mis proyectos</a>
-          <a routerLink="/profile" class="home-secondary-link">Revisar mi perfil <span aria-hidden="true">→</span></a>
-        </div>
-      </section>
-    </div>
+    @if (authStore.isAuthenticated()) {
+      <div class="home">
+        @if (notice(); as message) {
+          <p data-testid="home-notice" class="home-notice">{{ message }}</p>
+        }
+        <section class="home-welcome-panel" data-testid="home-welcome-panel" aria-labelledby="home-title">
+          <div class="home-welcome-copy">
+            <p class="home-eyebrow">Espacio de trabajo</p>
+            <h1 id="home-title" class="home-title">Bienvenido a FlowPilot</h1>
+            <p class="home-subtitle">Gestiona tus proyectos y tareas desde un solo lugar.</p>
+            <p class="home-description">Retomá el control de tu trabajo con una vista clara de lo que importa ahora.</p>
+          </div>
+          <div class="home-quick-actions" data-testid="home-quick-actions" aria-labelledby="home-actions-title">
+            <h2 id="home-actions-title">Accesos rápidos</h2>
+            <a routerLink="/projects" data-testid="home-projects-link" class="home-projects-link"><fp-icon name="folder" /> Mis proyectos</a>
+            <a routerLink="/profile" class="home-secondary-link">Revisar mi perfil <span aria-hidden="true">→</span></a>
+          </div>
+        </section>
+      </div>
+    } @else {
+      <app-landing />
+    }
   `,
   styles: `
     .home {
@@ -145,6 +154,7 @@ import { FpIconComponent } from '../../shared/ui/icon.component';
   `,
 })
 export class HomeComponent {
+  protected readonly authStore = inject(AuthStore);
   private readonly accessNotice = inject(AccessNoticeStore);
 
   readonly notice = signal(this.accessNotice.consume());

@@ -29,7 +29,7 @@ interface ProblemDetailLike {
   standalone: true,
   imports: [FpButtonComponent, FpCardComponent, FpInputComponent, RouterLink],
   template: `
-    <div class="register-page">
+    <div class="register-page auth-page">
       <fp-card class="register-card">
         <form class="register-form" (submit)="onSubmit($event)">
           <h1 class="register-title">Crear cuenta</h1>

@@ -79,6 +79,19 @@ html {
 
   --fp-shadow-sm: 0 1px 3px rgba(36, 31, 28, 0.08);
   --fp-shadow-md: 0 4px 12px rgba(36, 31, 28, 0.1);
+
+  // Redesign scale (blue/slate) for the public/unauthenticated surface:
+  // the landing (features/home/landing) and the auth pages. Kept separate
+  // from the warm --fp-* tokens so the authenticated app is untouched;
+  // promoting this to be the single palette is a later decision.
+  --lp-brand: #1d4ed8;
+  --lp-brand-hover: #1e40af;
+  --lp-brand-soft: #eff6ff;
+  --lp-ground: #f8fafc;
+  --lp-surface: #ffffff;
+  --lp-ink: #0f172a;
+  --lp-muted: #475569;
+  --lp-line: #e2e8f0;
 }
 
 body {
@@ -96,6 +109,154 @@ body {
   // Reset the user agent margin.
   margin: 0;
   height: 100%;
+}
+
+// The public landing (features/home/landing) uses the redesign scale; match
+// the page ground so the warm --fp-bg never shows at the edges or on
+// overscroll. Scoped via :has() to the landing root.
+body:has(.lp) {
+  background-color: var(--lp-ground);
+}
+
+// Auth pages (login / register / forgot-password / reset-password) opt into
+// the redesign scale by remapping the --fp-* tokens the shared UI kit
+// (fp-card / fp-input / fp-button) already consumes — no per-component
+// rewrite. The authenticated app never carries `.auth-page`, so it is
+// unaffected.
+.auth-page {
+  --fp-bg: var(--lp-ground);
+  --fp-accent: var(--lp-brand);
+  --fp-accent-hover: var(--lp-brand-hover);
+  --fp-focus: var(--lp-brand);
+}
+
+// The auth page wrapper's own min-height doesn't always reach the viewport
+// bottom; paint the body so the warm --fp-bg never shows below the card.
+body:has(.auth-page) {
+  background-color: var(--lp-ground);
+}
+
+// Shared vocabulary for the public landing (features/home/landing/*). Kept
+// here rather than inline so the hero / showcase / frame components each stay
+// under the anyComponentStyle budget — same rationale as the .eyebrow / .sr-only
+// utilities below. All rules are scoped under `.lp` (only the landing carries
+// it); global CSS is unencapsulated, so these reach the child components too.
+.lp {
+  h1,
+  h2,
+  h3 {
+    line-height: 1.2;
+  }
+
+  p {
+    margin: 0;
+  }
+
+  a {
+    text-decoration: none;
+  }
+
+  a:focus-visible,
+  .lp-btn:focus-visible {
+    outline: 2px solid var(--lp-brand);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+.lp-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lp-brand);
+}
+.lp-eyebrow--sm {
+  margin: 0;
+  font-size: 0.66rem;
+}
+.lp-eyebrow--center {
+  justify-content: center;
+}
+.lp-eyebrow--invert {
+  justify-content: center;
+  color: #93c5fd;
+}
+
+.lp-accent {
+  color: var(--lp-brand);
+}
+
+.lp-dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+.lp-dot--brand {
+  background: var(--lp-brand);
+}
+.lp-dot--green {
+  background: #16a34a;
+}
+
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.2rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.lp-btn--primary {
+  background: var(--lp-brand);
+  color: #fff;
+}
+.lp-btn--primary:hover {
+  background: var(--lp-brand-hover);
+}
+.lp-btn--ghost {
+  background: var(--lp-surface);
+  border-color: var(--lp-line);
+  color: var(--lp-brand);
+}
+.lp-btn--ghost:hover {
+  border-color: var(--lp-brand);
+}
+.lp-btn--dark-ghost {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+.lp-btn--dark-ghost:hover {
+  border-color: #fff;
+}
+
+.lp-section {
+  text-align: center;
+  scroll-margin-top: 5rem;
+}
+.lp-section__title {
+  margin: 0 auto;
+  max-width: 24ch;
+  font-size: clamp(1.6rem, 3.5vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.lp-section__lead {
+  margin: 0.75rem auto 2rem;
+  max-width: 52ch;
+  color: var(--lp-muted);
+  line-height: 1.6;
 }
 
 // Global utilities (design D6) — previously duplicated per-component
