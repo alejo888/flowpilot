@@ -43,7 +43,12 @@ interface Pillar {
           <span class="lp-board__name">Tablero: Rediseño FlowPilot 2.0</span>
           <span class="lp-chip">Sprint #24</span>
         </div>
-        <div class="lp-board__cols">
+        <div
+          class="lp-board__cols"
+          tabindex="0"
+          role="group"
+          aria-label="Columnas del tablero de ejemplo"
+        >
           @for (col of mockColumns; track col.name) {
             <div class="lp-col">
               <p class="lp-col__head">
@@ -106,6 +111,7 @@ interface Pillar {
       font-weight: 700;
     }
     .lp-board__cols { display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 0.25rem; }
+    .lp-board__cols:focus-visible { outline: 2px solid var(--lp-brand); outline-offset: 2px; border-radius: 8px; }
     .lp-col {
       flex: 1 0 200px;
       min-width: 200px;
