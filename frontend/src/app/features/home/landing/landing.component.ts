@@ -33,7 +33,7 @@ import { LandingShowcaseComponent } from './landing-showcase.component';
 
       <footer class="lp-footer">
         <span class="lp-footer__brand"><span class="lp-footer__logo" aria-hidden="true">FP</span> FlowPilot</span>
-        <span class="lp-footer__note">© 2026 FlowPilot — proyecto de portfolio.</span>
+        <span class="lp-footer__note">© 2026 FlowPilot. Todos los derechos reservados.</span>
       </footer>
     </div>
   `,
