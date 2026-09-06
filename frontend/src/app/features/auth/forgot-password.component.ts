@@ -19,7 +19,7 @@ import { FpInputComponent } from '../../shared/ui/input.component';
   standalone: true,
   imports: [FpButtonComponent, FpCardComponent, FpInputComponent, RouterLink],
   template: `
-    <div class="forgot-password-page">
+    <div class="forgot-password-page auth-page">
       <fp-card class="forgot-password-card">
         @if (submitted()) {
           <p data-testid="forgot-password-success" class="forgot-password-success">

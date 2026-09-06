@@ -22,7 +22,7 @@ interface ProblemDetailLike {
   standalone: true,
   imports: [FpButtonComponent, FpCardComponent, FpInputComponent],
   template: `
-    <div class="reset-password-page">
+    <div class="reset-password-page auth-page">
       <fp-card class="reset-password-card">
         <form class="reset-password-form" (submit)="onSubmit($event)">
           <h1 class="reset-password-title">Restablecer contraseña</h1>
