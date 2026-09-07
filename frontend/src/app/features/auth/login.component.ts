@@ -103,17 +103,15 @@ import { FpIconComponent } from '../../shared/ui/icon.component';
     </div>
   `,
   styles: `
+    /* the blueprint grid + ground are painted on <body> (styles.scss,
+       body:has(.login-page)) so they cover the whole viewport, not just this
+       wrapper's content box */
     .login-page {
       min-height: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: clamp(1.5rem, 6vw, 4rem) 1rem;
-      background-color: var(--lp-ground);
-      background-image:
-        linear-gradient(rgba(29, 78, 216, 0.05) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(29, 78, 216, 0.05) 1px, transparent 1px);
-      background-size: 32px 32px;
     }
 
     .login-shell {

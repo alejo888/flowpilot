@@ -136,6 +136,15 @@ body:has(.auth-page) {
   background-color: var(--lp-ground);
 }
 
+// The redesigned /login carries a blueprint grid. Paint it on the body so it
+// covers the whole viewport, not just the wrapper's content-height box.
+body:has(.login-page) {
+  background-image:
+    linear-gradient(rgba(29, 78, 216, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(29, 78, 216, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
 // Shared vocabulary for the public landing (features/home/landing/*). Kept
 // here rather than inline so the hero / showcase / frame components each stay
 // under the anyComponentStyle budget — same rationale as the .eyebrow / .sr-only
