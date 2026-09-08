@@ -89,4 +89,10 @@ describe('ForgotPasswordComponent', () => {
     expect(compiled.querySelector('[data-testid="forgot-password-success"]')).toBeNull();
     expect(compiled.querySelector('[data-testid="forgot-password-error"]')).toBeNull();
   });
+
+  it('marks the email field as required', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const input = compiled.querySelector('[data-testid="forgot-password-email"]') as HTMLInputElement;
+    expect(input.required).toBe(true);
+  });
 });
