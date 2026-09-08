@@ -36,6 +36,14 @@ describe('LandingComponent', () => {
     expect(el().querySelectorAll('.lp-pillar').length).toBe(3);
   });
 
+  it('makes each feature pillar a link to the projects area', () => {
+    const pillars = Array.from(el().querySelectorAll('a.lp-pillar'));
+    expect(pillars.length).toBe(3);
+    for (const pillar of pillars) {
+      expect(pillar.getAttribute('href')).toBe('/projects');
+    }
+  });
+
   it('closes with the CTA band and footer', () => {
     expect(el().querySelector('.lp-cta')).not.toBeNull();
     expect(el().querySelector('.lp-footer')?.textContent).toContain('FlowPilot');

@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 import { FpIconComponent, FpIconName } from '../../../shared/ui/icon.component';
 
@@ -29,7 +30,7 @@ interface Pillar {
 @Component({
   selector: 'app-landing-showcase',
   standalone: true,
-  imports: [FpIconComponent],
+  imports: [FpIconComponent, RouterLink],
   template: `
     <section class="lp-section" id="flujo">
       <p class="lp-eyebrow lp-eyebrow--center">Vista dinámica FlowPilot</p>
@@ -77,12 +78,12 @@ interface Pillar {
 
       <div class="lp-pillars">
         @for (pillar of pillars; track pillar.title) {
-          <article class="lp-pillar">
+          <a class="lp-pillar" routerLink="/projects">
             <span class="lp-pillar__icon" aria-hidden="true"><fp-icon [name]="pillar.icon" /></span>
             <h3>{{ pillar.title }}</h3>
             <p>{{ pillar.body }}</p>
             <span class="lp-pillar__link">{{ pillar.link }} <span aria-hidden="true">→</span></span>
-          </article>
+          </a>
         }
       </div>
     </section>
@@ -154,7 +155,15 @@ interface Pillar {
       text-transform: uppercase;
     }
 
-    .lp-pillars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; text-align: left; }
+    /* auto-fit so the three pillars stay comfortably wide: 3-up on desktop,
+       2-up in the mid range, 1-up on phones — no fixed breakpoint needed.
+       min(240px, 100%) keeps the track from overflowing below 240px. */
+    .lp-pillars {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+      gap: 1.25rem;
+      text-align: left;
+    }
     .lp-pillar {
       display: flex;
       flex-direction: column;
@@ -163,7 +172,10 @@ interface Pillar {
       border: 1px solid var(--lp-line);
       border-radius: 16px;
       background: var(--lp-surface);
+      color: inherit;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
+    .lp-pillar:hover { border-color: var(--lp-brand); box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06); }
     .lp-pillar__icon {
       display: inline-flex;
       align-items: center;
@@ -177,10 +189,6 @@ interface Pillar {
     .lp-pillar h3 { margin: 0.5rem 0 0; font-size: 1.05rem; font-weight: 700; }
     .lp-pillar p { margin: 0; color: var(--lp-muted); font-size: 0.86rem; line-height: 1.55; flex: 1; }
     .lp-pillar__link { color: var(--lp-brand); font-weight: 600; font-size: 0.82rem; }
-
-    @media (max-width: 860px) {
-      .lp-pillars { grid-template-columns: 1fr; }
-    }
   `,
 })
 export class LandingShowcaseComponent {
