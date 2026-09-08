@@ -136,9 +136,10 @@ body:has(.auth-page) {
   background-color: var(--lp-ground);
 }
 
-// The redesigned /login carries a blueprint grid. Paint it on the body so it
-// covers the whole viewport, not just the wrapper's content-height box.
-body:has(.login-page) {
+// The redesigned /login and /register carry a blueprint grid. Paint it on the
+// body so it covers the whole viewport, not just the wrapper's content box.
+body:has(.login-page),
+body:has(.register-page) {
   background-image:
     linear-gradient(rgba(29, 78, 216, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(29, 78, 216, 0.05) 1px, transparent 1px);
