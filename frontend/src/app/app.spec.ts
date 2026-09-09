@@ -186,4 +186,16 @@ describe('App', () => {
     );
     expect(compiled.querySelector('[data-testid="sidebar-avatar"]')?.textContent?.trim()).toBe('A');
   });
+
+  it('labels the sidebar footer role "Miembro" for a non-admin and "Admin" for an admin', () => {
+    authStoreStub.isAuthenticated.set(true);
+    createFixture();
+    let compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('[data-testid="sidebar-user-role"]')?.textContent?.trim()).toBe('Miembro');
+
+    authStoreStub.isAdmin.set(true);
+    fixture.detectChanges();
+    compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('[data-testid="sidebar-user-role"]')?.textContent?.trim()).toBe('Admin');
+  });
 });
