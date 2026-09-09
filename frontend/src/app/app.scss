@@ -36,8 +36,11 @@ $sidebar-width: 240px;
 }
 
 // Marketing-style header for unauthenticated visitors (visible at every width).
+// Wraps on narrow phones so brand + auth actions never overflow the right edge;
+// the base .app-topbar `gap` (space-4) then also spaces the wrapped rows — the
+// old wider space-6 override was a single-row nicety and is dropped on purpose.
 .app-topbar--public {
-  gap: var(--fp-space-6);
+  flex-wrap: wrap;
   background: #fff;
   border-bottom: 1px solid #e2e8f0;
 
@@ -269,7 +272,6 @@ $sidebar-width: 240px;
 .app-sidebar__link .fp-icon {
   width: 1.125rem;
   height: 1.125rem;
-  color: currentColor;
 }
 
 .app-sidebar__link--active {

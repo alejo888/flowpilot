@@ -1,6 +1,6 @@
 import { of, throwError } from 'rxjs';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 
 import { AuthApiService } from '../../core/auth/auth-api.service';
 import { ResetPasswordComponent } from './reset-password.component';
@@ -24,11 +24,11 @@ describe('ResetPasswordComponent', () => {
     form.dispatchEvent(new Event('submit'));
   }
 
-  /** Reads the error message rendered inside the `fp-input` wrapping `testId`. */
+  /** Reads the error message rendered inside the field wrapping `testId`. */
   function errorFor(testId: string): string | null {
     const compiled = fixture.nativeElement as HTMLElement;
     const input = compiled.querySelector(`[data-testid="${testId}"]`);
-    const message = input?.closest('.fp-input')?.querySelector('.fp-input__error');
+    const message = input?.closest('.reset-password-field')?.querySelector('.reset-password-field__error');
     return message?.textContent?.trim() ?? null;
   }
 
@@ -44,10 +44,16 @@ describe('ResetPasswordComponent', () => {
       imports: [ResetPasswordComponent],
       providers: [
         { provide: AuthApiService, useValue: authApiStub },
-        { provide: Router, useValue: router },
+        provideRouter([]),
         { provide: ActivatedRoute, useValue: activatedRouteStub },
       ],
     }).compileComponents();
+
+    router = {
+      navigateByUrl: vi
+        .spyOn(TestBed.inject(Router), 'navigateByUrl')
+        .mockResolvedValue(true) as unknown as ReturnType<typeof vi.fn>,
+    };
 
     fixture = TestBed.createComponent(ResetPasswordComponent);
     fixture.detectChanges();
@@ -55,7 +61,6 @@ describe('ResetPasswordComponent', () => {
 
   beforeEach(async () => {
     authApiStub = { resetPassword: vi.fn() };
-    router = { navigateByUrl: vi.fn() };
 
     await createFixture('reset-token-1');
   });
@@ -126,10 +131,45 @@ describe('ResetPasswordComponent', () => {
 
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('[data-testid="reset-password-error"]')).toBeNull();
+    expect(
+      compiled
+        .querySelector('[data-testid="reset-password-new-password"]')
+        ?.closest('.reset-password-field__control')
+        ?.classList.contains('reset-password-field__control--invalid'),
+    ).toBe(true);
   });
 
   it('does not render an error message before submitting', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('[data-testid="reset-password-error"]')).toBeNull();
+  });
+
+  it('marks the password field as required', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const input = compiled.querySelector(
+      '[data-testid="reset-password-new-password"]',
+    ) as HTMLInputElement;
+    expect(input.required).toBe(true);
+  });
+
+  it('toggles the password field between masked and visible and reflects it in aria-pressed', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const input = compiled.querySelector(
+      '[data-testid="reset-password-new-password"]',
+    ) as HTMLInputElement;
+    const toggle = compiled.querySelector('.reset-password-field__toggle') as HTMLButtonElement;
+
+    expect(input.type).toBe('password');
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(input.type).toBe('text');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('links back to /login', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('a[href="/login"]')).not.toBeNull();
   });
 });
