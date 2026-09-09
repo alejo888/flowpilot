@@ -90,9 +90,20 @@ describe('ForgotPasswordComponent', () => {
     expect(compiled.querySelector('[data-testid="forgot-password-error"]')).toBeNull();
   });
 
-  it('marks the email field as required', () => {
+  it('marks the email field as required and typed as email', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const input = compiled.querySelector('[data-testid="forgot-password-email"]') as HTMLInputElement;
     expect(input.required).toBe(true);
+    expect(input.type).toBe('email');
+  });
+
+  it('sends the latest value the user typed into the email field, not a stale one', () => {
+    authApiStub.forgotPassword.mockReturnValue(of(undefined));
+
+    setFieldValue('forgot-password-email', 'first@flowpilot.local');
+    setFieldValue('forgot-password-email', 'second@flowpilot.local');
+    submitForm();
+
+    expect(authApiStub.forgotPassword).toHaveBeenCalledWith({ email: 'second@flowpilot.local' });
   });
 });

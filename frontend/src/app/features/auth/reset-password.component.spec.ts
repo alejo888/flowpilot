@@ -131,6 +131,12 @@ describe('ResetPasswordComponent', () => {
 
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('[data-testid="reset-password-error"]')).toBeNull();
+    expect(
+      compiled
+        .querySelector('[data-testid="reset-password-new-password"]')
+        ?.closest('.reset-password-field__control')
+        ?.classList.contains('reset-password-field__control--invalid'),
+    ).toBe(true);
   });
 
   it('does not render an error message before submitting', () => {

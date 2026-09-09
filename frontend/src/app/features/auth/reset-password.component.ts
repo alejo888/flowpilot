@@ -17,7 +17,7 @@ interface ProblemDetailLike {
  *
  * Visual layer mirrors {@link ForgotPasswordComponent} / {@link LoginComponent}:
  * a bespoke card in the blue/slate `--lp-*` scale with an icon-prefixed field,
- * a password reveal toggle and the blueprint-grid background. Behaviour, the
+ * a password reveal toggle and the blueprint-grid background. The submit /
  * field-error routing and the `reset-password-*` test hooks are unchanged.
  */
 @Component({
