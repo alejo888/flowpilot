@@ -27,7 +27,7 @@ describe('RegisterComponent', () => {
   function errorFor(testId: string): string | null {
     const compiled = fixture.nativeElement as HTMLElement;
     const input = compiled.querySelector(`[data-testid="${testId}"]`);
-    const message = input?.closest('.register-field')?.querySelector('.register-field__error');
+    const message = input?.closest('.auth-field')?.querySelector('.auth-field__error');
     return message?.textContent?.trim() ?? null;
   }
 
@@ -123,8 +123,8 @@ describe('RegisterComponent', () => {
     expect(
       compiled
         .querySelector('[data-testid="register-email"]')
-        ?.closest('.register-field__control')
-        ?.classList.contains('register-field__control--invalid'),
+        ?.closest('.auth-field__control')
+        ?.classList.contains('auth-field__control--invalid'),
     ).toBe(true);
   });
 
@@ -168,7 +168,7 @@ describe('RegisterComponent', () => {
   it('toggles the password field between masked and visible and reflects it in aria-pressed', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const input = compiled.querySelector('[data-testid="register-password"]') as HTMLInputElement;
-    const toggle = compiled.querySelector('.register-field__toggle') as HTMLButtonElement;
+    const toggle = compiled.querySelector('.auth-field__toggle') as HTMLButtonElement;
 
     expect(input.type).toBe('password');
     expect(toggle.getAttribute('aria-pressed')).toBe('false');
@@ -186,17 +186,17 @@ describe('RegisterComponent', () => {
 
   it('marks the password hint as satisfied only once it reaches 8 characters', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    const hint = () => compiled.querySelector('.register-field__hint');
+    const hint = () => compiled.querySelector('.auth-field__hint');
 
-    expect(hint()?.classList.contains('register-field__hint--ok')).toBe(false);
+    expect(hint()?.classList.contains('auth-field__hint--ok')).toBe(false);
 
     setFieldValue('register-password', '1234567');
     fixture.detectChanges();
-    expect(hint()?.classList.contains('register-field__hint--ok')).toBe(false);
+    expect(hint()?.classList.contains('auth-field__hint--ok')).toBe(false);
 
     setFieldValue('register-password', '12345678');
     fixture.detectChanges();
-    expect(hint()?.classList.contains('register-field__hint--ok')).toBe(true);
+    expect(hint()?.classList.contains('auth-field__hint--ok')).toBe(true);
   });
 
   it('disables the submit button while the request is pending, then re-enables it on error', () => {

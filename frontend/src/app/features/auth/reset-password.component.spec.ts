@@ -28,7 +28,7 @@ describe('ResetPasswordComponent', () => {
   function errorFor(testId: string): string | null {
     const compiled = fixture.nativeElement as HTMLElement;
     const input = compiled.querySelector(`[data-testid="${testId}"]`);
-    const message = input?.closest('.reset-password-field')?.querySelector('.reset-password-field__error');
+    const message = input?.closest('.auth-field')?.querySelector('.auth-field__error');
     return message?.textContent?.trim() ?? null;
   }
 
@@ -134,8 +134,8 @@ describe('ResetPasswordComponent', () => {
     expect(
       compiled
         .querySelector('[data-testid="reset-password-new-password"]')
-        ?.closest('.reset-password-field__control')
-        ?.classList.contains('reset-password-field__control--invalid'),
+        ?.closest('.auth-field__control')
+        ?.classList.contains('auth-field__control--invalid'),
     ).toBe(true);
   });
 
@@ -157,7 +157,7 @@ describe('ResetPasswordComponent', () => {
     const input = compiled.querySelector(
       '[data-testid="reset-password-new-password"]',
     ) as HTMLInputElement;
-    const toggle = compiled.querySelector('.reset-password-field__toggle') as HTMLButtonElement;
+    const toggle = compiled.querySelector('.auth-field__toggle') as HTMLButtonElement;
 
     expect(input.type).toBe('password');
     expect(toggle.getAttribute('aria-pressed')).toBe('false');

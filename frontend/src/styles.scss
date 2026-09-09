@@ -122,30 +122,318 @@ body:has(.lp) {
 // the redesign scale by remapping the --fp-* tokens the shared UI kit
 // (fp-card / fp-input / fp-button) already consumes — no per-component
 // rewrite. The authenticated app never carries `.auth-page`, so it is
-// unaffected.
+// unaffected. It is also the flex wrapper that centres the card, and the
+// blueprint-grid hook (grid painted on <body> so it covers the whole
+// viewport, not just this wrapper's content box).
 .auth-page {
   --fp-bg: var(--lp-ground);
   --fp-accent: var(--lp-brand);
   --fp-accent-hover: var(--lp-brand-hover);
   --fp-focus: var(--lp-brand);
+
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1.5rem, 6vw, 4rem) 1rem;
 }
 
 // The auth page wrapper's own min-height doesn't always reach the viewport
-// bottom; paint the body so the warm --fp-bg never shows below the card.
+// bottom; paint the body so the warm --fp-bg never shows below the card, and
+// carry the blueprint grid across the whole viewport.
 body:has(.auth-page) {
   background-color: var(--lp-ground);
-}
-
-// The redesigned auth screens carry a blueprint grid. Paint it on the body so
-// it covers the whole viewport, not just the wrapper's content box.
-body:has(.login-page),
-body:has(.register-page),
-body:has(.forgot-password-page),
-body:has(.reset-password-page) {
   background-image:
     linear-gradient(rgba(29, 78, 216, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(29, 78, 216, 0.05) 1px, transparent 1px);
   background-size: 32px 32px;
+}
+
+// Shared vocabulary for the redesigned auth screens (features/auth/*). Kept
+// here rather than inline — same rationale as `.lp-*` above — so login /
+// register / forgot-password / reset-password stop carrying four near-
+// identical copies of it. Base values match login / register; `.auth-shell
+// --centered` carries the forgot-password / reset-password variant (narrower
+// shell, centred card with a badge, wider subtitle). Unused parts on a given
+// screen (badge, toggle, per-field error/hint) are simply inert.
+.auth-shell {
+  --auth-subtitle-max: 34ch;
+  --auth-field-icon: 1.05rem;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 480px;
+}
+.auth-shell--centered {
+  --auth-subtitle-max: 40ch;
+  --auth-field-icon: 1.125rem;
+
+  max-width: 460px;
+}
+
+.auth-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--lp-line);
+  background: var(--lp-surface);
+  color: var(--lp-brand);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.auth-eyebrow__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--lp-brand);
+}
+
+.auth-card {
+  width: 100%;
+  padding: clamp(1.5rem, 5vw, 2.5rem);
+  background: var(--lp-surface);
+  border: 1px solid var(--lp-line);
+  border-radius: 20px;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+}
+.auth-shell--centered .auth-card {
+  text-align: center;
+}
+
+.auth-card__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 14px;
+  background: var(--lp-brand-soft);
+  color: var(--lp-brand);
+}
+
+.auth-card__head {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+.auth-shell--centered .auth-card__head {
+  margin: 1rem 0 1.5rem;
+}
+.auth-card__title {
+  margin: 0;
+  font-family: var(--fp-font-body);
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--lp-ink);
+}
+.auth-card__subtitle {
+  margin: 0.5rem auto 0;
+  max-width: var(--auth-subtitle-max);
+  color: var(--lp-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.auth-shell--centered .auth-form {
+  text-align: left;
+}
+
+.auth-form__error {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: var(--fp-danger);
+  font-size: 0.85rem;
+}
+
+.auth-form__aux {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -0.25rem;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.auth-field__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lp-muted);
+}
+.auth-field__control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--lp-line);
+  border-radius: 12px;
+  background: var(--lp-surface);
+}
+.auth-field__control:focus-within {
+  border-color: var(--lp-brand);
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+}
+.auth-field__control--invalid {
+  border-color: var(--fp-danger);
+}
+.auth-field__control input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.7rem 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--fp-font-body);
+  font-size: 0.95rem;
+  color: var(--lp-ink);
+}
+.auth-field__control input:focus {
+  outline: none;
+}
+// keep the field white under browser autofill, and drop the native
+// password-reveal so only our toggle shows
+.auth-field__control input:-webkit-autofill,
+.auth-field__control input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 100px var(--lp-surface) inset;
+  -webkit-text-fill-color: var(--lp-ink);
+}
+.auth-field__control input::-ms-reveal,
+.auth-field__control input::-ms-clear {
+  display: none;
+}
+.auth-field__icon {
+  color: #94a3b8;
+  flex: 0 0 auto;
+}
+
+.auth-field__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border: 0;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+.auth-field__toggle:hover {
+  color: var(--lp-brand);
+}
+.auth-field__toggle:focus-visible {
+  outline: 2px solid var(--lp-brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.auth-field__error {
+  color: var(--fp-danger);
+  font-size: 0.8rem;
+}
+
+.auth-field__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--lp-muted);
+  font-size: 0.78rem;
+}
+.auth-field__hint-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  color: #cbd5e1;
+}
+.auth-field__hint--ok {
+  color: var(--fp-success, #16a34a);
+}
+.auth-field__hint--ok .auth-field__hint-icon {
+  color: currentColor;
+}
+
+.auth-link {
+  color: var(--lp-brand);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.auth-link:hover {
+  text-decoration: underline;
+}
+.auth-link--strong {
+  font-weight: 700;
+}
+
+.auth-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  padding: 0.8rem 1rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--lp-brand);
+  color: #fff;
+  font-family: var(--fp-font-body);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+.auth-submit:hover:not(:disabled) {
+  background: var(--lp-brand-hover);
+}
+.auth-submit:focus-visible {
+  outline: 2px solid var(--lp-brand);
+  outline-offset: 2px;
+}
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-card__rule {
+  margin: 1.5rem 0 1rem;
+  border: 0;
+  border-top: 1px solid var(--lp-line);
+}
+.auth-card__foot {
+  margin: 0;
+  text-align: center;
+  color: var(--lp-muted);
+  font-size: 0.88rem;
+}
+
+// Icon sizing: field / toggle icons follow --auth-field-icon (1.05rem on
+// login / register, the fp-icon default 1.125rem on the centred screens);
+// the badge and submit icons keep their own explicit size.
+.auth-field__icon .fp-icon,
+.auth-field__toggle .fp-icon {
+  width: var(--auth-field-icon);
+  height: var(--auth-field-icon);
+}
+.auth-card__badge .fp-icon {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+.auth-submit .fp-icon {
+  width: 1rem;
+  height: 1rem;
 }
 
 // Shared vocabulary for the public landing (features/home/landing/*). Kept
