@@ -39,7 +39,10 @@
     <div class="app-sidebar__footer">
       <div class="app-sidebar__user">
         <span class="app-sidebar__avatar" data-testid="sidebar-avatar" aria-hidden="true">{{ currentUserInitial() }}</span>
-        <span class="app-sidebar__user-email" data-testid="sidebar-user-email">{{ currentUserEmail() }}</span>
+        <span class="app-sidebar__user-text">
+          <span class="app-sidebar__user-email" data-testid="sidebar-user-email">{{ currentUserEmail() }}</span>
+          <span class="app-sidebar__user-role" data-testid="sidebar-user-role">{{ authStore.isAdmin() ? 'Admin' : 'Miembro' }}</span>
+        </span>
       </div>
       <fp-button variant="secondary" icon="logout" testId="logout-button" (click)="onLogout()">Cerrar sesión</fp-button>
     </div>

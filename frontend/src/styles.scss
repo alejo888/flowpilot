@@ -149,6 +149,24 @@ body:has(.auth-page) {
   background-size: 32px 32px;
 }
 
+// The authenticated app shell opts the whole logged-in UI into the redesign
+// scale the same way `.auth-page` does — remap the --fp-* tokens the shared
+// kit and every feature page already consume, rather than rewriting each
+// screen. `.app-sidebar` is only in the DOM once authenticated, so the public
+// landing and auth pages are untouched. Per-screen structural redesigns still
+// come later; this only shifts the palette + ground.
+body:has(.app-sidebar) {
+  --fp-bg: var(--lp-ground);
+  --fp-text: var(--lp-ink);
+  --fp-text-muted: var(--lp-muted);
+  --fp-border: var(--lp-line);
+  --fp-accent: var(--lp-brand);
+  --fp-accent-hover: var(--lp-brand-hover);
+  --fp-focus: var(--lp-brand);
+
+  background-color: var(--lp-ground);
+}
+
 // Shared vocabulary for the redesigned auth screens (features/auth/*). Kept
 // here rather than inline — same rationale as `.lp-*` above — so login /
 // register / forgot-password / reset-password stop carrying four near-
