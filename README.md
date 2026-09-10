@@ -8,8 +8,8 @@ Full product vision: [`FlowPilot_Gestor_Proyectos_IA.md`](FlowPilot_Gestor_Proye
 
 | | |
 |---|---|
-| **Login** | **Home** |
-| ![Login screen](docs/screenshots/login.png) | ![Home screen](docs/screenshots/00-home.png) |
+| **Login** | **Public landing** |
+| ![Login screen](docs/screenshots/login.png) | ![Public marketing landing](docs/screenshots/00-home.png) |
 | **Projects** | **Kanban board** |
 | ![Projects list](docs/screenshots/01-projects.png) | ![Kanban board](docs/screenshots/02-board.png) |
 | **Project members** | **Admin — users** |
