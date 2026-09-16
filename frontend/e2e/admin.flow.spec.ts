@@ -67,27 +67,36 @@ test.describe.serial('admin screens', () => {
 
     const initiallyChecked = await cell.isChecked();
 
-    // Flip and save. The cell's "dirty" outline clears only once the save
-    // response lands and the store's baseline catches up with the working
-    // copy (RolePermissionsStore.save's success handler) — a more reliable
-    // "save finished" signal here than the Save button's disabled state,
-    // which is true both mid-save and once there is nothing left dirty.
-    await cell.click();
-    await expect(cell).toBeChecked({ checked: !initiallyChecked });
-    await page.locator('[data-testid="save-button"]').click();
-    await expect(cell).not.toHaveClass(/dirty/);
+    try {
+      // Flip and save. The cell's "dirty" outline clears only once the save
+      // response lands and the store's baseline catches up with the working
+      // copy (RolePermissionsStore.save's success handler) — a more reliable
+      // "save finished" signal here than the Save button's disabled state,
+      // which is true both mid-save and once there is nothing left dirty.
+      await cell.click();
+      await expect(cell).toBeChecked({ checked: !initiallyChecked });
+      await page.locator('[data-testid="save-button"]').click();
+      await expect(cell).not.toHaveClass(/dirty/);
 
-    // Reload and confirm the flip persisted server-side.
-    await page.reload();
-    await expect(page.locator('[data-testid="cell-DEVOPS-PROJECT_DELETE"]')).toBeChecked({
-      checked: !initiallyChecked,
-    });
-
-    // Flip back and save so the shared matrix ends exactly as it started.
-    const cellAfterReload = page.locator('[data-testid="cell-DEVOPS-PROJECT_DELETE"]');
-    await cellAfterReload.click();
-    await page.locator('[data-testid="save-button"]').click();
-    await expect(cellAfterReload).not.toHaveClass(/dirty/);
+      // Reload and confirm the flip persisted server-side.
+      await page.reload();
+      await expect(page.locator('[data-testid="cell-DEVOPS-PROJECT_DELETE"]')).toBeChecked({
+        checked: !initiallyChecked,
+      });
+    } finally {
+      // Restore the cell to its pre-test value even if an assertion above
+      // threw, so a failed run never leaves the shared matrix mutated for
+      // every subsequent run/spec that touches /admin/permissions. Re-fetch
+      // the actual current state (rather than assuming the flip above
+      // landed) so this never double-flips a cell that never changed.
+      await page.goto('/admin/permissions');
+      const restoreCell = page.locator('[data-testid="cell-DEVOPS-PROJECT_DELETE"]');
+      if ((await restoreCell.isChecked()) !== initiallyChecked) {
+        await restoreCell.click();
+        await page.locator('[data-testid="save-button"]').click();
+        await expect(restoreCell).not.toHaveClass(/dirty/);
+      }
+    }
 
     await page.reload();
     await expect(page.locator('[data-testid="cell-DEVOPS-PROJECT_DELETE"]')).toBeChecked({
