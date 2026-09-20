@@ -61,6 +61,7 @@ type AiCriteriaStub = {
   loading: ReturnType<typeof signal<boolean>>;
   error: ReturnType<typeof signal<string | null>>;
   draft: ReturnType<typeof signal<string[] | null>>;
+  overflow: ReturnType<typeof signal<string[]>>;
   model: ReturnType<typeof signal<string | null>>;
   generatedBy: ReturnType<typeof signal<AiProvider | null>>;
   generate: ReturnType<typeof vi.fn>;
@@ -73,6 +74,7 @@ function makeAiCriteriaStub(): AiCriteriaStub {
     loading: signal(false),
     error: signal<string | null>(null),
     draft: signal<string[] | null>(null),
+    overflow: signal<string[]>([]),
     model: signal<string | null>(null),
     generatedBy: signal<AiProvider | null>(null),
     generate: vi.fn().mockResolvedValue(true),
@@ -553,6 +555,25 @@ describe('BoardComponent', () => {
     );
   });
 
+  it('shows the cap overflow notice in the criteria suggestion block only when some suggestions do not fit', () => {
+    aiConfigStub.aiEnabled.set(true);
+    projectsStoreStub.selectedProject.set(project(['WORKITEM_EDIT']));
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+    aiCriteriaStub.draft.set(['A']);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="criteria-overflow-notice"]')).toBeNull();
+
+    aiCriteriaStub.overflow.set(['x', 'y']);
+    fixture.detectChanges();
+
+    expect(
+      el.querySelector('[data-testid="criteria-suggestion-block"] [data-testid="criteria-overflow-notice"]')
+        ?.textContent,
+    ).toContain('2 criterios sugeridos no caben (tope 8)');
+  });
+
   describe('AI story improvement', () => {
     const IMPROVE = '[data-testid="improve-story"]';
 
@@ -612,6 +633,27 @@ describe('BoardComponent', () => {
         'Como PM quiero X para Y',
       );
       expect(el.querySelector('[data-testid="improve-story-criterion"]')?.textContent).toContain('Nuevo 1');
+    });
+
+    it('shows the overflow notice in the preview against the form criteria, and apply still yields the capped merge', () => {
+      openEditableItem();
+      fixture.componentInstance.onCriteriaChange(['1', '2', '3', '4', '5', '6']);
+      aiStoryStub.suggestion.set({ description: 'D', criteria: ['s1', 's2', 's3', 's4'] });
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(
+        el.querySelector('[data-testid="improve-story-preview"] [data-testid="criteria-overflow-notice"]')
+          ?.textContent,
+      ).toContain('2 criterios sugeridos no caben (tope 8)');
+
+      (el.querySelector('[data-testid="improve-story-apply"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      fixture.componentInstance.submitUpdate(500);
+      expect(storeStub.updateItem).toHaveBeenCalledWith(
+        500,
+        expect.objectContaining({ acceptanceCriteria: ['1', '2', '3', '4', '5', '6', 's1', 's2'] }),
+      );
     });
 
     it('apply replaces only the description (title kept) and merges criteria, persisting via the PUT', () => {
