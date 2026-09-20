@@ -60,6 +60,13 @@ async function captureAdminSession(session: (typeof ADMIN_SESSIONS)[number]): Pr
  * storageState the app can actually use.
  */
 export default async function globalSetup(): Promise<void> {
+  // The `chromium-ai` project (E2E_AI) uses only throwaway users, and its CI
+  // job installs chromium alone — capturing the firefox/webkit admin sessions
+  // below would fail there. Teardown no-ops when project.json is absent.
+  if (process.env['E2E_AI']) {
+    return;
+  }
+
   mkdirSync(AUTH_DIR, { recursive: true });
 
   const api = await request.newContext({ baseURL: BASE_URL });
