@@ -67,9 +67,10 @@ export class AiStoryImprovementStore {
     );
   }
 
-  /** Drops the on-screen suggestion only. */
+  /** Drops the on-screen suggestion and any stale error; does not invalidate an in-flight request. */
   discard(): void {
     this.suggestion.set(null);
+    this.error.set(null);
   }
 
   /** Clears suggestion, error and loading and invalidates any in-flight request, e.g. when the open work item changes. */

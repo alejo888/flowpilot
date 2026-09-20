@@ -69,15 +69,31 @@ describe('AiStoryImprovementStore', () => {
     expect(store.error()).toBe('No se pudo mejorar la historia');
   });
 
-  it('discard() clears only the suggestion', async () => {
-    api.improve.mockReturnValue(of(improved()));
+  it('discard() clears the suggestion and a stale error left by a later failed generate', async () => {
+    api.improve.mockReturnValueOnce(of(improved()));
     await store.generate(10, 55);
-    store.error.set('algo');
+    api.improve.mockReturnValueOnce(throwError(() => ({})));
+    await store.generate(10, 55);
+    expect(store.suggestion()).not.toBeNull();
+    expect(store.error()).not.toBeNull();
 
     store.discard();
 
     expect(store.suggestion()).toBeNull();
-    expect(store.error()).toBe('algo');
+    expect(store.error()).toBeNull();
+  });
+
+  it('discard() does not invalidate an in-flight generate', async () => {
+    const pending = new Subject<GeneratedUserStoryResponse>();
+    api.improve.mockReturnValue(pending);
+    const p = store.generate(10, 55);
+
+    store.discard();
+    pending.next(improved());
+    pending.complete();
+
+    expect(await p).toBe(true);
+    expect(store.suggestion()).not.toBeNull();
   });
 
   it('reset() clears the stale suggestion and error', async () => {
