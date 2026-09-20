@@ -7,6 +7,7 @@ import com.flowpilot.dto.GeneratedAcceptanceCriteriaResponse;
 import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
 import com.flowpilot.service.AiAcceptanceCriteriaService;
+import com.flowpilot.service.AiStoryImprovementService;
 import com.flowpilot.service.AiSubtaskService;
 import com.flowpilot.service.AiUserStoryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -41,14 +42,17 @@ public class AiController {
     private final AiUserStoryService aiUserStoryService;
     private final AiSubtaskService aiSubtaskService;
     private final AiAcceptanceCriteriaService aiAcceptanceCriteriaService;
+    private final AiStoryImprovementService aiStoryImprovementService;
 
     public AiController(
             AiUserStoryService aiUserStoryService,
             AiSubtaskService aiSubtaskService,
-            AiAcceptanceCriteriaService aiAcceptanceCriteriaService) {
+            AiAcceptanceCriteriaService aiAcceptanceCriteriaService,
+            AiStoryImprovementService aiStoryImprovementService) {
         this.aiUserStoryService = aiUserStoryService;
         this.aiSubtaskService = aiSubtaskService;
         this.aiAcceptanceCriteriaService = aiAcceptanceCriteriaService;
+        this.aiStoryImprovementService = aiStoryImprovementService;
     }
 
     @Operation(summary = "Generate a non-persisted user-story draft from a free-text requirement")
@@ -123,6 +127,30 @@ public class AiController {
             @Valid @RequestBody GenerateAcceptanceCriteriaRequest request,
             Authentication authentication) {
         return aiAcceptanceCriteriaService.generate(projectId, request, currentUserId(authentication));
+    }
+
+    @Operation(summary = "Generate a non-persisted improved user story and criteria for an existing work item")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Generated improved story draft, nothing persisted"),
+        @ApiResponse(responseCode = "400", description = "workItemId is missing",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "403", description = "Caller lacks WORKITEM_EDIT on this project",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "404", description = "No project with that id, or no such work item in it",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "503", description = "AI assistant unavailable; no retry is attempted",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @PostMapping("/api/projects/{projectId}/ai/story-improvement")
+    public GeneratedUserStoryResponse generateStoryImprovement(
+            @PathVariable Long projectId,
+            @Valid @RequestBody GenerateAcceptanceCriteriaRequest request,
+            Authentication authentication) {
+        return aiStoryImprovementService.generate(projectId, request, currentUserId(authentication));
     }
 
     private Long currentUserId(Authentication authentication) {

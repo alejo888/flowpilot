@@ -77,6 +77,25 @@ public class StubAiPlanningService implements AiPlanningService {
         return new GeneratedAcceptanceCriteriaResponse(criteria, AiProvider.STUB, null);
     }
 
+    /**
+     * Deterministic improved-story draft (vision 7.7): the action and every
+     * criterion embed the whitespace-normalised head of the story context, so
+     * the same context always yields the same draft. {@code generatedBy=STUB},
+     * {@code model=null}.
+     */
+    @Override
+    public GeneratedUserStoryResponse generateStoryImprovement(String storyContext) {
+        String head = contextHead(storyContext);
+        String text = AiPlanningService.composeText(ROLE, head, BENEFIT);
+        List<String> criteria = List.of(
+                "Dado " + head + " cuando el usuario completa la acción entonces el resultado es visible y verificable",
+                "Dado una entrada inválida en " + head
+                        + " cuando se procesa entonces el sistema muestra un mensaje de error claro",
+                "Dado un usuario sin permiso cuando intenta " + head + " entonces la acción queda bloqueada");
+        return new GeneratedUserStoryResponse(
+                new UserStoryDraft(ROLE, head, BENEFIT, text), criteria, AiProvider.STUB, null);
+    }
+
     private static String contextHead(String storyContext) {
         String collapsed = storyContext == null ? "" : storyContext.strip().replaceAll("\\s+", " ");
         if (collapsed.isEmpty()) {

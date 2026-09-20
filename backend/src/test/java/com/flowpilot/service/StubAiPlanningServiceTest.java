@@ -140,4 +140,39 @@ class StubAiPlanningServiceTest {
 
         assertThat(first).isEqualTo(second);
     }
+
+    // --- generateStoryImprovement (vision 7.7) ---
+
+    @Test
+    void generateStoryImprovementReturnsAStubDraftWithComposedTextAndNoModel() {
+        GeneratedUserStoryResponse response =
+                service.generateStoryImprovement("Título: Exportar informes\nDescripción: en PDF");
+
+        assertThat(response.generatedBy()).isEqualTo(AiProvider.STUB);
+        assertThat(response.model()).isNull();
+        assertThat(response.userStory().text())
+                .isEqualTo(AiPlanningService.composeText(
+                        response.userStory().role(),
+                        response.userStory().action(),
+                        response.userStory().benefit()));
+        assertThat(response.userStory().text()).startsWith("Como ");
+        assertThat(response.acceptanceCriteria()).hasSize(3);
+        assertThat(response.acceptanceCriteria()).allSatisfy(c -> assertThat(c).startsWith("Dado "));
+    }
+
+    @Test
+    void generateStoryImprovementEmbedsTheNormalisedContextHeadInTheActionAndCriteria() {
+        GeneratedUserStoryResponse response =
+                service.generateStoryImprovement("  Exportar   \n  informes  de  ventas  ");
+
+        assertThat(response.userStory().action()).isEqualTo("Exportar informes de ventas");
+        assertThat(response.acceptanceCriteria())
+                .allSatisfy(c -> assertThat(c).contains("Exportar informes de ventas"));
+    }
+
+    @Test
+    void generateStoryImprovementIsDeterministicForTheSameContext() {
+        assertThat(service.generateStoryImprovement("Filtrar tareas por responsable"))
+                .isEqualTo(service.generateStoryImprovement("Filtrar tareas por responsable"));
+    }
 }

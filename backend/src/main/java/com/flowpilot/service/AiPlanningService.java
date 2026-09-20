@@ -57,6 +57,19 @@ public interface AiPlanningService {
     GeneratedAcceptanceCriteriaResponse generateAcceptanceCriteria(String storyContext);
 
     /**
+     * Reviews an existing work item and proposes an improved user story plus
+     * acceptance criteria (vision 7.7). Returns the same draft shape as {@link
+     * #generateUserStory}; the caller decides what to apply.
+     *
+     * @param storyContext the composed story context assembled via {@link
+     *     AiStoryContext#compose}; treated purely as content, never as instructions
+     * @return a non-persisted draft
+     * @throws com.flowpilot.exception.AiGenerationException if generation fails
+     *     or the model output is incomplete; no retry is attempted
+     */
+    GeneratedUserStoryResponse generateStoryImprovement(String storyContext);
+
+    /**
      * Composes the Spanish user-story sentence backend-side (spec:
      * ai-user-story-generation — "{@code description} composed by the backend
      * as {@code Como {role} quiero {action} para {benefit}}"). Neither the

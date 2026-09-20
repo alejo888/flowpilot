@@ -23,6 +23,7 @@ import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.security.JwtService;
 import com.flowpilot.security.SecurityConfig;
 import com.flowpilot.service.AiAcceptanceCriteriaService;
+import com.flowpilot.service.AiStoryImprovementService;
 import com.flowpilot.service.AiSubtaskService;
 import com.flowpilot.service.AiUserStoryService;
 import java.util.List;
@@ -60,6 +61,9 @@ class AiControllerTest {
 
     @MockitoBean
     private AiAcceptanceCriteriaService aiAcceptanceCriteriaService;
+
+    @MockitoBean
+    private AiStoryImprovementService aiStoryImprovementService;
 
     @MockitoBean
     private JwtService jwtService;
@@ -403,6 +407,90 @@ class AiControllerTest {
                         .content("{\"workItemId\":55}"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.detail").value("El asistente de IA no está disponible en este momento."));
+    }
+
+    // --- POST /api/projects/{projectId}/ai/story-improvement (vision 7.7) ---
+
+    private static final String STORY_IMPROVEMENT_PATH = "/api/projects/{projectId}/ai/story-improvement";
+
+    @Test
+    void improvesAStoryAndReturns200() throws Exception {
+        when(aiStoryImprovementService.generate(
+                        eq(PROJECT_ID), org.mockito.ArgumentMatchers.any(), eq(CALLER_ID)))
+                .thenReturn(sampleDraft());
+
+        mockMvc.perform(post(STORY_IMPROVEMENT_PATH, PROJECT_ID)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"workItemId\":55}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userStory.text").value(
+                        "Como usuario del equipo quiero exportar los informes a PDF para compartirlos con clientes"))
+                .andExpect(jsonPath("$.acceptanceCriteria").isArray())
+                .andExpect(jsonPath("$.generatedBy").isNotEmpty());
+    }
+
+    @Test
+    void storyImprovementMissingWorkItemIdReturns400AndDoesNotCallTheService() throws Exception {
+        mockMvc.perform(post(STORY_IMPROVEMENT_PATH, PROJECT_ID)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.workItemId").value("La tarea es obligatoria"));
+
+        verifyNoInteractions(aiStoryImprovementService);
+    }
+
+    @Test
+    void storyImprovementAnonymousReturns401() throws Exception {
+        mockMvc.perform(post(STORY_IMPROVEMENT_PATH, PROJECT_ID)
+                        .contentType("application/json")
+                        .content("{\"workItemId\":55}"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(aiStoryImprovementService);
+    }
+
+    @Test
+    void storyImprovementCallerWithoutWorkitemEditReturns403Spanish() throws Exception {
+        when(aiStoryImprovementService.generate(
+                        eq(PROJECT_ID), org.mockito.ArgumentMatchers.any(), eq(CALLER_ID)))
+                .thenThrow(new AccessDeniedException("Falta el permiso WORKITEM_EDIT en el proyecto 10"));
+
+        mockMvc.perform(post(STORY_IMPROVEMENT_PATH, PROJECT_ID)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"workItemId\":55}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value("Falta el permiso WORKITEM_EDIT en el proyecto 10"));
+    }
+
+    @Test
+    void storyImprovementUnknownWorkItemReturns404() throws Exception {
+        when(aiStoryImprovementService.generate(
+                        eq(PROJECT_ID), org.mockito.ArgumentMatchers.any(), eq(CALLER_ID)))
+                .thenThrow(new WorkItemNotFoundException(55L));
+
+        mockMvc.perform(post(STORY_IMPROVEMENT_PATH, PROJECT_ID)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"workItemId\":55}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void storyImprovementAiGenerationFailureReturns503WithSpanishDetail() throws Exception {
+        when(aiStoryImprovementService.generate(
+                        eq(PROJECT_ID), org.mockito.ArgumentMatchers.any(), eq(CALLER_ID)))
+                .thenThrow(new AiGenerationException("incomplete story"));
+
+        mockMvc.perform(post(STORY_IMPROVEMENT_PATH, PROJECT_ID)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"workItemId\":55}"))
+                .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.detail").value("El asistente de IA no está disponible en este momento."));
     }
 }
