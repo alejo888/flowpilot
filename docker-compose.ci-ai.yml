@@ -1,0 +1,19 @@
+# AI e2e override — used only by the `e2e-ai` CI job.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ci-ai.yml up -d --build
+#
+# Turns the AI feature flag on but keeps the deterministic StubAiPlanningService
+# (flowpilot.ai.provider=stub), so the AI screens are visible and testable with
+# no Ollama service, model, or network access. Compare docker-compose.ai.yml,
+# which wires the real Ollama provider for local use.
+#
+# Always pass BOTH files explicitly with -f. Docker Compose only auto-merges
+# docker-compose.override.yml when no -f flag is given; naming the files
+# explicitly skips it, so its developer-only remap of the backend to host port
+# 8081 never applies and the backend stays on :8080, where the e2e suite and
+# the CI wait loops expect it.
+services:
+  backend:
+    environment:
+      FLOWPILOT_AI_ENABLED: "true"
+      FLOWPILOT_AI_PROVIDER: stub

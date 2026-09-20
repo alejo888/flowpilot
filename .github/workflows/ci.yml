@@ -135,3 +135,77 @@ jobs:
       - name: Tear down the stack
         if: always()
         run: docker compose down -v
+
+  # AI slices run against a stack with flowpilot.ai.enabled=true and the
+  # deterministic stub provider (no Ollama). Independent of `e2e` so the two
+  # run in parallel. The explicit COMPOSE_FILE below keeps
+  # docker-compose.override.yml (developer-only backend remap to :8081) out of
+  # the merge.
+  e2e-ai:
+    runs-on: ubuntu-latest
+    env:
+      # Explicit COMPOSE_FILE (":" is the Linux path separator) replaces the
+      # implicit docker-compose.override.yml lookup, same as the old `-f` flags.
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci-ai.yml
+      # CI-only ephemeral values for a stack that's destroyed at the end of
+      # the job — not real credentials, no rotation/secrecy requirement.
+      FLOWPILOT_DB_NAME: flowpilot
+      FLOWPILOT_DB_USERNAME: flowpilot
+      FLOWPILOT_DB_PASSWORD: ci-ephemeral-db-password
+      FLOWPILOT_JWT_SECRET: ci-ephemeral-jwt-secret-flowpilot-e2e
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Docker Compose configuration
+        run: docker compose config --quiet
+      - name: Start the full stack (AI enabled, stub provider)
+        run: docker compose up -d --build
+      - name: Wait for the backend to accept requests
+        run: |
+          for i in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8080/api/auth/login \
+              -H "Content-Type: application/json" -d '{"email":"x","password":"x"}' || true)
+            if [ "$code" = "400" ] || [ "$code" = "401" ]; then
+              echo "backend is up (HTTP $code)"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "backend never became ready" >&2
+          docker compose logs backend
+          exit 1
+      - name: Wait for the frontend to serve requests
+        run: |
+          for i in $(seq 1 20); do
+            if curl -s -o /dev/null http://localhost/; then
+              echo "frontend is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "frontend never became ready" >&2
+          docker compose logs frontend
+          exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Run AI e2e suite
+        working-directory: frontend
+        run: E2E_AI=true npx playwright test --project=chromium-ai
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-ai
+          path: frontend/playwright-report
+          retention-days: 7
+      - name: Tear down the stack
+        if: always()
+        run: docker compose down -v

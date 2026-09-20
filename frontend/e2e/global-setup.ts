@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { ADMIN_EMAIL, ADMIN_PASSWORD, loginAsAdmin } from './admin-session';
+import { isAiE2e } from './e2e-flags';
 
 const BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost';
 // WebKit refuses to send `Secure` cookies (the refresh cookie is one) over
@@ -60,6 +61,13 @@ async function captureAdminSession(session: (typeof ADMIN_SESSIONS)[number]): Pr
  * storageState the app can actually use.
  */
 export default async function globalSetup(): Promise<void> {
+  // The `chromium-ai` project (E2E_AI) uses only throwaway users, and its CI
+  // job installs chromium alone — capturing the firefox/webkit admin sessions
+  // below would fail there. Teardown no-ops when project.json is absent.
+  if (isAiE2e()) {
+    return;
+  }
+
   mkdirSync(AUTH_DIR, { recursive: true });
 
   const api = await request.newContext({ baseURL: BASE_URL });
