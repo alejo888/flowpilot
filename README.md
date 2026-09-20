@@ -25,7 +25,7 @@ Full product vision: [`FlowPilot_Gestor_Proyectos_IA.md`](FlowPilot_Gestor_Proye
 - **User directory & admin**: authenticated user listing, admin-only user management (activate/deactivate, global role changes, last-active-admin guard).
 - **Projects**: full CRUD with rich fields (code, dates, technologies, repository URL), status transitions, and per-project default Kanban columns.
 - **Project members**: add/remove/change role, including a confirmed self-removal flow.
-- **Kanban board**: work-item CRUD, drag-and-drop move between and within columns.
+- **Kanban board**: work-item CRUD, drag-and-drop move between and within columns, and a single-level parent → subtask hierarchy (cards show a subtask count and parent hint; a parent with subtasks can't be deleted).
 - **Backlog and sprints**: project backlog browsing and sprint planning with work-item assignment.
 - **Role-permission matrix**: a dense, project-role × permission grid, editable by admins with optimistic-concurrency protection.
 - **Profile**: view your own name/email and change your password, which revokes your other active sessions.
@@ -35,7 +35,7 @@ Full product vision: [`FlowPilot_Gestor_Proyectos_IA.md`](FlowPilot_Gestor_Proye
 - **AI subtask generation** (vision-doc slice 7.3): from an existing story or free text, the assistant proposes up to 10 technical subtasks (`/projects/:id/ai/subtasks`, reachable from the project detail row and the board work-item panel). You edit the drafts, pick a target board column and optional sprint, and confirm — a single transactional batch create turns them into linked child work items and navigates back to the board. Shares the same **off-by-default** flag and stub/Ollama seam; nothing is persisted until you confirm.
 - **AI acceptance-criteria generation** (vision-doc slice 7.2): the board work-item detail panel now shows and lets you edit a work item's acceptance criteria (ordered list, add/edit/remove, capped at 8) — this works with the flag off. With it on, "Generar criterios con IA" (`POST /api/projects/:id/ai/acceptance-criteria`, guarded by `WORKITEM_EDIT`) proposes 1–8 criteria and seeds an **append-only union draft**: your existing criteria first, the suggestions appended, all editable. Accepting merges the draft into the edit form; discarding leaves your saved criteria untouched. Nothing persists until you save the panel (the existing work-item `PUT`).
 - **Redesigned surfaces**: the public landing (`''`) is a marketing-style page — hero, workspace card, static mock Kanban, feature pillars, and a dark CTA band — with a nav-bar header shown only on that route; authenticated visitors get a compact welcome instead. The `/login`, `/register`, `/forgot-password`, and `/reset-password` screens were rebuilt on a shared card layout (blueprint-grid background, icon fields, password toggle). A blue/slate palette is applied to the public and auth surfaces and, via token remapping, to the authenticated app shell — no per-screen restyling.
-- **Spanish-localized errors**: auth, projects, members, board, admin, and profile error/validation messages are translated end-to-end (see [`CLAUDE.md`](CLAUDE.md) for the few remaining English-only paths).
+- **Spanish-localized errors**: auth, projects, members, board, admin, profile, and comment/activity error, validation, and activity-feed messages are translated end-to-end (see [`CLAUDE.md`](CLAUDE.md) for the few remaining English-only paths).
 - **API contract**: [`api/openapi.yaml`](api/openapi.yaml) is hand-authored and contract-first, with a CI job that diffs it against the live-generated spec for breaking changes.
 
 See [`CLAUDE.md`](CLAUDE.md) for the full current-status breakdown and what remains toward the full product vision (vision-doc slices 7.4–7.7: AI project creation, an AI project manager, risk analysis, and story refinement).
@@ -126,7 +126,10 @@ The integration tests use Testcontainers 1.21.2 and require a running Docker dae
 | `backend/` | Spring Boot 4 layered monolith, Maven, Flyway migrations, Testcontainers-backed integration coverage. |
 | `frontend/` | Angular 21 standalone-components app with auth, admin, projects, members, board, backlog/sprints, dashboard, profile, comments/activity, and AI-planning (stories/subtasks/criteria) slices. |
 | `api/openapi.yaml` | Hand-authored OpenAPI contract for implemented API path families. |
-| `docker-compose.yml` | Local stack: PostgreSQL, backend, frontend/nginx. |
+| `docker-compose.yml` | Local stack: PostgreSQL, backend, frontend/nginx (HTTP on `:80`, plus a self-signed TLS listener on `:443` used only by the WebKit e2e projects). |
+| `docker-compose.ai.yml` | Optional override that adds Ollama and turns AI generation on. |
+| `frontend/e2e/` | Playwright suite: axe a11y/responsive sweeps and interactive flow specs on Chromium, Firefox, and WebKit (`npm run e2e` from `frontend/`). |
+| `docs/DEPLOYMENT.md` | Production deployment, configuration, backups, and rollback. |
 | `.github/workflows/ci.yml` | CI for backend tests, frontend tests/build, and e2e. |
 | `docs/screenshots/` | Screenshots used in this README. |
 | `FlowPilot_Gestor_Proyectos_IA.md` | Full Spanish product vision; broader than the current MVP. |
