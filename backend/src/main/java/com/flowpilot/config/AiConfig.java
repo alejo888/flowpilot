@@ -6,6 +6,7 @@ import com.flowpilot.service.AiPlanningService;
 import com.flowpilot.service.OllamaAiPlanningService;
 import com.flowpilot.service.StubAiPlanningService;
 import java.time.Duration;
+import java.util.Locale;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,6 +28,11 @@ import org.springframework.web.client.RestClient;
  * defaults (see {@code application.yml}), mirroring {@code jwt.secret}. When
  * {@code flowpilot.ai.enabled=true} and either the Ollama base URL or model is
  * blank, this throws and the application context does not start.
+ *
+ * <p>Design D4 — {@code flowpilot.ai.provider} ({@code ollama} default, or
+ * {@code stub}) picks the implementation once the flag is on. {@code stub}
+ * keeps the AI UI visible with canned responses and needs no Ollama props
+ * (used by e2e); any other value fails fast. Ignored while disabled.
  *
  * <p>Design D3 — timeouts via the version-independent {@code spring-web}
  * {@link SimpleClientHttpRequestFactory} {@code Duration} overloads (confirmed
@@ -68,10 +74,19 @@ public class AiConfig {
     @Bean
     AiPlanningService aiPlanningService(
             @Value("${flowpilot.ai.enabled:false}") boolean enabled,
+            @Value("${flowpilot.ai.provider:ollama}") String provider,
             @Value("${flowpilot.ai.ollama.base-url:}") String ollamaBaseUrl,
             @Value("${flowpilot.ai.ollama.model:}") String ollamaModel) {
         if (!enabled) {
             return new StubAiPlanningService();
+        }
+        String normalizedProvider = provider == null ? "" : provider.trim().toLowerCase(Locale.ROOT);
+        if (normalizedProvider.equals("stub")) {
+            return new StubAiPlanningService();
+        }
+        if (!normalizedProvider.isEmpty() && !normalizedProvider.equals("ollama")) {
+            throw new IllegalStateException(
+                    "flowpilot.ai.provider must be 'ollama' or 'stub' but was '" + provider.trim() + "'");
         }
         if (isBlank(ollamaBaseUrl) || isBlank(ollamaModel)) {
             throw new IllegalStateException(

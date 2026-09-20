@@ -22,7 +22,7 @@ class AiConfigTest {
 
     @Test
     void returnsTheStubWhenDisabled() {
-        AiPlanningService service = config.aiPlanningService(false, "", "");
+        AiPlanningService service = config.aiPlanningService(false, "ollama", "", "");
 
         assertThat(service).isInstanceOf(StubAiPlanningService.class);
     }
@@ -30,21 +30,21 @@ class AiConfigTest {
     @Test
     void returnsTheStubWhenDisabledEvenIfOllamaPropsAreSet() {
         AiPlanningService service =
-                config.aiPlanningService(false, "http://localhost:11434", "llama3");
+                config.aiPlanningService(false, "ollama", "http://localhost:11434", "llama3");
 
         assertThat(service).isInstanceOf(StubAiPlanningService.class);
     }
 
     @Test
     void failsFastWhenEnabledWithBlankBaseUrl() {
-        assertThatThrownBy(() -> config.aiPlanningService(true, "   ", "llama3"))
+        assertThatThrownBy(() -> config.aiPlanningService(true, "ollama", "   ", "llama3"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("base-url");
     }
 
     @Test
     void failsFastWhenEnabledWithBlankModel() {
-        assertThatThrownBy(() -> config.aiPlanningService(true, "http://localhost:11434", ""))
+        assertThatThrownBy(() -> config.aiPlanningService(true, "ollama", "http://localhost:11434", ""))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("model");
     }
@@ -52,9 +52,56 @@ class AiConfigTest {
     @Test
     void returnsTheOllamaClientWhenEnabledAndConfigured() {
         AiPlanningService service =
-                config.aiPlanningService(true, "http://localhost:11434", "llama3");
+                config.aiPlanningService(true, "ollama", "http://localhost:11434", "llama3");
 
         assertThat(service).isInstanceOf(OllamaAiPlanningService.class);
+    }
+
+    @Test
+    void returnsTheStubWhenEnabledWithStubProviderAndNoOllamaProps() {
+        AiPlanningService service = config.aiPlanningService(true, "stub", "", "");
+
+        assertThat(service).isInstanceOf(StubAiPlanningService.class);
+    }
+
+    @Test
+    void providerValueIsCaseAndWhitespaceTolerant() {
+        assertThat(config.aiPlanningService(true, "STUB", "", ""))
+                .isInstanceOf(StubAiPlanningService.class);
+        assertThat(config.aiPlanningService(true, " stub ", "", ""))
+                .isInstanceOf(StubAiPlanningService.class);
+        assertThat(config.aiPlanningService(true, " OLLAMA ", "http://localhost:11434", "llama3"))
+                .isInstanceOf(OllamaAiPlanningService.class);
+    }
+
+    @Test
+    void blankProviderCountsAsOllama() {
+        assertThatThrownBy(() -> config.aiPlanningService(true, "  ", "", ""))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("base-url");
+    }
+
+    @Test
+    void ollamaProviderStillRequiresOllamaProps() {
+        assertThatThrownBy(() -> config.aiPlanningService(true, "ollama", "", ""))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("base-url");
+    }
+
+    @Test
+    void failsFastWhenEnabledWithUnknownProvider() {
+        assertThatThrownBy(
+                        () -> config.aiPlanningService(true, "openai", "http://localhost:11434", "llama3"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("flowpilot.ai.provider")
+                .hasMessageContaining("openai");
+    }
+
+    @Test
+    void disabledIgnoresTheProviderEvenIfUnknown() {
+        AiPlanningService service = config.aiPlanningService(false, "openai", "", "");
+
+        assertThat(service).isInstanceOf(StubAiPlanningService.class);
     }
 
     @Test

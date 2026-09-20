@@ -37,6 +37,9 @@ flowpilot:
     # unless both `ollama.base-url` and `ollama.model` are set (design D2). The
     # compose-layer ${VAR:?msg} guard lives in docker-compose.ai.yml only.
     enabled: ${FLOWPILOT_AI_ENABLED:false}
+    # `ollama` (default) uses the real client; `stub` serves canned drafts with
+    # the AI UI enabled (e2e). Only read when `enabled` is true.
+    provider: ${FLOWPILOT_AI_PROVIDER:ollama}
     ollama:
       base-url: ${FLOWPILOT_AI_OLLAMA_BASE_URL:}
       model: ${FLOWPILOT_AI_OLLAMA_MODEL:}
