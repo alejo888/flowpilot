@@ -89,7 +89,7 @@ FLOWPILOT_AI_OLLAMA_MODEL=llama3 docker compose -f docker-compose.yml -f docker-
 docker compose -f docker-compose.yml -f docker-compose.ai.yml exec ollama ollama pull llama3
 ```
 
-The backend calls Ollama's OpenAI-compatible `/v1/chat/completions` with a 5s connect / 60s read timeout and no retry; if the model is unreachable, slow, or returns unusable output you get a Spanish RFC 7807 **503** rather than a partial result. Setting `FLOWPILOT_AI_ENABLED=false` (or just dropping the override) instantly restores the stub with no rebuild. AI provenance recorded on a confirmed work item (`aiGenerated` / `aiModel`) is what the client claims, not something the server verifies.
+The backend calls Ollama's OpenAI-compatible `/v1/chat/completions` with a 5s connect / 60s read timeout and no retry; if the model is unreachable, slow, or returns unusable output you get a Spanish RFC 7807 **503** rather than a partial result. Setting `FLOWPILOT_AI_ENABLED=false` (or just dropping the override) instantly restores the stub with no rebuild. CI exercises the three AI screens end to end in a dedicated `e2e-ai` job that runs the stack with `FLOWPILOT_AI_ENABLED=true FLOWPILOT_AI_PROVIDER=stub` (deterministic canned drafts, no model needed). AI provenance recorded on a confirmed work item (`aiGenerated` / `aiModel`) is what the client claims, not something the server verifies.
 
 ### Running the backend or frontend on their own
 
@@ -128,6 +128,7 @@ The integration tests use Testcontainers 1.21.2 and require a running Docker dae
 | `api/openapi.yaml` | Hand-authored OpenAPI contract for implemented API path families. |
 | `docker-compose.yml` | Local stack: PostgreSQL, backend, frontend/nginx (HTTP on `:80`, plus a self-signed TLS listener on `:443` used only by the WebKit e2e projects). |
 | `docker-compose.ai.yml` | Optional override that adds Ollama and turns AI generation on. |
+| `docker-compose.ci-ai.yml` | CI-only override: AI on with the stub provider (used by the `e2e-ai` job with explicit `-f` flags). |
 | `frontend/e2e/` | Playwright suite: axe a11y/responsive sweeps and interactive flow specs on Chromium, Firefox, and WebKit (`npm run e2e` from `frontend/`). |
 | `docs/DEPLOYMENT.md` | Production deployment, configuration, backups, and rollback. |
 | `.github/workflows/ci.yml` | CI for backend tests, frontend tests/build, and e2e. |
