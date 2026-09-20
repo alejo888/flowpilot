@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { GeneratedUserStoryResponse } from '../ai-stories/ai-stories.model';
 import { AiStoryImprovementApiService } from './ai-story-improvement.api';
@@ -89,5 +89,56 @@ describe('AiStoryImprovementStore', () => {
 
     expect(store.suggestion()).toBeNull();
     expect(store.error()).toBeNull();
+  });
+
+  it('ignores a late success after reset() and resolves false', async () => {
+    const pending = new Subject<GeneratedUserStoryResponse>();
+    api.improve.mockReturnValue(pending);
+
+    const result = store.generate(10, 55);
+    store.reset();
+    pending.next(improved());
+    pending.complete();
+
+    expect(await result).toBe(false);
+    expect(store.suggestion()).toBeNull();
+    expect(store.generatedBy()).toBeNull();
+    expect(store.model()).toBeNull();
+    expect(store.loading()).toBe(false);
+  });
+
+  it('ignores a late error after reset() and resolves false', async () => {
+    const pending = new Subject<GeneratedUserStoryResponse>();
+    api.improve.mockReturnValue(pending);
+
+    const result = store.generate(10, 55);
+    store.reset();
+    pending.error({ error: { detail: 'tarde' } });
+
+    expect(await result).toBe(false);
+    expect(store.error()).toBeNull();
+    expect(store.loading()).toBe(false);
+  });
+
+  it('overlapping generate(): older response neither clears loading nor lands', async () => {
+    const first = new Subject<GeneratedUserStoryResponse>();
+    const second = new Subject<GeneratedUserStoryResponse>();
+    api.improve.mockReturnValueOnce(first).mockReturnValueOnce(second);
+
+    const older = store.generate(10, 55);
+    const newer = store.generate(10, 55);
+    first.next(improved({ userStory: { role: 'a', action: 'b', benefit: 'c', text: 'vieja' } }));
+    first.complete();
+
+    expect(await older).toBe(false);
+    expect(store.loading()).toBe(true);
+    expect(store.suggestion()).toBeNull();
+
+    second.next(improved({ userStory: { role: 'a', action: 'b', benefit: 'c', text: 'nueva' } }));
+    second.complete();
+
+    expect(await newer).toBe(true);
+    expect(store.suggestion()?.description).toBe('nueva');
+    expect(store.loading()).toBe(false);
   });
 });
