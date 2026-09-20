@@ -1,6 +1,8 @@
 import { defineConfig } from '@playwright/test';
 import path from 'node:path';
 
+import { isAiE2e } from './e2e/e2e-flags';
+
 // A fixed mobile-ish viewport on chromium rather than the `devices['iPhone
 // SE']` preset — that preset pins WebKit, and this suite only needs one
 // consistent narrow width to catch layout overflow, not real device parity.
@@ -190,7 +192,7 @@ export default defineConfig({
     // from every other project's `testMatch`, so none of them can pick these
     // specs up (same rule as `.desktop.spec.ts` above). Specs register their
     // own throwaway users, so no `dependencies` on the admin-session chain.
-    ...(process.env['E2E_AI']
+    ...(isAiE2e()
       ? [
           {
             name: 'chromium-ai',
