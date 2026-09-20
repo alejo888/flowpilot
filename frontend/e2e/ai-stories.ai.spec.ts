@@ -56,8 +56,14 @@ test('generates a stub draft, edits it and creates an AI-provenance work item', 
 
   // Stub provenance and the deterministic draft.
   await expect(page.locator('[data-testid="ai-provenance"]')).toContainText('STUB');
-  await expect(page.locator('[data-testid="ai-story-title"]')).not.toHaveValue('');
-  await expect(page.locator('[data-testid="ai-story-description"]')).toContainText(REQUIREMENT);
+  // The title is never AI-seeded: the user names the work item, and confirm is blocked until then.
+  const title = page.locator('[data-testid="ai-story-title"]');
+  await expect(title).toHaveValue('');
+  await expect(page.locator('[data-testid="ai-confirm"]')).toBeDisabled();
+  await title.fill('Historia generada por el stub');
+  await expect(page.locator('[data-testid="ai-story-description"]')).toHaveValue(
+    new RegExp(REQUIREMENT),
+  );
   const firstCriterion = page.locator('[data-testid="ai-criterion-input-0"]');
   await expect(firstCriterion).toHaveValue(new RegExp(`^Dado el requisito "${REQUIREMENT}"`));
   await expect(page.locator('[data-testid="ai-criterion-input-2"]')).toBeVisible();
