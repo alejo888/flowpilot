@@ -13,6 +13,7 @@ import { AiConfigService } from '../../core/ai/ai-config.service';
 import { AcceptanceCriteriaEditorComponent } from './acceptance-criteria-editor.component';
 import { AiCriteriaStore, mergeCriteria } from './ai-criteria.store';
 import { AiStoryImprovementStore } from './ai-story-improvement.store';
+import { CriteriaOverflowNoticeComponent } from './criteria-overflow-notice.component';
 import { StoryImprovementPreviewComponent } from './story-improvement-preview.component';
 import { columnAccent } from './column-accent';
 import { WorkItem, WorkItemCreateRequest, WorkItemPriority, WorkItemUpdateRequest } from './board.model';
@@ -82,6 +83,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
     FpCardComponent,
     FpDialogComponent,
     AcceptanceCriteriaEditorComponent,
+    CriteriaOverflowNoticeComponent,
     StoryImprovementPreviewComponent,
   ],
   template: `
@@ -305,6 +307,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                   data-testid="improve-story-preview"
                   [description]="suggestion.description"
                   [criteria]="suggestion.criteria"
+                  [existingCriteria]="editForm.acceptanceCriteria ?? []"
                   (apply)="applyStoryImprovement()"
                   (discard)="discardStoryImprovement()"
                 />
@@ -317,6 +320,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                     [criteria]="draft"
                     (criteriaChange)="setCriteriaDraft($event)"
                   />
+                  <fp-criteria-overflow-notice [overflow]="aiCriteriaOverflow()" />
                   <div class="panel-actions wrap">
                     <fp-button type="button" icon="save" testId="accept-criteria" (click)="acceptCriteria()">Añadir a la tarea</fp-button>
                     <fp-button type="button" variant="secondary" icon="close" testId="discard-criteria" (click)="discardCriteria()">Descartar</fp-button>
@@ -417,6 +421,7 @@ export class BoardComponent {
     () => this.aiEnabled() && hasPermission(this.project(), 'WORKITEM_EDIT'),
   );
   readonly aiCriteriaDraft = this.aiCriteria.draft;
+  readonly aiCriteriaOverflow = this.aiCriteria.overflow;
   readonly aiCriteriaError = this.aiCriteria.error;
   readonly aiCriteriaLoading = this.aiCriteria.loading;
 

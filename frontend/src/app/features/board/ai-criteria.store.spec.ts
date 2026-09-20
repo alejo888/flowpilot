@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
 import { AiCriteriaApiService } from './ai-criteria.api';
-import { AiCriteriaStore, mergeCriteria } from './ai-criteria.store';
+import { AiCriteriaStore, mergeCriteria, mergeCriteriaWithOverflow } from './ai-criteria.store';
 import { GeneratedAcceptanceCriteriaResponse } from './board.model';
 
 function generated(
@@ -33,6 +33,39 @@ describe('mergeCriteria', () => {
 
   it('drops blank suggestions', () => {
     expect(mergeCriteria(['A'], ['', '   ', 'B'])).toEqual(['A', 'B']);
+  });
+});
+
+describe('mergeCriteriaWithOverflow', () => {
+  it('returns the same merged list as mergeCriteria', () => {
+    const existing = ['1', '2', '3', '4', '5'];
+    const suggestions = ['6', '7', '8', '9', '10'];
+    expect(mergeCriteriaWithOverflow(existing, suggestions).merged).toEqual(mergeCriteria(existing, suggestions));
+  });
+
+  it('reports suggestions dropped only because of the cap, in order', () => {
+    const result = mergeCriteriaWithOverflow(['1', '2', '3', '4', '5', '6'], ['7', '8', '9', '10']);
+    expect(result.merged).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
+    expect(result.overflow).toEqual(['9', '10']);
+  });
+
+  it('reports every suggestion when the existing list already fills the cap', () => {
+    const result = mergeCriteriaWithOverflow(['1', '2', '3', '4', '5', '6', '7', '8'], ['a', 'b']);
+    expect(result.overflow).toEqual(['a', 'b']);
+  });
+
+  it('does not count duplicates of existing or repeated suggestions as overflow', () => {
+    const result = mergeCriteriaWithOverflow(['1', '2', '3', '4', '5', '6', '7', '8'], [' 1 ', '2', 'x', 'x']);
+    expect(result.overflow).toEqual(['x']);
+  });
+
+  it('does not count blank suggestions as overflow', () => {
+    const result = mergeCriteriaWithOverflow(['1', '2', '3', '4', '5', '6', '7', '8'], ['', '  ', 'x']);
+    expect(result.overflow).toEqual(['x']);
+  });
+
+  it('is empty when everything fits', () => {
+    expect(mergeCriteriaWithOverflow(['A'], ['B', 'C']).overflow).toEqual([]);
   });
 });
 
@@ -108,5 +141,23 @@ describe('AiCriteriaStore', () => {
     store.setDraft(['A', 'editado']);
 
     expect(store.draft()).toEqual(['A', 'editado']);
+  });
+
+  it('exposes the suggestions that did not fit the cap and clears them on discard', async () => {
+    api.generate.mockReturnValue(of(generated({ criteria: ['s1', 's2', 's3', 's4'] })));
+
+    await store.generate(10, 55, ['1', '2', '3', '4', '5', '6']);
+
+    expect(store.overflow()).toEqual(['s3', 's4']);
+    store.discard();
+    expect(store.overflow()).toEqual([]);
+  });
+
+  it('has no overflow when the suggestions fit', async () => {
+    api.generate.mockReturnValue(of(generated()));
+
+    await store.generate(10, 55, ['A']);
+
+    expect(store.overflow()).toEqual([]);
   });
 });

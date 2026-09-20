@@ -1,6 +1,8 @@
-import { Component, input, output } from '@angular/core';
+import { Component, computed, input, output } from '@angular/core';
 
 import { FpButtonComponent } from '../../shared/ui/button.component';
+import { mergeCriteriaWithOverflow } from './ai-criteria.store';
+import { CriteriaOverflowNoticeComponent } from './criteria-overflow-notice.component';
 
 /**
  * Read-only preview of an AI story-improvement suggestion (vision 7.7): the
@@ -11,7 +13,7 @@ import { FpButtonComponent } from '../../shared/ui/button.component';
 @Component({
   selector: 'fp-story-improvement-preview',
   standalone: true,
-  imports: [FpButtonComponent],
+  imports: [FpButtonComponent, CriteriaOverflowNoticeComponent],
   template: `
     <div class="sip" role="group" aria-label="Historia mejorada sugerida">
       <p class="sip__label">Descripción sugerida</p>
@@ -23,6 +25,7 @@ import { FpButtonComponent } from '../../shared/ui/button.component';
             <li data-testid="improve-story-criterion">{{ criterion }}</li>
           }
         </ul>
+        <fp-criteria-overflow-notice [overflow]="overflow()" />
       }
       <div class="sip__actions">
         <fp-button type="button" icon="save" testId="improve-story-apply" (click)="apply.emit()">Aplicar</fp-button>
@@ -63,6 +66,10 @@ import { FpButtonComponent } from '../../shared/ui/button.component';
 export class StoryImprovementPreviewComponent {
   readonly description = input.required<string>();
   readonly criteria = input<string[]>([]);
+  /** The criteria the item holds right now; applying merges the suggestion into these. */
+  readonly existingCriteria = input<string[]>([]);
+  /** Suggested criteria that Apply will drop because the 8-item cap is reached. */
+  readonly overflow = computed(() => mergeCriteriaWithOverflow(this.existingCriteria(), this.criteria()).overflow);
   readonly apply = output<void>();
   readonly discard = output<void>();
 }
