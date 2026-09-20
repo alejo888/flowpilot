@@ -1133,6 +1133,64 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/projects/{projectId}/ai/story-improvement:
+    post:
+      summary: Generate a non-persisted improved user story and criteria for an existing work item
+      operationId: generateStoryImprovement
+      description: >-
+        Reviews an existing work item and proposes a rewritten user story
+        (Como ... quiero ... para ...) plus acceptance criteria. Guarded by the
+        project WORKITEM_EDIT permission (checked in AiStoryImprovementService,
+        not the controller) because the caller applies the result through PUT
+        /api/work-items/{workItemId}. A work item that is not in projectId
+        returns 404. A work item that is itself a subtask is accepted. Persists
+        nothing. When flowpilot.ai.enabled is false the deterministic stub
+        answers (generatedBy=STUB); when true the configured Ollama model
+        answers (generatedBy=OLLAMA).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/NestedProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateAcceptanceCriteriaRequest'
+      responses:
+        '200':
+          description: Generated improved story draft, nothing persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedUserStoryResponse'
+        '400':
+          description: workItemId is missing
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '403':
+          description: Caller lacks WORKITEM_EDIT on this project
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No project with that id, or no such work item in that project
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '503':
+          description: >-
+            AI assistant unavailable — the LLM refused the connection, exceeded
+            the connect/read timeout, returned a non-2xx status, or produced
+            unparseable or empty output. No retry is attempted.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/ai/config:
     get:
       summary: Report whether AI-assisted planning is enabled
