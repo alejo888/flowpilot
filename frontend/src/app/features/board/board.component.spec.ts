@@ -6,6 +6,7 @@ import { AiConfigService } from '../../core/ai/ai-config.service';
 import { BoardComponent } from './board.component';
 import { BoardStore } from './board.store';
 import { AiCriteriaStore } from './ai-criteria.store';
+import { AiStoryImprovementStore, StorySuggestion } from './ai-story-improvement.store';
 import { AiProvider, BoardColumn, WorkItem } from './board.model';
 import { CommentsStore } from '../comments/comments.store';
 import { Project } from '../projects/project.model';
@@ -81,9 +82,34 @@ function makeAiCriteriaStub(): AiCriteriaStub {
   return stub;
 }
 
+type AiStoryImprovementStub = {
+  loading: ReturnType<typeof signal<boolean>>;
+  error: ReturnType<typeof signal<string | null>>;
+  suggestion: ReturnType<typeof signal<StorySuggestion | null>>;
+  generate: ReturnType<typeof vi.fn>;
+  discard: ReturnType<typeof vi.fn>;
+  reset: ReturnType<typeof vi.fn>;
+};
+
+function makeAiStoryImprovementStub(): AiStoryImprovementStub {
+  const stub: AiStoryImprovementStub = {
+    loading: signal(false),
+    error: signal<string | null>(null),
+    suggestion: signal<StorySuggestion | null>(null),
+    generate: vi.fn().mockResolvedValue(true),
+    discard: vi.fn(() => stub.suggestion.set(null)),
+    reset: vi.fn(() => {
+      stub.suggestion.set(null);
+      stub.error.set(null);
+    }),
+  };
+  return stub;
+}
+
 describe('BoardComponent', () => {
   let fixture: ComponentFixture<BoardComponent>;
   let aiCriteriaStub: AiCriteriaStub;
+  let aiStoryStub: AiStoryImprovementStub;
   let storeStub: {
     columns: ReturnType<typeof signal<BoardColumn[]>>;
     itemsByColumn: ReturnType<typeof signal<Record<number, WorkItem[]>>>;
@@ -107,6 +133,7 @@ describe('BoardComponent', () => {
   beforeEach(async () => {
     aiConfigStub = { aiEnabled: signal(false), load: vi.fn() };
     aiCriteriaStub = makeAiCriteriaStub();
+    aiStoryStub = makeAiStoryImprovementStub();
     storeStub = {
       columns: signal([column(1, 'Por hacer', 1024), column(2, 'En progreso', 2048)]),
       itemsByColumn: signal({
@@ -137,6 +164,7 @@ describe('BoardComponent', () => {
         { provide: ProjectsStore, useValue: projectsStoreStub },
         { provide: AiConfigService, useValue: aiConfigStub },
         { provide: AiCriteriaStore, useValue: aiCriteriaStub },
+        { provide: AiStoryImprovementStore, useValue: aiStoryStub },
       ],
     }).compileComponents();
 
@@ -523,6 +551,133 @@ describe('BoardComponent', () => {
       500,
       expect.objectContaining({ acceptanceCriteria: ['Editado a mano'] }),
     );
+  });
+
+  describe('AI story improvement', () => {
+    const IMPROVE = '[data-testid="improve-story"]';
+
+    function openEditableItem(): void {
+      aiConfigStub.aiEnabled.set(true);
+      projectsStoreStub.selectedProject.set(project(['WORKITEM_EDIT']));
+      storeStub.selectedItem.set({
+        ...item(500, 1, 1024, 'Design schema'),
+        description: 'Descripción original',
+        acceptanceCriteria: ['Dado A'],
+        parentWorkItemId: 7,
+        sprintId: 3,
+        priority: 'HIGH',
+      });
+      fixture.detectChanges();
+    }
+
+    it('hides "Mejorar historia con IA" while the AI assistant is disabled', () => {
+      projectsStoreStub.selectedProject.set(project(['WORKITEM_EDIT']));
+      storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector(IMPROVE)).toBeNull();
+    });
+
+    it('hides "Mejorar historia con IA" when the caller lacks WORKITEM_EDIT', () => {
+      aiConfigStub.aiEnabled.set(true);
+      projectsStoreStub.selectedProject.set(project(['WORKITEM_MOVE']));
+      storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector(IMPROVE)).toBeNull();
+    });
+
+    it('shows the button when AI is enabled and the caller can edit', () => {
+      openEditableItem();
+
+      expect(fixture.nativeElement.querySelector(IMPROVE)).not.toBeNull();
+    });
+
+    it('asks the store to improve the open item', async () => {
+      openEditableItem();
+
+      (fixture.nativeElement.querySelector(IMPROVE) as HTMLButtonElement).click();
+      await fixture.whenStable();
+
+      expect(aiStoryStub.generate).toHaveBeenCalledWith(10, 500);
+    });
+
+    it('renders the preview with the suggested description and criteria', () => {
+      openEditableItem();
+      aiStoryStub.suggestion.set({ description: 'Como PM quiero X para Y', criteria: ['Nuevo 1'] });
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="improve-story-description"]')?.textContent).toContain(
+        'Como PM quiero X para Y',
+      );
+      expect(el.querySelector('[data-testid="improve-story-criterion"]')?.textContent).toContain('Nuevo 1');
+    });
+
+    it('apply replaces only the description (title kept) and merges criteria, persisting via the PUT', () => {
+      openEditableItem();
+      aiStoryStub.suggestion.set({ description: 'Como PM quiero X para Y', criteria: ['Dado A', 'Nuevo 1'] });
+      fixture.detectChanges();
+
+      (fixture.nativeElement.querySelector('[data-testid="improve-story-apply"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      expect(aiStoryStub.discard).toHaveBeenCalled();
+      fixture.componentInstance.submitUpdate(500);
+      expect(storeStub.updateItem).toHaveBeenCalledWith(
+        500,
+        expect.objectContaining({
+          title: 'Design schema',
+          description: 'Como PM quiero X para Y',
+          acceptanceCriteria: ['Dado A', 'Nuevo 1'],
+          parentWorkItemId: 7,
+          sprintId: 3,
+          priority: 'HIGH',
+        }),
+      );
+    });
+
+    it('discard is a no-op on the saved values', () => {
+      openEditableItem();
+      aiStoryStub.suggestion.set({ description: 'Como PM quiero X para Y', criteria: ['Nuevo 1'] });
+      fixture.detectChanges();
+
+      (fixture.nativeElement.querySelector('[data-testid="improve-story-discard"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      expect(aiStoryStub.discard).toHaveBeenCalled();
+      fixture.componentInstance.submitUpdate(500);
+      expect(storeStub.updateItem).toHaveBeenCalledWith(
+        500,
+        expect.objectContaining({ description: 'Descripción original', acceptanceCriteria: ['Dado A'] }),
+      );
+    });
+
+    it('surfaces the Spanish error without touching the typed description', () => {
+      openEditableItem();
+      fixture.componentInstance.editForm = { ...fixture.componentInstance.editForm, description: 'Escrito a mano' };
+      aiStoryStub.error.set('El asistente de IA no está disponible en este momento.');
+      fixture.detectChanges();
+
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('[data-testid="improve-story-error"]')?.textContent,
+      ).toContain('El asistente de IA no está disponible en este momento.');
+      fixture.componentInstance.submitUpdate(500);
+      expect(storeStub.updateItem).toHaveBeenCalledWith(
+        500,
+        expect.objectContaining({ description: 'Escrito a mano' }),
+      );
+    });
+
+    it('clears a stale suggestion when the open item changes', () => {
+      openEditableItem();
+      aiStoryStub.reset.mockClear();
+
+      storeStub.selectedItem.set(item(501, 1, 2048, 'Otra'));
+      fixture.detectChanges();
+
+      expect(aiStoryStub.reset).toHaveBeenCalled();
+    });
   });
 
   it('opens an accessible delete confirmation dialog', () => {

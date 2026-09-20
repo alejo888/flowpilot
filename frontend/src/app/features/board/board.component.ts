@@ -11,7 +11,9 @@ import { FpIconComponent } from '../../shared/ui/icon.component';
 import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { AiConfigService } from '../../core/ai/ai-config.service';
 import { AcceptanceCriteriaEditorComponent } from './acceptance-criteria-editor.component';
-import { AiCriteriaStore } from './ai-criteria.store';
+import { AiCriteriaStore, mergeCriteria } from './ai-criteria.store';
+import { AiStoryImprovementStore } from './ai-story-improvement.store';
+import { StoryImprovementPreviewComponent } from './story-improvement-preview.component';
 import { columnAccent } from './column-accent';
 import { WorkItem, WorkItemCreateRequest, WorkItemPriority, WorkItemUpdateRequest } from './board.model';
 import { BoardStore } from './board.store';
@@ -80,6 +82,7 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
     FpCardComponent,
     FpDialogComponent,
     AcceptanceCriteriaEditorComponent,
+    StoryImprovementPreviewComponent,
   ],
   template: `
     <div class="board" cdkDropListGroup>
@@ -282,10 +285,29 @@ const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUse
                     [disabled]="aiCriteriaLoading()"
                     (click)="generateCriteria(item.id)"
                   >Generar criterios con IA</fp-button>
+                  <fp-button
+                    type="button"
+                    icon="add"
+                    testId="improve-story"
+                    [disabled]="aiStoryLoading()"
+                    (click)="improveStory(item.id)"
+                  >Mejorar historia con IA</fp-button>
                 </div>
               }
               @if (aiCriteriaError(); as criteriaError) {
                 <p data-testid="generate-criteria-error" class="board-error" role="alert">{{ criteriaError }}</p>
+              }
+              @if (aiStoryError(); as storyError) {
+                <p data-testid="improve-story-error" class="board-error" role="alert">{{ storyError }}</p>
+              }
+              @if (aiStorySuggestion(); as suggestion) {
+                <fp-story-improvement-preview
+                  data-testid="improve-story-preview"
+                  [description]="suggestion.description"
+                  [criteria]="suggestion.criteria"
+                  (apply)="applyStoryImprovement()"
+                  (discard)="discardStoryImprovement()"
+                />
               }
               @if (aiCriteriaDraft(); as draft) {
                 <div data-testid="criteria-suggestion-block">
@@ -398,6 +420,12 @@ export class BoardComponent {
   readonly aiCriteriaError = this.aiCriteria.error;
   readonly aiCriteriaLoading = this.aiCriteria.loading;
 
+  /** AI story improvement (vision 7.7): same gate as criteria generation (attach path is the `WORKITEM_EDIT` PUT). */
+  private readonly aiStory = inject(AiStoryImprovementStore);
+  readonly aiStorySuggestion = this.aiStory.suggestion;
+  readonly aiStoryError = this.aiStory.error;
+  readonly aiStoryLoading = this.aiStory.loading;
+
   readonly columns = this.store.columns;
   /** Board items the open item may be re-parented to (see {@link BoardStore.eligibleParents}). */
   readonly eligibleParents = this.store.eligibleParents;
@@ -451,6 +479,7 @@ export class BoardComponent {
       // (or the panel closes) so the next item never inherits them.
       this.aiCriteria.discard();
       this.aiCriteria.error.set(null);
+      this.aiStory.reset();
     });
 
     effect(() => {
@@ -565,6 +594,37 @@ export class BoardComponent {
   /** Drops the suggestions and leaves the item's saved criteria byte-identical. */
   discardCriteria(): void {
     this.aiCriteria.discard();
+  }
+
+  /** Requests an AI story improvement; a failure only surfaces the Spanish error and never touches the form. */
+  async improveStory(itemId: number): Promise<void> {
+    if (this.aiStoryLoading()) {
+      return;
+    }
+    await this.aiStory.generate(this.projectId(), itemId);
+  }
+
+  /**
+   * Applies the suggestion to the edit form only: the description is replaced
+   * (title untouched) and the criteria are union-merged (existing first, capped).
+   * The form submit persists it.
+   */
+  applyStoryImprovement(): void {
+    const suggestion = this.aiStory.suggestion();
+    if (!suggestion) {
+      return;
+    }
+    this.editForm = {
+      ...this.editForm,
+      description: suggestion.description,
+      acceptanceCriteria: mergeCriteria(this.editForm.acceptanceCriteria ?? [], suggestion.criteria),
+    };
+    this.aiStory.discard();
+  }
+
+  /** Drops the suggestion and leaves the form byte-identical. */
+  discardStoryImprovement(): void {
+    this.aiStory.discard();
   }
 
   submitUpdate(itemId: number): void {
