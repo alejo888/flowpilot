@@ -13,8 +13,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.flowpilot.dto.AiProvider;
 import com.flowpilot.dto.GeneratedAcceptanceCriteriaResponse;
+import com.flowpilot.dto.GeneratedProjectDraftResponse;
 import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
+import com.flowpilot.dto.ProjectDraftEpic;
+import com.flowpilot.dto.ProjectDraftStory;
 import com.flowpilot.dto.RiskAnalysisResponse;
 import com.flowpilot.dto.RiskSeverity;
 import com.flowpilot.dto.RiskSignalResponse;
@@ -27,6 +30,7 @@ import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.security.JwtService;
 import com.flowpilot.security.SecurityConfig;
 import com.flowpilot.service.AiAcceptanceCriteriaService;
+import com.flowpilot.service.AiProjectDraftService;
 import com.flowpilot.service.AiRiskAnalysisService;
 import com.flowpilot.service.AiStoryImprovementService;
 import com.flowpilot.service.AiSubtaskService;
@@ -72,6 +76,9 @@ class AiControllerTest {
 
     @MockitoBean
     private AiRiskAnalysisService aiRiskAnalysisService;
+
+    @MockitoBean
+    private AiProjectDraftService aiProjectDraftService;
 
     @MockitoBean
     private JwtService jwtService;
@@ -565,6 +572,86 @@ class AiControllerTest {
 
         mockMvc.perform(post(RISK_PATH, PROJECT_ID).with(caller()))
                 .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.detail").value("El asistente de IA no está disponible en este momento."));
+    }
+
+    // --- POST /api/ai/project-draft (vision 7.4) ---
+
+    private static final String PROJECT_DRAFT_PATH = "/api/ai/project-draft";
+
+    @Test
+    void projectDraftReturns200WithNestedEpicsAndStories() throws Exception {
+        when(aiProjectDraftService.generate(eq("Una tienda de café")))
+                .thenReturn(new GeneratedProjectDraftResponse(
+                        "Tienda de café",
+                        "Tienda en línea",
+                        null,
+                        List.of(new ProjectDraftEpic(
+                                "Catálogo", null, List.of(new ProjectDraftStory("Listar productos", "Ver el catálogo")))),
+                        AiProvider.STUB,
+                        null));
+
+        mockMvc.perform(post(PROJECT_DRAFT_PATH)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"description\":\"Una tienda de café\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Tienda de café"))
+                .andExpect(jsonPath("$.description").value("Tienda en línea"))
+                .andExpect(jsonPath("$.technologies").doesNotExist())
+                .andExpect(jsonPath("$.epics.length()").value(1))
+                .andExpect(jsonPath("$.epics[0].title").value("Catálogo"))
+                .andExpect(jsonPath("$.epics[0].stories[0].title").value("Listar productos"))
+                .andExpect(jsonPath("$.epics[0].stories[0].description").value("Ver el catálogo"))
+                .andExpect(jsonPath("$.generatedBy").value("STUB"))
+                .andExpect(jsonPath("$.model").doesNotExist());
+    }
+
+    @Test
+    void projectDraftBlankDescriptionReturns400SpanishAndDoesNotCallTheService() throws Exception {
+        mockMvc.perform(post(PROJECT_DRAFT_PATH)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"description\":\"   \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.description").value("La descripción no puede estar vacía"));
+
+        verifyNoInteractions(aiProjectDraftService);
+    }
+
+    @Test
+    void projectDraftDescriptionLongerThan2000CharsReturns400Spanish() throws Exception {
+        mockMvc.perform(post(PROJECT_DRAFT_PATH)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"description\":\"" + "a".repeat(2001) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.description").value("La descripción no puede superar los 2000 caracteres"));
+
+        verifyNoInteractions(aiProjectDraftService);
+    }
+
+    @Test
+    void projectDraftAnonymousReturns401() throws Exception {
+        mockMvc.perform(post(PROJECT_DRAFT_PATH)
+                        .contentType("application/json")
+                        .content("{\"description\":\"Una tienda\"}"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(aiProjectDraftService);
+    }
+
+    @Test
+    void projectDraftAiGenerationFailureReturns503WithSpanishDetail() throws Exception {
+        when(aiProjectDraftService.generate(org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new AiGenerationException("no epics"));
+
+        mockMvc.perform(post(PROJECT_DRAFT_PATH)
+                        .with(caller())
+                        .contentType("application/json")
+                        .content("{\"description\":\"Una tienda\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
                 .andExpect(jsonPath("$.detail").value("El asistente de IA no está disponible en este momento."));
     }
 }

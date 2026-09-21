@@ -1,13 +1,16 @@
 package com.flowpilot.controller;
 
 import com.flowpilot.dto.GenerateAcceptanceCriteriaRequest;
+import com.flowpilot.dto.GenerateProjectDraftRequest;
 import com.flowpilot.dto.GenerateSubtasksRequest;
 import com.flowpilot.dto.GenerateUserStoryRequest;
 import com.flowpilot.dto.GeneratedAcceptanceCriteriaResponse;
+import com.flowpilot.dto.GeneratedProjectDraftResponse;
 import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
 import com.flowpilot.dto.RiskAnalysisResponse;
 import com.flowpilot.service.AiAcceptanceCriteriaService;
+import com.flowpilot.service.AiProjectDraftService;
 import com.flowpilot.service.AiRiskAnalysisService;
 import com.flowpilot.service.AiStoryImprovementService;
 import com.flowpilot.service.AiSubtaskService;
@@ -46,18 +49,21 @@ public class AiController {
     private final AiAcceptanceCriteriaService aiAcceptanceCriteriaService;
     private final AiStoryImprovementService aiStoryImprovementService;
     private final AiRiskAnalysisService aiRiskAnalysisService;
+    private final AiProjectDraftService aiProjectDraftService;
 
     public AiController(
             AiUserStoryService aiUserStoryService,
             AiSubtaskService aiSubtaskService,
             AiAcceptanceCriteriaService aiAcceptanceCriteriaService,
             AiStoryImprovementService aiStoryImprovementService,
-            AiRiskAnalysisService aiRiskAnalysisService) {
+            AiRiskAnalysisService aiRiskAnalysisService,
+            AiProjectDraftService aiProjectDraftService) {
         this.aiUserStoryService = aiUserStoryService;
         this.aiSubtaskService = aiSubtaskService;
         this.aiAcceptanceCriteriaService = aiAcceptanceCriteriaService;
         this.aiStoryImprovementService = aiStoryImprovementService;
         this.aiRiskAnalysisService = aiRiskAnalysisService;
+        this.aiProjectDraftService = aiProjectDraftService;
     }
 
     @Operation(summary = "Generate a non-persisted user-story draft from a free-text requirement")
@@ -174,6 +180,24 @@ public class AiController {
     @PostMapping("/api/projects/{projectId}/ai/risk-analysis")
     public RiskAnalysisResponse analyzeRisks(@PathVariable Long projectId, Authentication authentication) {
         return aiRiskAnalysisService.analyze(projectId, currentUserId(authentication));
+    }
+
+    @Operation(summary = "Generate a non-persisted project draft (project plus epics with stories) from a free-text description")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Generated draft, nothing persisted"),
+        @ApiResponse(responseCode = "400", description = "description blank or longer than 2000 characters",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "401", description = "Not authenticated",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "503", description = "AI assistant unavailable; no retry is attempted",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @PostMapping("/api/ai/project-draft")
+    public GeneratedProjectDraftResponse generateProjectDraft(@Valid @RequestBody GenerateProjectDraftRequest request) {
+        return aiProjectDraftService.generate(request.description());
     }
 
     private Long currentUserId(Authentication authentication) {

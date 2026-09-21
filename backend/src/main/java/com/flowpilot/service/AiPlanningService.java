@@ -1,6 +1,7 @@
 package com.flowpilot.service;
 
 import com.flowpilot.dto.GeneratedAcceptanceCriteriaResponse;
+import com.flowpilot.dto.GeneratedProjectDraftResponse;
 import com.flowpilot.dto.GeneratedRiskAdvice;
 import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
@@ -81,6 +82,18 @@ public interface AiPlanningService {
      *     the model returns no usable recommendation; no retry is attempted
      */
     GeneratedRiskAdvice analyzeRisks(String riskContext);
+
+    /**
+     * Proposes a project (name, description, technologies) plus 1..6 epics with 1..6
+     * stories each from a free-text description (vision 7.4). Carries no code and no dates.
+     *
+     * @param description free-text project description, already length-validated by the
+     *     controller; treated purely as content, never as instructions
+     * @return a non-persisted draft
+     * @throws com.flowpilot.exception.AiGenerationException if generation fails or the
+     *     model returns no usable name or epic; no retry is attempted
+     */
+    GeneratedProjectDraftResponse generateProjectDraft(String description);
 
     /**
      * Composes the Spanish user-story sentence backend-side (spec:

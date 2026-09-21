@@ -2,9 +2,12 @@ package com.flowpilot.service;
 
 import com.flowpilot.dto.AiProvider;
 import com.flowpilot.dto.GeneratedAcceptanceCriteriaResponse;
+import com.flowpilot.dto.GeneratedProjectDraftResponse;
 import com.flowpilot.dto.GeneratedRiskAdvice;
 import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
+import com.flowpilot.dto.ProjectDraftEpic;
+import com.flowpilot.dto.ProjectDraftStory;
 import com.flowpilot.dto.SubtaskDraft;
 import com.flowpilot.dto.UserStoryDraft;
 import java.util.List;
@@ -28,6 +31,7 @@ public class StubAiPlanningService implements AiPlanningService {
     private static final String BENEFIT = "trabajar de forma más eficiente";
     private static final int MAX_ACTION_LENGTH = 200;
     private static final int MAX_CONTEXT_HEAD_LENGTH = 180;
+    private static final int MAX_PROJECT_NAME_LENGTH = 80;
     private static final Pattern SIGNAL_COUNT = Pattern.compile("\\((\\d+)\\)");
 
     @Override
@@ -116,6 +120,37 @@ public class StubAiPlanningService implements AiPlanningService {
                 "Reasigna o divide el trabajo de los miembros sobrecargados.",
                 "Revisa las tareas estancadas y confirma si siguen vigentes.");
         return new GeneratedRiskAdvice(summary, recommendations, AiProvider.STUB, null);
+    }
+
+    /**
+     * Deterministic project draft (vision 7.4): the name embeds the whitespace-normalised head of the
+     * description, followed by two fixed epics of two stories each (so the UI and e2e have a real tree).
+     * No technologies. {@code generatedBy=STUB}, {@code model=null}.
+     */
+    @Override
+    public GeneratedProjectDraftResponse generateProjectDraft(String description) {
+        String head = contextHead(description);
+        String name = head.length() > MAX_PROJECT_NAME_LENGTH
+                ? head.substring(0, MAX_PROJECT_NAME_LENGTH).strip()
+                : head;
+        List<ProjectDraftEpic> epics = List.of(
+                new ProjectDraftEpic(
+                        "Fundamentos del proyecto",
+                        "Base técnica y de diseño para: " + head,
+                        List.of(
+                                new ProjectDraftStory(
+                                        "Definir el alcance", "Acordar los objetivos y el alcance de: " + head),
+                                new ProjectDraftStory(
+                                        "Preparar el entorno", "Configurar repositorio, integración continua y entornos"))),
+                new ProjectDraftEpic(
+                        "Funcionalidad principal",
+                        "Entregar el valor central de: " + head,
+                        List.of(
+                                new ProjectDraftStory(
+                                        "Implementar el flujo principal", "Desarrollar el caso de uso central de: " + head),
+                                new ProjectDraftStory(
+                                        "Validar con usuarios", "Recoger comentarios y ajustar la primera versión"))));
+        return new GeneratedProjectDraftResponse(name, head, null, epics, AiProvider.STUB, null);
     }
 
     private static String contextHead(String storyContext) {
