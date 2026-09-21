@@ -1240,6 +1240,54 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/ai/project-draft:
+    post:
+      summary: Generate a non-persisted project draft (project plus epics with stories) from a free-text description
+      operationId: generateProjectDraft
+      description: >-
+        Turns a free-text project description into a proposed project (name,
+        description, technologies) plus 1..6 epics, each with 1..6 stories.
+        Not project-scoped: any authenticated caller may request a draft, since
+        creating a project itself needs no permission. Persists nothing. The
+        draft carries no code and no dates. When flowpilot.ai.enabled is false
+        the deterministic stub answers (generatedBy=STUB); when true the
+        configured Ollama model answers (generatedBy=OLLAMA).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateProjectDraftRequest'
+      responses:
+        '200':
+          description: Generated draft, nothing persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedProjectDraftResponse'
+        '400':
+          description: description blank or longer than 2000 characters
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Not authenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '503':
+          description: >-
+            AI assistant unavailable — the LLM refused the connection, exceeded
+            the connect/read timeout, returned a non-2xx status, or produced
+            unparseable or empty output. No retry is attempted.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/ai/config:
     get:
       summary: Report whether AI-assisted planning is enabled
@@ -2421,6 +2469,62 @@ components:
           type: array
           items:
             type: string
+        generatedBy:
+          $ref: '#/components/schemas/AiProvider'
+        model:
+          type: string
+          nullable: true
+    GenerateProjectDraftRequest:
+      type: object
+      description: >-
+        Free-text project description to turn into a project draft. Treated
+        purely as content to analyse, never as instructions to the model.
+      required: [description]
+      properties:
+        description:
+          type: string
+          minLength: 0
+          maxLength: 2000
+    ProjectDraftStory:
+      type: object
+      description: A story proposed under an epic in a project draft.
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+    ProjectDraftEpic:
+      type: object
+      description: An epic proposed in a project draft, with its 1..6 stories.
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        stories:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDraftStory'
+    GeneratedProjectDraftResponse:
+      type: object
+      description: >-
+        Non-persisted project draft with 1..6 epics, each with 1..6 stories.
+        Carries no code and no dates. model is the Ollama model name for an
+        OLLAMA draft and null for a STUB draft.
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        technologies:
+          type: string
+          nullable: true
+        epics:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectDraftEpic'
         generatedBy:
           $ref: '#/components/schemas/AiProvider'
         model:
