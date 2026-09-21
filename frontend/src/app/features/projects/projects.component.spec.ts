@@ -1,7 +1,8 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 
+import { AiConfigService } from '../../core/ai/ai-config.service';
 import { Project } from './project.model';
 import { ProjectsComponent } from './projects.component';
 import { ProjectsStore } from './projects.store';
@@ -36,10 +37,16 @@ describe('ProjectsComponent', () => {
     createProject: ReturnType<typeof vi.fn>;
   };
 
+  let aiConfigStub: { aiEnabled: ReturnType<typeof signal<boolean>> };
+
   async function setup(): Promise<void> {
     await TestBed.configureTestingModule({
       imports: [ProjectsComponent],
-      providers: [provideRouter([]), { provide: ProjectsStore, useValue: storeStub }],
+      providers: [
+        provideRouter([]),
+        { provide: ProjectsStore, useValue: storeStub },
+        { provide: AiConfigService, useValue: aiConfigStub },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ProjectsComponent);
@@ -69,6 +76,7 @@ describe('ProjectsComponent', () => {
   }
 
   beforeEach(() => {
+    aiConfigStub = { aiEnabled: signal(false) };
     storeStub = {
       projects: signal([]),
       loading: signal(false),
@@ -78,6 +86,26 @@ describe('ProjectsComponent', () => {
       loadProjects: vi.fn(),
       createProject: vi.fn(),
     };
+  });
+
+  it('hides the "Crear con IA" entry point while AI is disabled', async () => {
+    await setup();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="project-create-ai-trigger"]')).toBeNull();
+  });
+
+  it('shows the "Crear con IA" entry point when AI is enabled and navigates to the AI flow', async () => {
+    aiConfigStub.aiEnabled.set(true);
+    await setup();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    const trigger = fixture.nativeElement.querySelector(
+      '[data-testid="project-create-ai-trigger"]',
+    ) as HTMLElement;
+    expect(trigger).toBeTruthy();
+    expect(trigger.textContent).toContain('Crear con IA');
+    trigger.click();
+    expect(navigate).toHaveBeenCalledWith(['/projects/ai/new']);
   });
 
   it('loads the project list on init', async () => {

@@ -1,7 +1,8 @@
 import { DatePipe } from '@angular/common';
 import { Component, OnInit, effect, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
+import { AiConfigService } from '../../core/ai/ai-config.service';
 import { FpBadgeComponent } from '../../shared/ui/badge.component';
 import { FpButtonComponent } from '../../shared/ui/button.component';
 import { FpCardComponent } from '../../shared/ui/card.component';
@@ -38,9 +39,21 @@ import { ProjectsStore } from './projects.store';
     <div class="projects">
       <div class="projects-header">
         <h1 class="projects-title">Proyectos</h1>
-        <fp-button icon="add" testId="project-create-trigger" (click)="showCreateDialog.set(true)">
-          Crear proyecto
-        </fp-button>
+        <div class="projects-actions">
+          @if (aiEnabled()) {
+            <fp-button
+              variant="secondary"
+              icon="add"
+              testId="project-create-ai-trigger"
+              (click)="createWithAi()"
+            >
+              Crear con IA
+            </fp-button>
+          }
+          <fp-button icon="add" testId="project-create-trigger" (click)="showCreateDialog.set(true)">
+            Crear proyecto
+          </fp-button>
+        </div>
       </div>
 
       @if (!showCreateDialog() && error(); as message) {
@@ -214,6 +227,12 @@ import { ProjectsStore } from './projects.store';
       gap: var(--fp-space-4);
     }
 
+    .projects-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--fp-space-3);
+    }
+
     .projects-title {
       margin: 0;
       font-family: var(--fp-font-display);
@@ -338,6 +357,8 @@ import { ProjectsStore } from './projects.store';
 })
 export class ProjectsComponent implements OnInit {
   private readonly store = inject(ProjectsStore);
+  private readonly router = inject(Router);
+  protected readonly aiEnabled = inject(AiConfigService).aiEnabled;
 
   readonly projects = this.store.projects;
   readonly loading = this.store.loading;
@@ -370,6 +391,10 @@ export class ProjectsComponent implements OnInit {
         this.showCreateDialog.set(false);
       }
     });
+  }
+
+  createWithAi(): void {
+    void this.router.navigate(['/projects/ai/new']);
   }
 
   closeCreateDialog(): void {

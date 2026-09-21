@@ -51,6 +51,14 @@ describe('routes', () => {
     expect(aiRoute.loadComponent).toBeTypeOf('function');
   });
 
+  it('registers the AI project route before the :projectId route, guarded by authGuard then aiEnabledGuard', () => {
+    const aiRoute = findRoute('projects/ai/new');
+    expect(aiRoute.canActivate).toEqual([authGuard, aiEnabledGuard]);
+    expect(aiRoute.loadComponent).toBeTypeOf('function');
+    const paths = routes.map((r) => r.path);
+    expect(paths.indexOf('projects/ai/new')).toBeLessThan(paths.indexOf('projects/:projectId'));
+  });
+
   it('guards the AI subtasks route with authGuard, then aiEnabledGuard, then workItemCreateGuard, and lazy-loads it', () => {
     const aiRoute = findRoute('projects/:projectId/ai/subtasks');
     expect(aiRoute.canActivate).toEqual([authGuard, aiEnabledGuard, workItemCreateGuard]);
