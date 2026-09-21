@@ -2,6 +2,9 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
+import { AiConfigService } from '../../core/ai/ai-config.service';
+import { RiskAnalysisStore } from './risk-analysis.store';
+
 import { ProjectDashboard } from './project-dashboard.model';
 import { ProjectDashboardComponent } from './project-dashboard.component';
 import { ProjectDashboardStore } from './project-dashboard.store';
@@ -26,6 +29,7 @@ function dashboard(overrides: Partial<ProjectDashboard> = {}): ProjectDashboard 
 
 describe('ProjectDashboardComponent', () => {
   let fixture: ComponentFixture<ProjectDashboardComponent>;
+  let aiEnabled: ReturnType<typeof signal<boolean>>;
   let storeStub: {
     dashboard: ReturnType<typeof signal<ProjectDashboard | null>>;
     loading: ReturnType<typeof signal<boolean>>;
@@ -34,6 +38,7 @@ describe('ProjectDashboardComponent', () => {
   };
 
   beforeEach(async () => {
+    aiEnabled = signal(false);
     storeStub = {
       dashboard: signal(null),
       loading: signal(false),
@@ -43,7 +48,13 @@ describe('ProjectDashboardComponent', () => {
 
     await TestBed.configureTestingModule({
       imports: [ProjectDashboardComponent],
-      providers: [provideRouter([]), { provide: ProjectDashboardStore, useValue: storeStub }],
+      providers: [provideRouter([]), { provide: ProjectDashboardStore, useValue: storeStub },
+        { provide: AiConfigService, useValue: { aiEnabled } },
+        {
+          provide: RiskAnalysisStore,
+          useValue: { result: signal(null), loading: signal(false), error: signal(null), analyze: vi.fn(), reset: vi.fn() },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ProjectDashboardComponent);
@@ -83,5 +94,20 @@ describe('ProjectDashboardComponent', () => {
     fixture.detectChanges();
 
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('No se pudo cargar el dashboard');
+  });
+
+  it('hides the risk analysis card when AI is disabled', () => {
+    storeStub.dashboard.set(dashboard());
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="analyze-risks"]')).toBeNull();
+  });
+
+  it('shows the risk analysis card when AI is enabled', () => {
+    aiEnabled.set(true);
+    storeStub.dashboard.set(dashboard());
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="analyze-risks"]')).not.toBeNull();
   });
 });
