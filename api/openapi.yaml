@@ -1191,6 +1191,55 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/projects/{projectId}/ai/risk-analysis:
+    post:
+      summary: Analyze project risks with deterministic signals plus an AI summary and recommendations
+      operationId: analyzeRisks
+      description: >-
+        Hybrid risk analysis. The backend computes deterministic risk signals
+        (large stories, overloaded members, sprints at risk or overdue,
+        stalled items, unassigned high-priority items; at most 20, most severe
+        first) and the AI only writes a summary and recommendations over them.
+        Takes no request body. Guarded by project read access (the same rule as
+        the dashboard: administrator, owner or member), checked in
+        AiRiskAnalysisService, not the controller. Persists nothing. When there
+        are no signals the AI is not called and the response carries an empty
+        signal list, a fixed summary, no recommendations, generatedBy=STUB and
+        a null model. Otherwise, when flowpilot.ai.enabled is false the
+        deterministic stub answers (generatedBy=STUB); when true the configured
+        Ollama model answers (generatedBy=OLLAMA).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/NestedProjectId'
+      responses:
+        '200':
+          description: Non-persisted risk analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskAnalysisResponse'
+        '403':
+          description: Caller cannot view this project
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: No project with that id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '503':
+          description: >-
+            AI assistant unavailable — the LLM refused the connection, exceeded
+            the connect/read timeout, returned a non-2xx status, or produced
+            unparseable or empty output. No retry is attempted.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/ai/config:
     get:
       summary: Report whether AI-assisted planning is enabled
@@ -2311,6 +2360,64 @@ components:
         model name for an OLLAMA result and null for a STUB result.
       properties:
         criteria:
+          type: array
+          items:
+            type: string
+        generatedBy:
+          $ref: '#/components/schemas/AiProvider'
+        model:
+          type: string
+          nullable: true
+    RiskSeverity:
+      type: string
+      enum: [HIGH, MEDIUM, LOW]
+    RiskSignalType:
+      type: string
+      enum:
+        - LARGE_STORY
+        - OVERLOADED_MEMBER
+        - SPRINT_AT_RISK
+        - SPRINT_OVERDUE
+        - STALLED_ITEM
+        - UNASSIGNED_HIGH_PRIORITY
+    RiskSignalResponse:
+      type: object
+      description: >-
+        One deterministic risk signal. title and detail are Spanish text.
+        workItemId / userId point at the affected entity when there is a single
+        one; both are null for sprint-level signals.
+      properties:
+        type:
+          $ref: '#/components/schemas/RiskSignalType'
+        severity:
+          $ref: '#/components/schemas/RiskSeverity'
+        title:
+          type: string
+        detail:
+          type: string
+        workItemId:
+          type: integer
+          format: int64
+          nullable: true
+        userId:
+          type: integer
+          format: int64
+          nullable: true
+    RiskAnalysisResponse:
+      type: object
+      description: >-
+        Non-persisted hybrid risk analysis. signals are deterministic; summary
+        and recommendations (1..6, or empty when there are no signals) are
+        written by the AI over those signals. model is the Ollama model name
+        for an OLLAMA result and null for a STUB result.
+      properties:
+        signals:
+          type: array
+          items:
+            $ref: '#/components/schemas/RiskSignalResponse'
+        summary:
+          type: string
+        recommendations:
           type: array
           items:
             type: string

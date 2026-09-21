@@ -6,7 +6,9 @@ import com.flowpilot.dto.GenerateUserStoryRequest;
 import com.flowpilot.dto.GeneratedAcceptanceCriteriaResponse;
 import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
+import com.flowpilot.dto.RiskAnalysisResponse;
 import com.flowpilot.service.AiAcceptanceCriteriaService;
+import com.flowpilot.service.AiRiskAnalysisService;
 import com.flowpilot.service.AiStoryImprovementService;
 import com.flowpilot.service.AiSubtaskService;
 import com.flowpilot.service.AiUserStoryService;
@@ -43,16 +45,19 @@ public class AiController {
     private final AiSubtaskService aiSubtaskService;
     private final AiAcceptanceCriteriaService aiAcceptanceCriteriaService;
     private final AiStoryImprovementService aiStoryImprovementService;
+    private final AiRiskAnalysisService aiRiskAnalysisService;
 
     public AiController(
             AiUserStoryService aiUserStoryService,
             AiSubtaskService aiSubtaskService,
             AiAcceptanceCriteriaService aiAcceptanceCriteriaService,
-            AiStoryImprovementService aiStoryImprovementService) {
+            AiStoryImprovementService aiStoryImprovementService,
+            AiRiskAnalysisService aiRiskAnalysisService) {
         this.aiUserStoryService = aiUserStoryService;
         this.aiSubtaskService = aiSubtaskService;
         this.aiAcceptanceCriteriaService = aiAcceptanceCriteriaService;
         this.aiStoryImprovementService = aiStoryImprovementService;
+        this.aiRiskAnalysisService = aiRiskAnalysisService;
     }
 
     @Operation(summary = "Generate a non-persisted user-story draft from a free-text requirement")
@@ -151,6 +156,24 @@ public class AiController {
             @Valid @RequestBody GenerateAcceptanceCriteriaRequest request,
             Authentication authentication) {
         return aiStoryImprovementService.generate(projectId, request, currentUserId(authentication));
+    }
+
+    @Operation(summary = "Analyze project risks: deterministic signals plus an AI summary and recommendations")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Non-persisted risk analysis; with no signals the AI is not called"),
+        @ApiResponse(responseCode = "403", description = "Caller cannot view this project",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "404", description = "No project with that id",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "503", description = "AI assistant unavailable; no retry is attempted",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @PostMapping("/api/projects/{projectId}/ai/risk-analysis")
+    public RiskAnalysisResponse analyzeRisks(@PathVariable Long projectId, Authentication authentication) {
+        return aiRiskAnalysisService.analyze(projectId, currentUserId(authentication));
     }
 
     private Long currentUserId(Authentication authentication) {

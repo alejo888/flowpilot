@@ -2,11 +2,14 @@ package com.flowpilot.service;
 
 import com.flowpilot.dto.AiProvider;
 import com.flowpilot.dto.GeneratedAcceptanceCriteriaResponse;
+import com.flowpilot.dto.GeneratedRiskAdvice;
 import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
 import com.flowpilot.dto.SubtaskDraft;
 import com.flowpilot.dto.UserStoryDraft;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Deterministic offline generator, active when {@code flowpilot.ai.enabled=false}
@@ -25,6 +28,7 @@ public class StubAiPlanningService implements AiPlanningService {
     private static final String BENEFIT = "trabajar de forma más eficiente";
     private static final int MAX_ACTION_LENGTH = 200;
     private static final int MAX_CONTEXT_HEAD_LENGTH = 180;
+    private static final Pattern SIGNAL_COUNT = Pattern.compile("\\((\\d+)\\)");
 
     @Override
     public GeneratedUserStoryResponse generateUserStory(String requirement) {
@@ -94,6 +98,24 @@ public class StubAiPlanningService implements AiPlanningService {
                 "Dado un usuario sin permiso cuando intenta " + head + " entonces la acción queda bloqueada");
         return new GeneratedUserStoryResponse(
                 new UserStoryDraft(ROLE, head, BENEFIT, text), criteria, AiProvider.STUB, null);
+    }
+
+    /**
+     * Deterministic risk advice (vision 7.6): a fixed summary that quotes the
+     * signal count when the context states it, plus three generic
+     * recommendations. {@code generatedBy=STUB}, {@code model=null}.
+     */
+    @Override
+    public GeneratedRiskAdvice analyzeRisks(String riskContext) {
+        Matcher count = SIGNAL_COUNT.matcher(riskContext == null ? "" : riskContext);
+        String summary = count.find()
+                ? "Se detectaron " + count.group(1) + " señales de riesgo en el proyecto; revisa primero las de severidad alta."
+                : "Se detectaron señales de riesgo en el proyecto; revisa primero las de severidad alta.";
+        List<String> recommendations = List.of(
+                "Atiende primero las señales de severidad alta.",
+                "Reasigna o divide el trabajo de los miembros sobrecargados.",
+                "Revisa las tareas estancadas y confirma si siguen vigentes.");
+        return new GeneratedRiskAdvice(summary, recommendations, AiProvider.STUB, null);
     }
 
     private static String contextHead(String storyContext) {
