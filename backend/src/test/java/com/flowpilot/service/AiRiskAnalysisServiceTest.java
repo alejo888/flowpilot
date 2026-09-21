@@ -3,6 +3,7 @@ package com.flowpilot.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -20,6 +21,11 @@ import com.flowpilot.repository.ProjectRepository;
 import com.flowpilot.repository.SprintRepository;
 import com.flowpilot.repository.UserRepository;
 import com.flowpilot.repository.WorkItemRepository;
+import com.flowpilot.entity.GlobalRole;
+import com.flowpilot.entity.User;
+import com.flowpilot.entity.WorkItem;
+import com.flowpilot.entity.WorkItemPriority;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +35,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Thin authorization wrapper for the hybrid risk analysis (vision 7.6):
@@ -67,6 +77,29 @@ class AiRiskAnalysisServiceTest {
 
     private AiRiskAnalysisService service;
 
+    /** Bookkeeping-only transaction manager: real synchronization state, no resources. */
+    private static final class FakeTransactionManager extends AbstractPlatformTransactionManager {
+        int begun;
+
+        @Override
+        protected Object doGetTransaction() {
+            return new Object();
+        }
+
+        @Override
+        protected void doBegin(Object transaction, TransactionDefinition definition) {
+            begun++;
+        }
+
+        @Override
+        protected void doCommit(DefaultTransactionStatus status) {}
+
+        @Override
+        protected void doRollback(DefaultTransactionStatus status) {}
+    }
+
+    private final FakeTransactionManager txManager = new FakeTransactionManager();
+
     @BeforeEach
     void setUp() {
         service = new AiRiskAnalysisService(
@@ -77,7 +110,8 @@ class AiRiskAnalysisServiceTest {
                 sprintRepository,
                 userRepository,
                 detector,
-                aiPlanningService);
+                aiPlanningService,
+                txManager);
     }
 
     private static RiskSignalResponse signal() {
@@ -150,16 +184,93 @@ class AiRiskAnalysisServiceTest {
     }
 
     @Test
-    void resolvesUserNamesForAssigneesAndPassesThemToTheDetector() {
+    void loadsAndDetectsInsideAReadOnlyTransactionButCallsTheAiOutsideAnyTransaction() {
         stubProjectLoads();
         when(authorizationService.canView(CALLER_ID, PROJECT_ID)).thenReturn(true);
+        List<Boolean> detectorInTx = new ArrayList<>();
+        List<Boolean> aiInTx = new ArrayList<>();
+        when(detector.detect(any(), any(), any(), any())).thenAnswer(inv -> {
+            detectorInTx.add(TransactionSynchronizationManager.isActualTransactionActive()
+                    && TransactionSynchronizationManager.isCurrentTransactionReadOnly());
+            return List.of(signal());
+        });
+        when(aiPlanningService.analyzeRisks(any())).thenAnswer(inv -> {
+            aiInTx.add(TransactionSynchronizationManager.isActualTransactionActive());
+            return new GeneratedRiskAdvice("ok", List.of("r"), AiProvider.STUB, null);
+        });
+
+        service.analyze(PROJECT_ID, CALLER_ID);
+
+        assertThat(detectorInTx).containsExactly(true);
+        assertThat(aiInTx).containsExactly(false);
+        assertThat(txManager.begun).isEqualTo(1);
+    }
+
+    private static WorkItem assigned(Long assignee) {
+        return new WorkItem(PROJECT_ID, 1L, "t", null, assignee, 1);
+    }
+
+    private static User user(long id, String name) {
+        User u = new User(name, name + "@x.com", "h", GlobalRole.MIEMBRO_EQUIPO, true);
+        try {
+            var f = User.class.getDeclaredField("id");
+            f.setAccessible(true);
+            f.set(u, id);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+        return u;
+    }
+
+    @Test
+    void collectsDistinctNonNullAssigneeIdsAndPassesTheIdToNameMapToTheDetector() {
+        stubProjectLoads();
+        when(authorizationService.canView(CALLER_ID, PROJECT_ID)).thenReturn(true);
+        when(workItemRepository.findByProjectIdOrderByColumnIdAscPositionAsc(PROJECT_ID))
+                .thenReturn(List.of(assigned(5L), assigned(5L), assigned(null)));
+        when(userRepository.findAllById(anyIterable())).thenReturn(List.of(user(5L, "Ana")));
         when(detector.detect(any(), any(), any(), any())).thenReturn(List.of());
 
         service.analyze(PROJECT_ID, CALLER_ID);
 
         @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<Long>> ids = ArgumentCaptor.forClass(Iterable.class);
+        verify(userRepository).findAllById(ids.capture());
+        assertThat(ids.getValue()).containsExactly(5L);
+        @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<Long, String>> names = ArgumentCaptor.forClass(Map.class);
         verify(detector).detect(any(), any(), any(), names.capture());
-        assertThat(names.getValue()).isEmpty();
+        assertThat(names.getValue()).containsExactly(Map.entry(5L, "Ana"));
+    }
+
+    @Test
+    void overloadedMemberSignalReadsTheUserNameAndFallsBackToUsuarioIdForUnknownIds() {
+        service = new AiRiskAnalysisService(
+                projectRepository,
+                authorizationService,
+                workItemRepository,
+                boardColumnRepository,
+                sprintRepository,
+                userRepository,
+                new ProjectRiskDetector(),
+                aiPlanningService,
+                txManager);
+        stubProjectLoads();
+        when(authorizationService.canView(CALLER_ID, PROJECT_ID)).thenReturn(true);
+        List<WorkItem> items = new ArrayList<>();
+        for (int i = 0; i < ProjectRiskDetector.OVERLOADED_MIN_OPEN; i++) {
+            items.add(assigned(5L));
+            items.add(assigned(6L));
+        }
+        when(workItemRepository.findByProjectIdOrderByColumnIdAscPositionAsc(PROJECT_ID)).thenReturn(items);
+        when(userRepository.findAllById(anyIterable())).thenReturn(List.of(user(5L, "Ana")));
+        when(aiPlanningService.analyzeRisks(any()))
+                .thenReturn(new GeneratedRiskAdvice("s", List.of(), AiProvider.STUB, null));
+
+        RiskAnalysisResponse result = service.analyze(PROJECT_ID, CALLER_ID);
+
+        assertThat(result.signals())
+                .extracting(RiskSignalResponse::title)
+                .containsExactlyInAnyOrder("Miembro sobrecargado: Ana", "Miembro sobrecargado: usuario #6");
     }
 }

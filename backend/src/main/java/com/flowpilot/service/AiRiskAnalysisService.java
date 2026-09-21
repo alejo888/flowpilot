@@ -17,7 +17,8 @@ import java.util.Map;
 import java.util.Objects;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Application-layer entry point for the hybrid AI risk analysis (vision 7.6).
@@ -49,6 +50,7 @@ public class AiRiskAnalysisService {
     private final UserRepository userRepository;
     private final ProjectRiskDetector detector;
     private final AiPlanningService aiPlanningService;
+    private final TransactionTemplate readTx;
 
     public AiRiskAnalysisService(
             ProjectRepository projectRepository,
@@ -58,7 +60,8 @@ public class AiRiskAnalysisService {
             SprintRepository sprintRepository,
             UserRepository userRepository,
             ProjectRiskDetector detector,
-            AiPlanningService aiPlanningService) {
+            AiPlanningService aiPlanningService,
+            PlatformTransactionManager transactionManager) {
         this.projectRepository = projectRepository;
         this.authorizationService = authorizationService;
         this.workItemRepository = workItemRepository;
@@ -67,15 +70,34 @@ public class AiRiskAnalysisService {
         this.userRepository = userRepository;
         this.detector = detector;
         this.aiPlanningService = aiPlanningService;
+        this.readTx = new TransactionTemplate(transactionManager);
+        this.readTx.setReadOnly(true);
     }
 
     /**
+     * Not transactional as a whole: the outbound LLM call can take up to the
+     * provider read timeout, and must not hold a DB connection while it waits.
+     * Only the data loading and signal detection run inside a short read-only
+     * transaction ({@link #detectSignals}); everything the detector reads is
+     * scalar/materialized, so nothing lazy is touched after it closes.
+     *
      * @throws ProjectNotFoundException if {@code projectId} is unknown
      * @throws AccessDeniedException if the caller cannot view the project
      * @throws com.flowpilot.exception.AiGenerationException if generation fails
      */
-    @Transactional(readOnly = true)
     public RiskAnalysisResponse analyze(Long projectId, Long requesterId) {
+        List<RiskSignalResponse> signals = readTx.execute(status -> detectSignals(projectId, requesterId));
+
+        if (signals.isEmpty()) {
+            return new RiskAnalysisResponse(List.of(), NO_RISKS_SUMMARY, List.of(), AiProvider.STUB, null);
+        }
+
+        GeneratedRiskAdvice advice = aiPlanningService.analyzeRisks(AiRiskContext.compose(signals));
+        return new RiskAnalysisResponse(
+                signals, advice.summary(), advice.recommendations(), advice.generatedBy(), advice.model());
+    }
+
+    private List<RiskSignalResponse> detectSignals(Long projectId, Long requesterId) {
         if (!projectRepository.existsById(projectId)) {
             throw new ProjectNotFoundException(projectId);
         }
@@ -93,18 +115,10 @@ public class AiRiskAnalysisService {
                         .toList())
                 .forEach(u -> userNames.put(u.getId(), u.getName()));
 
-        List<RiskSignalResponse> signals = detector.detect(
+        return detector.detect(
                 items,
                 boardColumnRepository.findByProjectIdOrderByPositionAsc(projectId),
                 sprintRepository.findByProjectIdOrderByStartDateAsc(projectId),
                 userNames);
-
-        if (signals.isEmpty()) {
-            return new RiskAnalysisResponse(List.of(), NO_RISKS_SUMMARY, List.of(), AiProvider.STUB, null);
-        }
-
-        GeneratedRiskAdvice advice = aiPlanningService.analyzeRisks(AiRiskContext.compose(signals));
-        return new RiskAnalysisResponse(
-                signals, advice.summary(), advice.recommendations(), advice.generatedBy(), advice.model());
     }
 }
