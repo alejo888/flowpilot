@@ -317,6 +317,40 @@ class ProjectControllerTest {
                 .andExpect(jsonPath("$.errors.name").exists());
     }
 
+    @Test
+    void createWithBacklogNullEpicReturns400NamingTheIndex() throws Exception {
+        mockMvc.perform(post("/api/projects/with-backlog")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content("{\"name\":\"Apollo\",\"epics\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Error de validación"))
+                .andExpect(jsonPath("$.errors['epics[0]']").value("La épica no puede ser nula"));
+    }
+
+    @Test
+    void createWithBacklogNullStoryReturns400NamingTheIndex() throws Exception {
+        mockMvc.perform(post("/api/projects/with-backlog")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content("{\"name\":\"Apollo\",\"epics\":[{\"title\":\"x\",\"stories\":[null]}]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Error de validación"))
+                .andExpect(jsonPath("$.errors['epics[0].stories[0]']").value("La historia no puede ser nula"));
+    }
+
+    @Test
+    void createWithBacklogMixedValidAndNullEntriesReturns400() throws Exception {
+        mockMvc.perform(post("/api/projects/with-backlog")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content("{\"name\":\"Apollo\",\"epics\":[{\"title\":\"ok\",\"stories\":[{\"title\":\"s\"}]},"
+                                + "null,{\"title\":\"e2\",\"stories\":[{\"title\":\"s\"},null]}]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors['epics[1]']").exists())
+                .andExpect(jsonPath("$.errors['epics[2].stories[1]']").exists());
+    }
+
     private String withBacklogJson(String name, List<BacklogEpicRequest> epics) throws Exception {
         return objectMapper.writeValueAsString(new ProjectWithBacklogRequest(
                 name, "desc", null, null, null, null, null, epics, true, "llama3"));

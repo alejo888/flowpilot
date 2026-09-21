@@ -5,9 +5,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -31,7 +34,7 @@ public record ProjectWithBacklogRequest(
         @Pattern(regexp = "^$|^https?://\\S+$",
                 message = "La URL del repositorio debe comenzar con http:// o https://") String repositoryUrl,
         @Size(max = 10, message = "No se pueden crear más de 10 épicas a la vez")
-        @Valid List<BacklogEpicRequest> epics,
+        List<@Valid @NotNull(message = "La épica no puede ser nula") BacklogEpicRequest> epics,
         @Schema(nullable = true) Boolean aiGenerated,
         @Schema(nullable = true)
         @Size(max = 120, message = "El modelo no puede superar los 120 caracteres") String aiModel) {
@@ -40,7 +43,9 @@ public record ProjectWithBacklogRequest(
     public static final int MAX_TOTAL_ITEMS = 50;
 
     public ProjectWithBacklogRequest {
-        epics = epics == null ? List.of() : List.copyOf(epics);
+        epics = epics == null
+                ? List.of()
+                : Collections.unmodifiableList(new ArrayList<>(epics)); // tolerates null elements; bean validation rejects them
     }
 
     /** The project-only part, so the existing create logic is reused as is. */

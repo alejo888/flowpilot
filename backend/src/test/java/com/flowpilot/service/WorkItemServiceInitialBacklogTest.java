@@ -125,6 +125,31 @@ class WorkItemServiceInitialBacklogTest {
     }
 
     @Test
+    void aiGeneratedFalseStillStoresTheClientSuppliedModel() throws Exception {
+        // Same convention as create/createBatch: the model is stored as sent, independent of the flag.
+        stubFirstColumn();
+        List<WorkItem> saved = stubSaves();
+
+        workItemService.createInitialBacklog(10L, 7L,
+                List.of(new BacklogEpicRequest("Epic A", null, List.of())), false, "llama3");
+
+        assertThat(saved.get(0).isAiGenerated()).isFalse();
+        assertThat(saved.get(0).getAiModel()).isEqualTo("llama3");
+    }
+
+    @Test
+    void aiGeneratedNullStillStoresTheClientSuppliedModel() throws Exception {
+        stubFirstColumn();
+        List<WorkItem> saved = stubSaves();
+
+        workItemService.createInitialBacklog(10L, 7L,
+                List.of(new BacklogEpicRequest("Epic A", null, List.of())), null, "llama3");
+
+        assertThat(saved.get(0).isAiGenerated()).isFalse();
+        assertThat(saved.get(0).getAiModel()).isEqualTo("llama3");
+    }
+
+    @Test
     void nullProvenanceStoresNotAiGenerated() throws Exception {
         stubFirstColumn();
         List<WorkItem> saved = stubSaves();
