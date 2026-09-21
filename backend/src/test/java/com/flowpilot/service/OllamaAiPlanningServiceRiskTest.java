@@ -141,6 +141,54 @@ class OllamaAiPlanningServiceRiskTest {
         server.verify();
     }
 
+    @Test
+    void missingRecommendationsFieldRaisesAiGenerationExceptionWithNoSecondCall() {
+        server.expect(once(), requestTo(URL))
+                .andRespond(withSuccess(chatCompletion("{\"summary\":\"s\"}"), MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.analyzeRisks("x")).isInstanceOf(AiGenerationException.class);
+        server.verify();
+    }
+
+    @Test
+    void nullRecommendationsFieldRaisesAiGenerationExceptionWithNoSecondCall() {
+        server.expect(once(), requestTo(URL))
+                .andRespond(withSuccess(
+                        chatCompletion("{\"summary\":\"s\",\"recommendations\":null}"), MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.analyzeRisks("x")).isInstanceOf(AiGenerationException.class);
+        server.verify();
+    }
+
+    @Test
+    void unparseableContentRaisesAiGenerationExceptionWithNoSecondCall() {
+        server.expect(once(), requestTo(URL))
+                .andRespond(withSuccess(chatCompletion("esto no es JSON"), MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.analyzeRisks("x")).isInstanceOf(AiGenerationException.class);
+        server.verify();
+    }
+
+    @Test
+    void serverErrorRaisesAiGenerationExceptionWithoutDowngrade() {
+        server.expect(once(), requestTo(URL))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body("{\"error\":\"response_format json_schema exploded\"}")
+                        .contentType(MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.analyzeRisks("x")).isInstanceOf(AiGenerationException.class);
+        server.verify();
+    }
+
+    @Test
+    void emptyChoicesRaisesAiGenerationExceptionWithNoSecondCall() {
+        server.expect(once(), requestTo(URL))
+                .andRespond(withSuccess("{\"choices\":[]}", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service.analyzeRisks("x")).isInstanceOf(AiGenerationException.class);
+        server.verify();
+    }
+
     private String chatCompletion(String modelContent) {
         try {
             return json.writeValueAsString(Map.of(

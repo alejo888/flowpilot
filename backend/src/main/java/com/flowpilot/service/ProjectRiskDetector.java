@@ -78,7 +78,7 @@ public class ProjectRiskDetector {
                 .collect(Collectors.toSet());
 
         List<RiskSignalResponse> signals = new ArrayList<>();
-        signals.addAll(largeStories(items));
+        signals.addAll(largeStories(items, doneColumnIds));
         signals.addAll(overloadedMembers(items, doneColumnIds, userNames));
         signals.addAll(sprintSignals(items, sprints, doneColumnIds));
         signals.addAll(stalledItems(items, doneColumnIds));
@@ -94,7 +94,7 @@ public class ProjectRiskDetector {
         return !doneColumnIds.contains(item.getColumnId());
     }
 
-    private List<RiskSignalResponse> largeStories(List<WorkItem> items) {
+    private List<RiskSignalResponse> largeStories(List<WorkItem> items, Set<Long> doneColumnIds) {
         Map<Long, Long> childCount = items.stream()
                 .filter(i -> i.getParentWorkItemId() != null)
                 .collect(Collectors.groupingBy(WorkItem::getParentWorkItemId, LinkedHashMap::new, Collectors.counting()));
@@ -104,7 +104,7 @@ public class ProjectRiskDetector {
         List<RiskSignalResponse> out = new ArrayList<>();
         childCount.forEach((parentId, count) -> {
             WorkItem parent = byId.get(parentId);
-            if (parent == null || count < LARGE_STORY_MIN_CHILDREN) {
+            if (parent == null || !isOpen(parent, doneColumnIds) || count < LARGE_STORY_MIN_CHILDREN) {
                 return;
             }
             RiskSeverity severity = count >= LARGE_STORY_HIGH_CHILDREN ? RiskSeverity.HIGH : RiskSeverity.MEDIUM;

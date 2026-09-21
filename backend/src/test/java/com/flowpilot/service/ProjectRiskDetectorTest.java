@@ -132,6 +132,43 @@ class ProjectRiskDetectorTest {
                 .isEqualTo(RiskSeverity.HIGH);
     }
 
+    @Test
+    void doneParentWithFiveChildrenRaisesNoLargeStory() {
+        List<WorkItem> items = new ArrayList<>(List.of(item(1, DONE_COL, 99L, WorkItemPriority.MEDIUM, null)));
+        for (long i = 0; i < 5; i++) items.add(child(100 + i, 1, DONE_COL));
+        assertThat(detect(items, List.of())).isEmpty();
+    }
+
+    @Test
+    void doneParentWithEightChildrenDoesNotMakeTheAnalysisNonEmptyOrEatTheCap() {
+        List<WorkItem> items = new ArrayList<>(List.of(item(1, DONE_COL, 99L, WorkItemPriority.MEDIUM, null)));
+        for (long i = 0; i < 8; i++) {
+            WorkItem c = child(100 + i, 1, TODO_COL);
+            c.setAssignedUserId(100L + i); // spread out: no member is overloaded
+            items.add(c);
+        }
+        assertThat(detect(items, List.of())).isEmpty();
+
+        items.add(item(500, TODO_COL, null, WorkItemPriority.URGENT, null));
+        List<RiskSignalResponse> signals = detect(items, List.of());
+        assertThat(signals).hasSize(1);
+        assertThat(signals.get(0).type()).isEqualTo(RiskSignalType.UNASSIGNED_HIGH_PRIORITY);
+    }
+
+    @Test
+    void openParentWithFiveChildrenStillRaisesLargeStory() {
+        List<WorkItem> items = new ArrayList<>(List.of(open(1)));
+        for (long i = 0; i < 5; i++) items.add(child(100 + i, 1, DONE_COL));
+        assertThat(ofType(detect(items, List.of()), RiskSignalType.LARGE_STORY)).hasSize(1);
+    }
+
+    @Test
+    void orphanChildrenWhoseParentIsNotLoadedRaiseNothing() {
+        List<WorkItem> items = new ArrayList<>();
+        for (long i = 0; i < 6; i++) items.add(child(100 + i, 999, TODO_COL));
+        assertThat(detect(items, List.of())).isEmpty();
+    }
+
     // ---- OVERLOADED_MEMBER ----
 
     private static List<WorkItem> assignedOpen(long userId, int count, long firstId) {
