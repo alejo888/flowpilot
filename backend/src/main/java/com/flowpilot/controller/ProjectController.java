@@ -5,6 +5,7 @@ import com.flowpilot.dto.ProjectCreateRequest;
 import com.flowpilot.dto.ProjectResponse;
 import com.flowpilot.dto.ProjectStatusUpdateRequest;
 import com.flowpilot.dto.ProjectUpdateRequest;
+import com.flowpilot.dto.ProjectWithBacklogRequest;
 import com.flowpilot.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -78,6 +79,26 @@ public class ProjectController {
     @ResponseStatus(HttpStatus.CREATED)
     public ProjectResponse create(@Valid @RequestBody ProjectCreateRequest request, Authentication authentication) {
         return projectService.create(request, currentUserId(authentication));
+    }
+
+    @Operation(summary = "Create a project together with its initial backlog")
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "Project, board columns, epics and stories created atomically"),
+        @ApiResponse(responseCode = "400", description = "Validation failed, or start date is after estimated end date",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "401", description = "Missing or invalid access token",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @ApiResponse(responseCode = "409", description = "Code already belongs to another project",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @PostMapping("/with-backlog")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ProjectResponse createWithBacklog(
+            @Valid @RequestBody ProjectWithBacklogRequest request, Authentication authentication) {
+        return projectService.createWithBacklog(request, currentUserId(authentication));
     }
 
     @Operation(summary = "Get a project by id")

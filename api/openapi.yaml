@@ -590,6 +590,54 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/projects/with-backlog:
+    post:
+      summary: Create a project together with its initial backlog
+      operationId: createProjectWithBacklog
+      description: >-
+        Creates the project (same rules as createProject: caller becomes the
+        owner, 4 default BoardColumns, unique code) and its initial backlog in
+        ONE transaction, so any failure leaves nothing behind. Each epic is a
+        work item with no parent; each of its stories is a work item whose
+        parent is that epic. Every item lands in the first board column
+        ("Por hacer") in request order (epic, its stories, next epic, ...),
+        with no sprint and no assignee. At most 10 epics, 10 stories per epic
+        and 50 items in total. aiGenerated/aiModel are batch-level,
+        client-asserted provenance stamped on every created item. No
+        permission beyond authentication is required, like createProject.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectWithBacklogRequest'
+      responses:
+        '201':
+          description: Project, board columns, epics and stories created atomically
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          description: Validation failed, or start date is after estimated end date
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: Code already belongs to another project
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/projects/{id}:
     get:
       summary: Get a project by id
@@ -2075,6 +2123,74 @@ components:
           type: string
           maxLength: 500
           pattern: '^$|^https?://\S+$'
+    ProjectWithBacklogRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        code:
+          type: string
+          maxLength: 50
+          pattern: '^[A-Za-z0-9_-]*$'
+        startDate:
+          type: string
+          format: date
+        estimatedEndDate:
+          type: string
+          format: date
+        technologies:
+          type: string
+          maxLength: 1000
+        repositoryUrl:
+          type: string
+          maxLength: 500
+          pattern: '^$|^https?://\S+$'
+        epics:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/BacklogEpicRequest'
+        aiGenerated:
+          type: [boolean, 'null']
+          description: >-
+            Batch-level client-asserted provenance flag stamped on every
+            created work item. Omitted or null is stored as false.
+        aiModel:
+          type: [string, 'null']
+          maxLength: 120
+          description: >-
+            Batch-level client-asserted model name stamped on every created
+            work item.
+    BacklogEpicRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        stories:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/BacklogStoryRequest'
+    BacklogStoryRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
     ProjectUpdateRequest:
       type: object
       required: [name]

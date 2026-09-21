@@ -14,7 +14,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flowpilot.dto.BoardColumnResponse;
+import com.flowpilot.dto.BacklogEpicRequest;
+import com.flowpilot.dto.BacklogStoryRequest;
 import com.flowpilot.dto.ProjectCreateRequest;
+import com.flowpilot.dto.ProjectWithBacklogRequest;
 import com.flowpilot.dto.ProjectResponse;
 import com.flowpilot.dto.ProjectStatusUpdateRequest;
 import com.flowpilot.dto.ProjectUpdateRequest;
@@ -220,6 +223,139 @@ class ProjectControllerTest {
      * principal (mirrors {@code JwtAuthenticationFilter}'s principal shape:
      * the userId as a string).
      */
+    @Test
+    void createWithBacklogReturns201AndIsNotShadowedByTheIdMapping() throws Exception {
+        ProjectResponse response = projectResponse(5L, "Apollo", 42L, ProjectStatus.PLANIFICACION);
+        when(projectService.createWithBacklog(any(ProjectWithBacklogRequest.class), eq(42L))).thenReturn(response);
+
+        mockMvc.perform(post("/api/projects/with-backlog")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content(withBacklogJson("Apollo", List.of(
+                                new BacklogEpicRequest("Epic", null, List.of(new BacklogStoryRequest("Story", null)))))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(5))
+                .andExpect(jsonPath("$.ownerId").value(42));
+    }
+
+    @Test
+    void createWithBacklogDuplicateCodeReturns409() throws Exception {
+        when(projectService.createWithBacklog(any(ProjectWithBacklogRequest.class), eq(42L)))
+                .thenThrow(new DuplicateProjectCodeException("ABC"));
+
+        mockMvc.perform(post("/api/projects/with-backlog")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content(withBacklogJson("Apollo", List.of())))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void createWithBacklogBlankStoryTitleReturns400NamingTheIndexedPath() throws Exception {
+        mockMvc.perform(post("/api/projects/with-backlog")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content(withBacklogJson("Apollo", List.of(
+                                new BacklogEpicRequest("E0", null, List.of()),
+                                new BacklogEpicRequest("E1", null, List.of(
+                                        new BacklogStoryRequest("ok", null), new BacklogStoryRequest(" ", null)))))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors['epics[1].stories[1].title']").exists());
+    }
+
+    @Test
+    void createWithBacklogRejectsMoreThanTenEpics() throws Exception {
+        List<BacklogEpicRequest> epics = java.util.stream.IntStream.range(0, 11)
+                .mapToObj(i -> new BacklogEpicRequest("E" + i, null, List.of())).toList();
+
+        mockMvc.perform(post("/api/projects/with-backlog")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content(withBacklogJson("Apollo", epics)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.epics").exists());
+    }
+
+    @Test
+    void createWithBacklogRejectsMoreThanTenStoriesInOneEpic() throws Exception {
+        List<BacklogStoryRequest> stories = java.util.stream.IntStream.range(0, 11)
+                .mapToObj(i -> new BacklogStoryRequest("S" + i, null)).toList();
+
+        mockMvc.perform(post("/api/projects/with-backlog")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content(withBacklogJson("Apollo", List.of(
+                                new BacklogEpicRequest("E0", null, List.of()),
+                                new BacklogEpicRequest("E1", null, stories)))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors['epics[1].stories']").exists());
+    }
+
+    @Test
+    void createWithBacklogRejectsMoreThanFiftyItemsInTotal() throws Exception {
+        // 6 epics x (1 + 9 stories) = 60 items, every individual limit respected.
+        List<BacklogStoryRequest> stories = java.util.stream.IntStream.range(0, 9)
+                .mapToObj(i -> new BacklogStoryRequest("S" + i, null)).toList();
+        List<BacklogEpicRequest> epics = java.util.stream.IntStream.range(0, 6)
+                .mapToObj(i -> new BacklogEpicRequest("E" + i, null, stories)).toList();
+
+        mockMvc.perform(post("/api/projects/with-backlog")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content(withBacklogJson("Apollo", epics)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.totalItemsWithinLimit").exists());
+    }
+
+    @Test
+    void createWithBacklogBlankNameReturns400() throws Exception {
+        mockMvc.perform(post("/api/projects/with-backlog")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content(withBacklogJson(" ", List.of())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.name").exists());
+    }
+
+    @Test
+    void createWithBacklogNullEpicReturns400NamingTheIndex() throws Exception {
+        mockMvc.perform(post("/api/projects/with-backlog")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content("{\"name\":\"Apollo\",\"epics\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Error de validación"))
+                .andExpect(jsonPath("$.errors['epics[0]']").value("La épica no puede ser nula"));
+    }
+
+    @Test
+    void createWithBacklogNullStoryReturns400NamingTheIndex() throws Exception {
+        mockMvc.perform(post("/api/projects/with-backlog")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content("{\"name\":\"Apollo\",\"epics\":[{\"title\":\"x\",\"stories\":[null]}]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Error de validación"))
+                .andExpect(jsonPath("$.errors['epics[0].stories[0]']").value("La historia no puede ser nula"));
+    }
+
+    @Test
+    void createWithBacklogMixedValidAndNullEntriesReturns400() throws Exception {
+        mockMvc.perform(post("/api/projects/with-backlog")
+                        .principal(authenticatedAs(42L))
+                        .contentType("application/json")
+                        .content("{\"name\":\"Apollo\",\"epics\":[{\"title\":\"ok\",\"stories\":[{\"title\":\"s\"}]},"
+                                + "null,{\"title\":\"e2\",\"stories\":[{\"title\":\"s\"},null]}]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors['epics[1]']").exists())
+                .andExpect(jsonPath("$.errors['epics[2].stories[1]']").exists());
+    }
+
+    private String withBacklogJson(String name, List<BacklogEpicRequest> epics) throws Exception {
+        return objectMapper.writeValueAsString(new ProjectWithBacklogRequest(
+                name, "desc", null, null, null, null, null, epics, true, "llama3"));
+    }
+
     private UsernamePasswordAuthenticationToken authenticatedAs(Long userId) {
         return new UsernamePasswordAuthenticationToken(String.valueOf(userId), null, List.of());
     }

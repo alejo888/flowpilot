@@ -5,12 +5,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowpilot.dto.BoardColumnResponse;
+import com.flowpilot.dto.BacklogEpicRequest;
 import com.flowpilot.dto.ProjectCreateRequest;
+import com.flowpilot.dto.ProjectWithBacklogRequest;
+import com.flowpilot.entity.ActivityEventType;
 import com.flowpilot.dto.ProjectResponse;
 import com.flowpilot.dto.ProjectStatusUpdateRequest;
 import com.flowpilot.dto.ProjectUpdateRequest;
@@ -53,6 +57,7 @@ class ProjectServiceTest {
 
     private ProjectAuthorizationService authorizationService;
     private ProjectActivityService activityService;
+    private WorkItemService workItemService;
 
     private ProjectService projectService;
 
@@ -60,8 +65,57 @@ class ProjectServiceTest {
     void setUp() {
         authorizationService = mock(ProjectAuthorizationService.class);
         activityService = mock(ProjectActivityService.class);
+        workItemService = mock(WorkItemService.class);
         projectService = new ProjectService(
-                projectRepository, boardColumnRepository, userRepository, authorizationService, activityService);
+                projectRepository, boardColumnRepository, userRepository, authorizationService, activityService,
+                workItemService);
+    }
+
+    private static ProjectWithBacklogRequest withBacklog(String code, List<BacklogEpicRequest> epics) {
+        return new ProjectWithBacklogRequest("Apollo", "desc", code, null, null, null, null, epics, true, "llama3");
+    }
+
+    @Test
+    void createWithBacklogCreatesProjectColumnsActivityAndDelegatesTheBacklog() throws Exception {
+        when(projectRepository.save(any(Project.class))).thenAnswer(invocation -> {
+            Project p = invocation.getArgument(0);
+            setId(p, 10L);
+            return p;
+        });
+        List<BacklogEpicRequest> epics = List.of(new BacklogEpicRequest("Epic", null, List.of()));
+
+        ProjectResponse response = projectService.createWithBacklog(withBacklog(null, epics), 1L);
+
+        assertThat(response.id()).isEqualTo(10L);
+        assertThat(response.ownerId()).isEqualTo(1L);
+        verify(boardColumnRepository, times(4)).save(any(BoardColumn.class));
+        verify(activityService).record(eq(10L), eq(1L), eq(ActivityEventType.PROJECT_CREATED),
+                eq("Se creó el proyecto \"Apollo\""), eq("{}"));
+        verify(workItemService).createInitialBacklog(10L, 1L, epics, true, "llama3");
+    }
+
+    @Test
+    void createWithBacklogDuplicateCodeThrows409AndCreatesNothing() {
+        when(projectRepository.existsByCodeIgnoreCase("ABC")).thenReturn(true);
+
+        assertThatThrownBy(() -> projectService.createWithBacklog(withBacklog("ABC", List.of()), 1L))
+                .isInstanceOf(DuplicateProjectCodeException.class);
+
+        verify(projectRepository, never()).save(any());
+        verify(boardColumnRepository, never()).save(any());
+        verify(workItemService, never()).createInitialBacklog(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void createWithBacklogInvalidDatesThrowsAndCreatesNothing() {
+        ProjectWithBacklogRequest request = new ProjectWithBacklogRequest("Apollo", null, null,
+                LocalDate.of(2026, 6, 1), LocalDate.of(2026, 1, 1), null, null, List.of(), null, null);
+
+        assertThatThrownBy(() -> projectService.createWithBacklog(request, 1L))
+                .isInstanceOf(InvalidProjectDatesException.class);
+
+        verify(projectRepository, never()).save(any());
+        verify(workItemService, never()).createInitialBacklog(any(), any(), any(), any(), any());
     }
 
     @Test
