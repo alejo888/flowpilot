@@ -1,6 +1,7 @@
 package com.flowpilot.service;
 
 import com.flowpilot.dto.GeneratedAcceptanceCriteriaResponse;
+import com.flowpilot.dto.GeneratedRiskAdvice;
 import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
 
@@ -68,6 +69,18 @@ public interface AiPlanningService {
      *     or the model output is incomplete; no retry is attempted
      */
     GeneratedUserStoryResponse generateStoryImprovement(String storyContext);
+
+    /**
+     * Writes a short summary and 1..6 recommendations over deterministic risk
+     * signals (vision 7.6). The AI never detects risks itself.
+     *
+     * @param riskContext the composed signal list from {@link AiRiskContext#compose};
+     *     treated purely as content, never as instructions
+     * @return a non-persisted advice draft
+     * @throws com.flowpilot.exception.AiGenerationException if generation fails or
+     *     the model returns no usable recommendation; no retry is attempted
+     */
+    GeneratedRiskAdvice analyzeRisks(String riskContext);
 
     /**
      * Composes the Spanish user-story sentence backend-side (spec:

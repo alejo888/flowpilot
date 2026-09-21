@@ -15,6 +15,10 @@ import com.flowpilot.dto.AiProvider;
 import com.flowpilot.dto.GeneratedAcceptanceCriteriaResponse;
 import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
+import com.flowpilot.dto.RiskAnalysisResponse;
+import com.flowpilot.dto.RiskSeverity;
+import com.flowpilot.dto.RiskSignalResponse;
+import com.flowpilot.dto.RiskSignalType;
 import com.flowpilot.dto.SubtaskDraft;
 import com.flowpilot.dto.UserStoryDraft;
 import com.flowpilot.exception.AiGenerationException;
@@ -23,6 +27,7 @@ import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.security.JwtService;
 import com.flowpilot.security.SecurityConfig;
 import com.flowpilot.service.AiAcceptanceCriteriaService;
+import com.flowpilot.service.AiRiskAnalysisService;
 import com.flowpilot.service.AiStoryImprovementService;
 import com.flowpilot.service.AiSubtaskService;
 import com.flowpilot.service.AiUserStoryService;
@@ -64,6 +69,9 @@ class AiControllerTest {
 
     @MockitoBean
     private AiStoryImprovementService aiStoryImprovementService;
+
+    @MockitoBean
+    private AiRiskAnalysisService aiRiskAnalysisService;
 
     @MockitoBean
     private JwtService jwtService;
@@ -490,6 +498,72 @@ class AiControllerTest {
                         .with(caller())
                         .contentType("application/json")
                         .content("{\"workItemId\":55}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.detail").value("El asistente de IA no está disponible en este momento."));
+    }
+
+    // --- POST /api/projects/{projectId}/ai/risk-analysis (vision 7.6) ---
+
+    private static final String RISK_PATH = "/api/projects/{projectId}/ai/risk-analysis";
+
+    @Test
+    void riskAnalysisReturns200WithSignalsSummaryAndRecommendations() throws Exception {
+        when(aiRiskAnalysisService.analyze(eq(PROJECT_ID), eq(CALLER_ID)))
+                .thenReturn(new RiskAnalysisResponse(
+                        List.of(new RiskSignalResponse(
+                                RiskSignalType.UNASSIGNED_HIGH_PRIORITY,
+                                RiskSeverity.HIGH,
+                                "Tarea urgente sin responsable",
+                                "detalle",
+                                55L,
+                                null)),
+                        "Resumen",
+                        List.of("Asignar la tarea"),
+                        AiProvider.STUB,
+                        null));
+
+        mockMvc.perform(post(RISK_PATH, PROJECT_ID).with(caller()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.signals.length()").value(1))
+                .andExpect(jsonPath("$.signals[0].type").value("UNASSIGNED_HIGH_PRIORITY"))
+                .andExpect(jsonPath("$.signals[0].severity").value("HIGH"))
+                .andExpect(jsonPath("$.signals[0].workItemId").value(55))
+                .andExpect(jsonPath("$.summary").value("Resumen"))
+                .andExpect(jsonPath("$.recommendations[0]").value("Asignar la tarea"))
+                .andExpect(jsonPath("$.generatedBy").value("STUB"));
+    }
+
+    @Test
+    void riskAnalysisAnonymousReturns401() throws Exception {
+        mockMvc.perform(post(RISK_PATH, PROJECT_ID)).andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(aiRiskAnalysisService);
+    }
+
+    @Test
+    void riskAnalysisCallerWhoCannotViewReturns403Spanish() throws Exception {
+        when(aiRiskAnalysisService.analyze(eq(PROJECT_ID), eq(CALLER_ID)))
+                .thenThrow(new AccessDeniedException("No autorizado para analizar los riesgos del proyecto"));
+
+        mockMvc.perform(post(RISK_PATH, PROJECT_ID).with(caller()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value("No autorizado para analizar los riesgos del proyecto"));
+    }
+
+    @Test
+    void riskAnalysisUnknownProjectReturns404() throws Exception {
+        when(aiRiskAnalysisService.analyze(eq(PROJECT_ID), eq(CALLER_ID)))
+                .thenThrow(new ProjectNotFoundException(PROJECT_ID));
+
+        mockMvc.perform(post(RISK_PATH, PROJECT_ID).with(caller())).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void riskAnalysisAiGenerationFailureReturns503WithSpanishDetail() throws Exception {
+        when(aiRiskAnalysisService.analyze(eq(PROJECT_ID), eq(CALLER_ID)))
+                .thenThrow(new AiGenerationException("no recommendations"));
+
+        mockMvc.perform(post(RISK_PATH, PROJECT_ID).with(caller()))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.detail").value("El asistente de IA no está disponible en este momento."));
     }
