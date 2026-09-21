@@ -61,6 +61,10 @@ export class AiProjectsComponent {
   private seededDraft: ProjectDraftResponse | null = null;
 
   constructor() {
+    // The store is root-scoped and outlives this component; a fresh visit must
+    // start at step 1 with no stale draft/error (createdProjectId is only read
+    // right after a confirm, before any later visit).
+    this.store.restart();
     effect(() => {
       const draft = this.store.draft();
       if (draft && draft !== this.seededDraft) {

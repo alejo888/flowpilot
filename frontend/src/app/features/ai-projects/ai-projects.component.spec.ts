@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { AiProjectsApiService } from './ai-projects.api';
 import { AiProjectsComponent } from './ai-projects.component';
@@ -257,6 +257,59 @@ describe('AiProjectsComponent', () => {
       expect(alert?.textContent).toContain('Obligatorio');
       expect((q('ai-project-name') as HTMLInputElement).value).toBe('Tienda online');
       expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('disables discard while a confirm is in flight and keeps the edits on a late failure', async () => {
+      await generateDraft();
+      const pending = new Subject<{ id: number }>();
+      api.createProjectWithBacklog.mockReturnValue(pending);
+      setValue('ai-project-name', 'Mi tienda');
+      click('ai-project-confirm');
+
+      expect((q('ai-project-discard') as HTMLButtonElement).disabled).toBe(true);
+      fixture.componentInstance.discard();
+      fixture.detectChanges();
+      expect(q('ai-project-name')).toBeTruthy();
+
+      pending.error(new HttpErrorResponse({ status: 409, error: { detail: 'Código duplicado' } }));
+      await settle();
+
+      expect((q('ai-project-name') as HTMLInputElement).value).toBe('Mi tienda');
+      expect(q('ai-project-code')?.closest('fp-input')?.textContent).toContain('Código duplicado');
+      expect((q('ai-project-discard') as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('still navigates once when the confirm succeeds after an ignored discard', async () => {
+      await generateDraft();
+      const pending = new Subject<{ id: number }>();
+      api.createProjectWithBacklog.mockReturnValue(pending);
+      click('ai-project-confirm');
+      fixture.componentInstance.discard();
+
+      pending.next({ id: 5 });
+      pending.complete();
+      await settle();
+
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(navigate).toHaveBeenCalledWith(['/projects', 5, 'board']);
+    });
+
+    it('starts clean at step 1 when the route is re-entered', async () => {
+      api.createProjectWithBacklog.mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 400, error: { detail: 'Datos inválidos' } })),
+      );
+      await generateDraft();
+      click('ai-project-confirm');
+      await settle();
+      expect(q('ai-project-error')).toBeTruthy();
+
+      fixture.destroy();
+      fixture = TestBed.createComponent(AiProjectsComponent);
+      fixture.detectChanges();
+
+      expect(q('ai-project-error')).toBeNull();
+      expect(q('ai-project-name')).toBeNull();
+      expect(q('ai-project-generate')).toBeTruthy();
     });
 
     it('discarding the proposal returns to step 1', async () => {

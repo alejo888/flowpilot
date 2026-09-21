@@ -112,7 +112,7 @@
         [disabled]="!canConfirm()"
         (click)="confirm()"
       >Crear proyecto</fp-button>
-      <fp-button type="button" variant="secondary" testId="ai-project-discard" (click)="discard()">
+      <fp-button type="button" variant="secondary" testId="ai-project-discard" [disabled]="store.submitting()" (click)="discard()">
         Descartar propuesta
       </fp-button>
     </div>

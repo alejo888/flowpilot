@@ -119,6 +119,41 @@ describe('AiProjectsStore', () => {
     expect(store.draft()?.name).toBe('Nuevo');
   });
 
+  it('reset() is ignored while a confirm is in flight and a late failure keeps the draft', async () => {
+    api.generateDraft.mockReturnValue(of(draft()));
+    await store.generate('x');
+    const pending = new Subject<{ id: number }>();
+    api.createProjectWithBacklog.mockReturnValue(pending);
+
+    const result = store.confirm(request);
+    store.reset();
+    expect(store.draft()).not.toBeNull();
+    expect(store.submitting()).toBe(true);
+
+    pending.error(new HttpErrorResponse({ status: 409, error: { detail: 'Código duplicado' } }));
+
+    expect(await result).toBe(false);
+    expect(store.draft()).not.toBeNull();
+    expect(store.codeError()).toBe('Código duplicado');
+  });
+
+  it('restart() invalidates an in-flight confirm so a late success is ignored', async () => {
+    api.generateDraft.mockReturnValue(of(draft()));
+    await store.generate('x');
+    const pending = new Subject<{ id: number }>();
+    api.createProjectWithBacklog.mockReturnValue(pending);
+
+    const result = store.confirm(request);
+    store.restart();
+    pending.next({ id: 9 });
+    pending.complete();
+
+    expect(await result).toBe(false);
+    expect(store.createdProjectId()).toBeNull();
+    expect(store.submitting()).toBe(false);
+    expect(store.draft()).toBeNull();
+  });
+
   it('confirm resolves true, exposes the created id and clears the draft', async () => {
     api.generateDraft.mockReturnValue(of(draft()));
     await store.generate('x');

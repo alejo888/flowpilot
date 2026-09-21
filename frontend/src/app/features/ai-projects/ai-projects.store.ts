@@ -33,6 +33,8 @@ export class AiProjectsStore {
 
   /** Bumped by every generate() and reset(); a response only lands if it still matches. */
   private generation = 0;
+  /** Bumped by restart(); an in-flight confirm only lands if it still matches. */
+  private confirmation = 0;
 
   generate(description: string): Promise<boolean> {
     const token = ++this.generation;
@@ -66,6 +68,7 @@ export class AiProjectsStore {
   }
 
   confirm(request: ProjectWithBacklogRequest): Promise<boolean> {
+    const token = ++this.confirmation;
     this.submitting.set(true);
     this.clearErrors();
     this.createdProjectId.set(null);
@@ -73,12 +76,20 @@ export class AiProjectsStore {
     return new Promise((resolve) =>
       this.api.createProjectWithBacklog(request).subscribe({
         next: (project) => {
+          if (token !== this.confirmation) {
+            resolve(false);
+            return;
+          }
           this.submitting.set(false);
-          this.reset();
+          this.clearDraft();
           this.createdProjectId.set(project.id);
           resolve(true);
         },
         error: (err: unknown) => {
+          if (token !== this.confirmation) {
+            resolve(false);
+            return;
+          }
           this.submitting.set(false);
           const message = detail(err);
           if ((err as HttpErrorResponse)?.status === 409) {
@@ -93,8 +104,31 @@ export class AiProjectsStore {
     );
   }
 
-  /** Drops draft, provenance and errors and invalidates any in-flight generate. */
+  /**
+   * Drops draft, provenance and errors and invalidates any in-flight generate.
+   * A no-op while a confirm is in flight: discarding then would lose the user's
+   * edits if the POST fails and would contradict a POST that succeeds.
+   */
   reset(): void {
+    if (this.submitting()) {
+      return;
+    }
+    this.clearDraft();
+  }
+
+  /**
+   * Unconditional clean slate for a fresh visit to the screen: also invalidates
+   * an in-flight confirm (the root-scoped store outlives the component) so its
+   * late result cannot repopulate state.
+   */
+  restart(): void {
+    this.confirmation++;
+    this.submitting.set(false);
+    this.createdProjectId.set(null);
+    this.clearDraft();
+  }
+
+  private clearDraft(): void {
     this.generation++;
     this.loading.set(false);
     this.draft.set(null);
