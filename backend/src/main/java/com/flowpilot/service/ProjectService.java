@@ -5,6 +5,7 @@ import com.flowpilot.dto.ProjectCreateRequest;
 import com.flowpilot.dto.ProjectResponse;
 import com.flowpilot.dto.ProjectStatusUpdateRequest;
 import com.flowpilot.dto.ProjectUpdateRequest;
+import com.flowpilot.dto.ProjectWithBacklogRequest;
 import com.flowpilot.entity.BoardColumn;
 import com.flowpilot.entity.ActivityEventType;
 import com.flowpilot.entity.GlobalRole;
@@ -45,18 +46,21 @@ public class ProjectService {
     private final UserRepository userRepository;
     private final ProjectAuthorizationService authorizationService;
     private final ProjectActivityService activityService;
+    private final WorkItemService workItemService;
 
     public ProjectService(
             ProjectRepository projectRepository,
             BoardColumnRepository boardColumnRepository,
             UserRepository userRepository,
             ProjectAuthorizationService authorizationService,
-            ProjectActivityService activityService) {
+            ProjectActivityService activityService,
+            WorkItemService workItemService) {
         this.projectRepository = projectRepository;
         this.boardColumnRepository = boardColumnRepository;
         this.userRepository = userRepository;
         this.authorizationService = authorizationService;
         this.activityService = activityService;
+        this.workItemService = workItemService;
     }
 
     @Transactional
@@ -73,6 +77,21 @@ public class ProjectService {
         seedDefaultColumns(project.getId());
         record(project.getId(), ownerId, ActivityEventType.PROJECT_CREATED, "Se creó el proyecto \"" + project.getName() + "\"");
         return toResponse(project, ownerId);
+    }
+
+    /**
+     * Creates a project and its initial backlog (epics with stories) in ONE
+     * transaction: any failure, including a duplicate code or a bad item,
+     * rolls back the project, its columns, every work item and every activity
+     * event. Project validation and seeding reuse {@link #create}; the caller
+     * is the brand-new owner, so no permission check applies.
+     */
+    @Transactional
+    public ProjectResponse createWithBacklog(ProjectWithBacklogRequest request, Long ownerId) {
+        ProjectResponse project = create(request.toProjectRequest(), ownerId);
+        workItemService.createInitialBacklog(
+                project.id(), ownerId, request.epics(), request.aiGenerated(), request.aiModel());
+        return project;
     }
 
     private void seedDefaultColumns(Long projectId) {

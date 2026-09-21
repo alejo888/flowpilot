@@ -1,5 +1,7 @@
 package com.flowpilot.service;
 
+import com.flowpilot.dto.BacklogEpicRequest;
+import com.flowpilot.dto.BacklogStoryRequest;
 import com.flowpilot.dto.WorkItemCreateRequest;
 import com.flowpilot.dto.WorkItemResponse;
 import com.flowpilot.dto.WorkItemUpdateRequest;
@@ -141,6 +143,52 @@ public class WorkItemService {
             position += POSITION_STEP;
         }
         return created;
+    }
+
+    /**
+     * Creates the initial backlog of a brand-new project: each epic as a
+     * parentless work item followed by its stories as its children, all in the
+     * project's first column with sequential positions, no sprint, no
+     * assignee. Runs inside the caller's transaction (the project's creator is
+     * its owner, so there is no permission check and no batch-size cap here;
+     * the request DTO owns the limits). Provenance is batch-level. One {@code
+     * WORK_ITEM_CREATED} event is recorded per item.
+     */
+    @Transactional
+    public void createInitialBacklog(
+            Long projectId, Long actorId, List<BacklogEpicRequest> epics, Boolean aiGenerated, String aiModel) {
+        if (epics.isEmpty()) {
+            return;
+        }
+        BoardColumn firstColumn = boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(projectId)
+                .orElseThrow(() -> BoardColumnNotFoundException.forProject(projectId));
+        boolean ai = Boolean.TRUE.equals(aiGenerated);
+        int position = nextPosition(firstColumn.getId());
+        for (BacklogEpicRequest epic : epics) {
+            WorkItem epicItem = saveBacklogItem(
+                    projectId, actorId, firstColumn.getId(), epic.title(), epic.description(), null, position, ai, aiModel);
+            position += POSITION_STEP;
+            for (BacklogStoryRequest story : epic.stories()) {
+                saveBacklogItem(projectId, actorId, firstColumn.getId(), story.title(), story.description(),
+                        epicItem.getId(), position, ai, aiModel);
+                position += POSITION_STEP;
+            }
+        }
+    }
+
+    private WorkItem saveBacklogItem(
+            Long projectId, Long actorId, Long columnId, String title, String description,
+            Long parentId, int position, boolean aiGenerated, String aiModel) {
+        WorkItem item = new WorkItem(projectId, columnId, title, description, null, position, null, null);
+        item.setAiGenerated(aiGenerated);
+        item.setAiModel(aiModel);
+        item.setParentWorkItemId(parentId);
+        item = workItemRepository.save(item);
+        if (activityService != null) {
+            activityService.record(projectId, actorId, ActivityEventType.WORK_ITEM_CREATED,
+                    "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
+        }
+        return item;
     }
 
     public WorkItemResponse findById(Long id, Long requesterId) {
