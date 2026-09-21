@@ -36,6 +36,13 @@ export const routes: Routes = [
       import('./features/projects/projects.component').then((m) => m.ProjectsComponent)
   },
   {
+    // Registered before `projects/:projectId` so "ai" is never parsed as a project id.
+    path: 'projects/ai/new',
+    canActivate: [authGuard, aiEnabledGuard],
+    loadComponent: () =>
+      import('./features/ai-projects/ai-projects.component').then((m) => m.AiProjectsComponent)
+  },
+  {
     path: 'projects/:projectId',
     canActivate: [authGuard],
     loadComponent: () =>

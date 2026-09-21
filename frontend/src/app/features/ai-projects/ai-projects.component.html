@@ -1,0 +1,120 @@
+<main class="ai-projects">
+  <header class="ai-projects-header">
+    <a class="back-link" routerLink="/projects"><fp-icon name="arrow-left" /> Volver a proyectos</a>
+    <p class="eyebrow">Asistente de IA</p>
+    <h1>Crear proyecto con IA</h1>
+    <p class="lead">
+      Describe tu proyecto en lenguaje libre. La IA propone el proyecto, sus épicas y historias; puedes
+      editarlo todo antes de crearlo.
+    </p>
+  </header>
+
+  <div aria-live="polite">
+    @if (store.error(); as error) {
+      <div class="error" role="alert" data-testid="ai-project-error">
+        <p>{{ error }}</p>
+        @if (fieldErrorList().length > 0) {
+          <ul>
+            @for (fieldError of fieldErrorList(); track $index) {
+              <li>{{ fieldError }}</li>
+            }
+          </ul>
+        }
+      </div>
+    }
+  </div>
+
+  @if (!store.draft()) {
+    <fp-card>
+      <div class="field">
+        <label for="ai-project-description-field">Descripción del proyecto</label>
+        <textarea
+          id="ai-project-description-field"
+          data-testid="ai-project-description"
+          rows="6"
+          [attr.maxlength]="maxDescription"
+          [value]="requirement()"
+          (input)="requirement.set(inputValue($event))"
+          placeholder="Quiero una aplicación para…"
+        ></textarea>
+        <p class="hint" data-testid="ai-project-counter">{{ requirement().length }} / {{ maxDescription }}</p>
+      </div>
+      <fp-button
+        type="button"
+        icon="add"
+        testId="ai-project-generate"
+        [disabled]="store.loading() || !requirement().trim()"
+        (click)="generate()"
+      >Generar propuesta</fp-button>
+      <p class="hint" role="status">
+        @if (store.loading()) {
+          Generando propuesta…
+        }
+      </p>
+    </fp-card>
+  } @else {
+    <fp-card>
+      <h2>Propuesta generada</h2>
+      @if (store.generatedBy(); as provider) {
+        <p class="hint" data-testid="ai-project-provenance">
+          Generado por: {{ provider }}@if (store.model(); as model) { ({{ model }}) }
+        </p>
+      }
+
+      <fp-input
+        label="Nombre del proyecto"
+        testId="ai-project-name"
+        [value]="name()"
+        [required]="true"
+        (valueChange)="name.set($event)"
+      />
+      <div class="field">
+        <label for="ai-project-description-edit-field">Descripción</label>
+        <textarea
+          id="ai-project-description-edit-field"
+          data-testid="ai-project-description-edit"
+          rows="3"
+          [value]="description()"
+          (input)="description.set(inputValue($event))"
+        ></textarea>
+      </div>
+      <fp-input
+        label="Tecnologías"
+        testId="ai-project-technologies"
+        [value]="technologies()"
+        (valueChange)="technologies.set($event)"
+      />
+      <fp-input
+        label="Código (opcional)"
+        testId="ai-project-code"
+        [value]="code()"
+        [error]="store.codeError()"
+        (valueChange)="code.set($event)"
+      />
+      <p class="hint">Solo letras, números, guion (-) y guion bajo (_); hasta 50 caracteres.</p>
+    </fp-card>
+
+    <fp-card>
+      <h2>Épicas e historias</h2>
+      <fp-ai-project-epics-editor [epics]="epics()" (epicsChange)="epics.set($event)" />
+    </fp-card>
+
+    @if (hasBlankTitle()) {
+      <p class="hint" data-testid="ai-project-blank-hint">
+        El nombre del proyecto y los títulos de épicas e historias no pueden estar vacíos.
+      </p>
+    }
+    <div class="actions">
+      <fp-button
+        type="button"
+        icon="check"
+        testId="ai-project-confirm"
+        [disabled]="!canConfirm()"
+        (click)="confirm()"
+      >Crear proyecto</fp-button>
+      <fp-button type="button" variant="secondary" testId="ai-project-discard" [disabled]="store.submitting()" (click)="discard()">
+        Descartar propuesta
+      </fp-button>
+    </div>
+  }
+</main>
