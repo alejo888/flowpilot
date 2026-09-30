@@ -20,6 +20,10 @@ export interface ConfirmUserStoryPayload {
  * only once the server confirmed — mirroring `CommentsStore` so a caller can
  * keep the user's typed text on failure instead of discarding it. Nothing here
  * touches the component's editable form state.
+ *
+ * The store is root-scoped, so the screen calls {@link reset} on entry; a
+ * generate or confirm response that lands after that reset is dropped instead
+ * of leaking a draft, message or flag into another project or visit.
  */
 @Injectable({ providedIn: 'root' })
 export class AiStoriesStore {
@@ -35,7 +39,13 @@ export class AiStoriesStore {
   readonly generatedBy = signal<AiProvider | null>(null);
   readonly model = signal<string | null>(null);
 
+  /** Bumped by every generate() and reset(); a response only lands if it still matches. */
+  private generation = 0;
+  /** Bumped by every confirm() and reset(); a confirm response only lands if it still matches. */
+  private confirmation = 0;
+
   generate(projectId: number, requirement: string): Promise<boolean> {
+    const token = ++this.generation;
     this.loading.set(true);
     this.error.set(null);
     this.success.set(null);
@@ -43,6 +53,10 @@ export class AiStoriesStore {
     return new Promise((resolve) =>
       this.api.generateUserStory(projectId, { requirement }).subscribe({
         next: (response) => {
+          if (token !== this.generation) {
+            resolve(false);
+            return;
+          }
           this.draft.set(response.userStory);
           this.criteria.set([...response.acceptanceCriteria]);
           this.generatedBy.set(response.generatedBy);
@@ -51,6 +65,10 @@ export class AiStoriesStore {
           resolve(true);
         },
         error: (err: unknown) => {
+          if (token !== this.generation) {
+            resolve(false);
+            return;
+          }
           this.loading.set(false);
           this.error.set(message(err, 'No se pudo generar la historia de usuario'));
           resolve(false);
@@ -60,6 +78,7 @@ export class AiStoriesStore {
   }
 
   confirm(projectId: number, payload: ConfirmUserStoryPayload): Promise<boolean> {
+    const token = ++this.confirmation;
     this.submitting.set(true);
     this.error.set(null);
     this.success.set(null);
@@ -75,12 +94,20 @@ export class AiStoriesStore {
         })
         .subscribe({
           next: () => {
+            if (token !== this.confirmation) {
+              resolve(false);
+              return;
+            }
             this.submitting.set(false);
             this.success.set('Tarea creada a partir de la historia generada.');
-            this.reset();
+            this.clearDraft();
             resolve(true);
           },
           error: (err: unknown) => {
+            if (token !== this.confirmation) {
+              resolve(false);
+              return;
+            }
             this.submitting.set(false);
             this.error.set(message(err, 'No se pudo crear la tarea'));
             resolve(false);
@@ -89,7 +116,18 @@ export class AiStoriesStore {
     );
   }
 
+  /** Clears draft, flags and messages and invalidates any in-flight generate or confirm, e.g. on screen entry. */
   reset(): void {
+    this.generation++;
+    this.confirmation++;
+    this.loading.set(false);
+    this.submitting.set(false);
+    this.error.set(null);
+    this.success.set(null);
+    this.clearDraft();
+  }
+
+  private clearDraft(): void {
     this.draft.set(null);
     this.criteria.set([]);
     this.generatedBy.set(null);
