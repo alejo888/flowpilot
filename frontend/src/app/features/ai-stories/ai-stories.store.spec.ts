@@ -151,8 +151,11 @@ describe('AiStoriesStore', () => {
   });
 
   it('clears loading, error and success on reset', async () => {
-    api.generateUserStory.mockReturnValue(throwError(() => ({ error: { detail: 'Fallo' } })));
+    api.generateUserStory.mockReturnValue(of(generated()));
     await store.generate(10, 'algo');
+    board.createWorkItem.mockReturnValue(of({ id: 1 }));
+    await store.confirm(10, { title: 'T', description: 'D', acceptanceCriteria: [] });
+    expect(store.success()).not.toBeNull();
     api.generateUserStory.mockReturnValue(new Subject<GeneratedUserStoryResponse>().asObservable());
     void store.generate(10, 'otra');
 
@@ -161,5 +164,40 @@ describe('AiStoriesStore', () => {
     expect(store.loading()).toBe(false);
     expect(store.error()).toBeNull();
     expect(store.success()).toBeNull();
+  });
+
+  it('ignores a confirm response that lands after reset, keeping the new visit draft', async () => {
+    api.generateUserStory.mockReturnValue(of(generated()));
+    await store.generate(10, 'algo');
+    const pending = new Subject<{ id: number }>();
+    board.createWorkItem.mockReturnValue(pending.asObservable());
+
+    const result = store.confirm(10, { title: 'T', description: 'D', acceptanceCriteria: [] });
+    store.reset();
+    expect(store.submitting()).toBe(false);
+    api.generateUserStory.mockReturnValue(of(generated({ model: 'nuevo' })));
+    await store.generate(20, 'otra visita');
+    pending.next({ id: 1 });
+    pending.complete();
+
+    expect(await result).toBe(false);
+    expect(store.draft()).not.toBeNull();
+    expect(store.model()).toBe('nuevo');
+    expect(store.success()).toBeNull();
+    expect(store.submitting()).toBe(false);
+  });
+
+  it('ignores a confirm error that lands after reset', async () => {
+    api.generateUserStory.mockReturnValue(of(generated()));
+    await store.generate(10, 'algo');
+    const pending = new Subject<{ id: number }>();
+    board.createWorkItem.mockReturnValue(pending.asObservable());
+
+    const result = store.confirm(10, { title: 'T', description: 'D', acceptanceCriteria: [] });
+    store.reset();
+    pending.error({ error: { detail: 'Sin permiso' } });
+
+    expect(await result).toBe(false);
+    expect(store.error()).toBeNull();
   });
 });
