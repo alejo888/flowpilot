@@ -39,6 +39,7 @@ export class AiStoriesComponent {
   private seededDraft: UserStoryDraft | null = null;
 
   constructor() {
+    this.store.reset();
     effect(() => {
       const draft = this.store.draft();
       const criteria = this.store.criteria();

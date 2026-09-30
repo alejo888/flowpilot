@@ -66,6 +66,10 @@ describe('AiStoriesComponent', () => {
     fixture.detectChanges();
   }
 
+  it('resets the shared store on entry so a draft from another project never shows up', () => {
+    expect(storeStub.reset).toHaveBeenCalledTimes(1);
+  });
+
   it('renders the requirement field and a generate action', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('[data-testid="ai-requirement"]')).not.toBeNull();

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { BoardApiService } from '../board/board-api.service';
 import { AiStoriesApiService } from './ai-stories.api';
@@ -121,5 +121,45 @@ describe('AiStoriesStore', () => {
     expect(store.error()).toBe('Sin permiso');
     expect(store.submitting()).toBe(false);
     expect(store.draft()).not.toBeNull();
+  });
+
+  it('ignores a generate response that lands after reset (e.g. the user left the screen)', async () => {
+    const pending = new Subject<GeneratedUserStoryResponse>();
+    api.generateUserStory.mockReturnValue(pending.asObservable());
+
+    const result = store.generate(10, 'algo');
+    store.reset();
+    pending.next(generated());
+    pending.complete();
+
+    expect(await result).toBe(false);
+    expect(store.draft()).toBeNull();
+    expect(store.criteria()).toEqual([]);
+    expect(store.model()).toBeNull();
+  });
+
+  it('ignores a generate error that lands after reset', async () => {
+    const pending = new Subject<GeneratedUserStoryResponse>();
+    api.generateUserStory.mockReturnValue(pending.asObservable());
+
+    const result = store.generate(10, 'algo');
+    store.reset();
+    pending.error({ error: { detail: 'El asistente de IA no está disponible en este momento.' } });
+
+    expect(await result).toBe(false);
+    expect(store.error()).toBeNull();
+  });
+
+  it('clears loading, error and success on reset', async () => {
+    api.generateUserStory.mockReturnValue(throwError(() => ({ error: { detail: 'Fallo' } })));
+    await store.generate(10, 'algo');
+    api.generateUserStory.mockReturnValue(new Subject<GeneratedUserStoryResponse>().asObservable());
+    void store.generate(10, 'otra');
+
+    store.reset();
+
+    expect(store.loading()).toBe(false);
+    expect(store.error()).toBeNull();
+    expect(store.success()).toBeNull();
   });
 });
