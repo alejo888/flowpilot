@@ -103,8 +103,7 @@ class AiRiskAnalysisServiceTest {
     @BeforeEach
     void setUp() {
         service = new AiRiskAnalysisService(
-                projectRepository,
-                authorizationService,
+                new ProjectAccessGuard(authorizationService, projectRepository, workItemRepository),
                 workItemRepository,
                 boardColumnRepository,
                 sprintRepository,
@@ -246,8 +245,7 @@ class AiRiskAnalysisServiceTest {
     @Test
     void overloadedMemberSignalReadsTheUserNameAndFallsBackToUsuarioIdForUnknownIds() {
         service = new AiRiskAnalysisService(
-                projectRepository,
-                authorizationService,
+                new ProjectAccessGuard(authorizationService, projectRepository, workItemRepository),
                 workItemRepository,
                 boardColumnRepository,
                 sprintRepository,

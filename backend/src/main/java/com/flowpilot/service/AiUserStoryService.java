@@ -2,9 +2,6 @@ package com.flowpilot.service;
 
 import com.flowpilot.dto.GeneratedUserStoryResponse;
 import com.flowpilot.entity.Permission;
-import com.flowpilot.exception.ProjectNotFoundException;
-import com.flowpilot.repository.ProjectRepository;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -23,17 +20,12 @@ import org.springframework.stereotype.Service;
 @Service
 public class AiUserStoryService {
 
-    private final ProjectAuthorizationService authorizationService;
+    private final ProjectAccessGuard accessGuard;
     private final AiPlanningService aiPlanningService;
-    private final ProjectRepository projectRepository;
 
-    public AiUserStoryService(
-            ProjectAuthorizationService authorizationService,
-            AiPlanningService aiPlanningService,
-            ProjectRepository projectRepository) {
-        this.authorizationService = authorizationService;
+    public AiUserStoryService(ProjectAccessGuard accessGuard, AiPlanningService aiPlanningService) {
+        this.accessGuard = accessGuard;
         this.aiPlanningService = aiPlanningService;
-        this.projectRepository = projectRepository;
     }
 
     /**
@@ -46,13 +38,8 @@ public class AiUserStoryService {
      * @throws com.flowpilot.exception.AiGenerationException if generation fails
      */
     public GeneratedUserStoryResponse generate(Long projectId, String requirement, Long requesterId) {
-        if (!projectRepository.existsById(projectId)) {
-            throw new ProjectNotFoundException(projectId);
-        }
-        if (!authorizationService.hasPermission(requesterId, projectId, Permission.WORKITEM_CREATE)) {
-            throw new AccessDeniedException(
-                    "Falta el permiso " + Permission.WORKITEM_CREATE + " en el proyecto " + projectId);
-        }
+        accessGuard.requireProjectExists(projectId);
+        accessGuard.requirePermission(requesterId, projectId, Permission.WORKITEM_CREATE);
         return aiPlanningService.generateUserStory(requirement);
     }
 }

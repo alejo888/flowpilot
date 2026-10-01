@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,33 +52,37 @@ import org.springframework.transaction.annotation.Transactional;
 public class WorkItemService {
 
     private static final int POSITION_STEP = 1024;
+    private static final String VIEW_DENIED_MESSAGE =
+            "No autorizado para ver los elementos de trabajo de este proyecto";
 
     private final WorkItemRepository workItemRepository;
     private final BoardColumnRepository boardColumnRepository;
     private final UserRepository userRepository;
     private final ProjectAuthorizationService authorizationService;
-    private ProjectActivityService activityService;
     private final SprintRepository sprintRepository;
+    private final ProjectActivityService activityService;
+    private final ProjectAccessGuard accessGuard;
 
     public WorkItemService(
             WorkItemRepository workItemRepository,
             BoardColumnRepository boardColumnRepository,
             UserRepository userRepository,
             ProjectAuthorizationService authorizationService,
-            SprintRepository sprintRepository) {
+            SprintRepository sprintRepository,
+            ProjectActivityService activityService,
+            ProjectAccessGuard accessGuard) {
         this.workItemRepository = workItemRepository;
         this.boardColumnRepository = boardColumnRepository;
         this.userRepository = userRepository;
         this.authorizationService = authorizationService;
         this.sprintRepository = sprintRepository;
+        this.activityService = activityService;
+        this.accessGuard = accessGuard;
     }
-
-    @org.springframework.beans.factory.annotation.Autowired
-    void setActivityService(ProjectActivityService service) { this.activityService = service; }
 
     @Transactional
     public WorkItemResponse create(Long projectId, WorkItemCreateRequest request, Long requesterId) {
-        requirePermission(requesterId, projectId, Permission.WORKITEM_CREATE);
+        accessGuard.requirePermission(requesterId, projectId, Permission.WORKITEM_CREATE);
         BoardColumn firstColumn = boardColumnRepository.findFirstByProjectIdOrderByPositionAsc(projectId)
                 .orElseThrow(() -> BoardColumnNotFoundException.forProject(projectId));
         int position = nextPosition(firstColumn.getId());
@@ -94,7 +97,7 @@ public class WorkItemService {
         validateParent(projectId, null, request.parentWorkItemId());
         item.setParentWorkItemId(request.parentWorkItemId());
         item = workItemRepository.save(item);
-            if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED, "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
+        activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED, "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
         return toRichResponse(item);
     }
 
@@ -112,7 +115,7 @@ public class WorkItemService {
     @Transactional
     public List<WorkItemResponse> createBatch(
             Long projectId, com.flowpilot.dto.WorkItemBatchCreateRequest request, Long requesterId) {
-        requirePermission(requesterId, projectId, Permission.WORKITEM_CREATE);
+        accessGuard.requirePermission(requesterId, projectId, Permission.WORKITEM_CREATE);
         BoardColumn column = boardColumnRepository.findById(request.columnId())
                 .orElseThrow(() -> new BoardColumnNotFoundException(request.columnId()));
         if (!column.getProjectId().equals(projectId)) {
@@ -135,10 +138,8 @@ public class WorkItemService {
             item.setAiModel(aiModel);
             item.setParentWorkItemId(request.parentWorkItemId());
             item = workItemRepository.save(item);
-            if (activityService != null) {
-                activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED,
-                        "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
-            }
+            activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED,
+                    "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
             created.add(toRichResponse(item));
             position += POSITION_STEP;
         }
@@ -184,21 +185,19 @@ public class WorkItemService {
         item.setAiModel(aiModel);
         item.setParentWorkItemId(parentId);
         item = workItemRepository.save(item);
-        if (activityService != null) {
-            activityService.record(projectId, actorId, ActivityEventType.WORK_ITEM_CREATED,
-                    "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
-        }
+        activityService.record(projectId, actorId, ActivityEventType.WORK_ITEM_CREATED,
+                "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
         return item;
     }
 
     public WorkItemResponse findById(Long id, Long requesterId) {
         WorkItem item = getOrThrow(id);
-        requireCanView(requesterId, item.getProjectId());
+        accessGuard.requireCanView(requesterId, item.getProjectId(), VIEW_DENIED_MESSAGE);
         return toRichResponse(item);
     }
 
     public List<WorkItemResponse> list(Long projectId, Long requesterId) {
-        requireCanView(requesterId, projectId);
+        accessGuard.requireCanView(requesterId, projectId, VIEW_DENIED_MESSAGE);
         List<WorkItem> items = workItemRepository.findByProjectIdOrderByColumnIdAscPositionAsc(projectId);
         Map<Long, String> assignedUserNames = assignedUserNamesFor(items);
         // Parent is always same-project (validateParent), so both fields are derived
@@ -221,7 +220,7 @@ public class WorkItemService {
     @Transactional
     public WorkItemResponse update(Long id, WorkItemUpdateRequest request, Long requesterId) {
         WorkItem item = getOrThrow(id);
-        requirePermission(requesterId, item.getProjectId(), Permission.WORKITEM_EDIT);
+        accessGuard.requirePermission(requesterId, item.getProjectId(), Permission.WORKITEM_EDIT);
         item.setTitle(request.title());
         item.setDescription(request.description());
         item.setAcceptanceCriteria(request.acceptanceCriteria());
@@ -235,20 +234,20 @@ public class WorkItemService {
             item.setPriority(request.priority());
         }
         item.touch();
-            if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_UPDATED, "Se actualizó la tarea \"" + item.getTitle() + "\"", "{}");
+        activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_UPDATED, "Se actualizó la tarea \"" + item.getTitle() + "\"", "{}");
         return toRichResponse(item);
     }
 
     @Transactional
     public void delete(Long id, Long requesterId) {
         WorkItem item = getOrThrow(id);
-        requirePermission(requesterId, item.getProjectId(), Permission.WORKITEM_DELETE);
+        accessGuard.requirePermission(requesterId, item.getProjectId(), Permission.WORKITEM_DELETE);
         long childCount = workItemRepository.countByParentWorkItemId(id);
         if (childCount > 0) {
             throw new WorkItemHasChildrenException(childCount);
         }
         workItemRepository.delete(item);
-            if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_DELETED, "Se eliminó la tarea \"" + item.getTitle() + "\"", "{}");
+        activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_DELETED, "Se eliminó la tarea \"" + item.getTitle() + "\"", "{}");
     }
 
     /**
@@ -334,18 +333,6 @@ public class WorkItemService {
         return workItemRepository.findFirstByColumnIdOrderByPositionDesc(columnId)
                 .map(existing -> existing.getPosition() + POSITION_STEP)
                 .orElse(POSITION_STEP);
-    }
-
-    private void requirePermission(Long requesterId, Long projectId, Permission permission) {
-        if (!authorizationService.hasPermission(requesterId, projectId, permission)) {
-            throw new AccessDeniedException("Falta el permiso " + permission + " en el proyecto " + projectId);
-        }
-    }
-
-    private void requireCanView(Long requesterId, Long projectId) {
-        if (!authorizationService.canView(requesterId, projectId)) {
-            throw new AccessDeniedException("No autorizado para ver los elementos de trabajo de este proyecto");
-        }
     }
 
     private WorkItem getOrThrow(Long id) {

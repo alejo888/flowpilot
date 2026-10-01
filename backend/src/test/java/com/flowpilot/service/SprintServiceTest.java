@@ -1,8 +1,10 @@
 package com.flowpilot.service;
 
+import com.flowpilot.repository.WorkItemRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -173,7 +175,9 @@ class SprintServiceTest {
     }
 
     private SprintService service() {
-        return new SprintService(sprintRepository, projectRepository, authorizationService);
+        return new SprintService(sprintRepository,
+                new ProjectAccessGuard(authorizationService, projectRepository, mock(WorkItemRepository.class)),
+                mock(ProjectActivityService.class));
     }
 
     private Sprint sprint() {
