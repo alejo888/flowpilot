@@ -76,8 +76,8 @@ class WorkItemServiceTest {
                 boardColumnRepository,
                 userRepository,
                 authorizationService,
-                sprintRepository);
-        workItemService.setActivityService(activityService);
+                sprintRepository,
+                activityService);
     }
 
     @Test

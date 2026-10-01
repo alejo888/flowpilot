@@ -58,24 +58,23 @@ public class WorkItemService {
     private final BoardColumnRepository boardColumnRepository;
     private final UserRepository userRepository;
     private final ProjectAuthorizationService authorizationService;
-    private ProjectActivityService activityService;
     private final SprintRepository sprintRepository;
+    private final ProjectActivityService activityService;
 
     public WorkItemService(
             WorkItemRepository workItemRepository,
             BoardColumnRepository boardColumnRepository,
             UserRepository userRepository,
             ProjectAuthorizationService authorizationService,
-            SprintRepository sprintRepository) {
+            SprintRepository sprintRepository,
+            ProjectActivityService activityService) {
         this.workItemRepository = workItemRepository;
         this.boardColumnRepository = boardColumnRepository;
         this.userRepository = userRepository;
         this.authorizationService = authorizationService;
         this.sprintRepository = sprintRepository;
+        this.activityService = activityService;
     }
-
-    @org.springframework.beans.factory.annotation.Autowired
-    void setActivityService(ProjectActivityService service) { this.activityService = service; }
 
     @Transactional
     public WorkItemResponse create(Long projectId, WorkItemCreateRequest request, Long requesterId) {
@@ -94,7 +93,7 @@ public class WorkItemService {
         validateParent(projectId, null, request.parentWorkItemId());
         item.setParentWorkItemId(request.parentWorkItemId());
         item = workItemRepository.save(item);
-            if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED, "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
+        activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED, "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
         return toRichResponse(item);
     }
 
@@ -135,10 +134,8 @@ public class WorkItemService {
             item.setAiModel(aiModel);
             item.setParentWorkItemId(request.parentWorkItemId());
             item = workItemRepository.save(item);
-            if (activityService != null) {
-                activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED,
-                        "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
-            }
+            activityService.record(projectId, requesterId, ActivityEventType.WORK_ITEM_CREATED,
+                    "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
             created.add(toRichResponse(item));
             position += POSITION_STEP;
         }
@@ -184,10 +181,8 @@ public class WorkItemService {
         item.setAiModel(aiModel);
         item.setParentWorkItemId(parentId);
         item = workItemRepository.save(item);
-        if (activityService != null) {
-            activityService.record(projectId, actorId, ActivityEventType.WORK_ITEM_CREATED,
-                    "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
-        }
+        activityService.record(projectId, actorId, ActivityEventType.WORK_ITEM_CREATED,
+                "Se creó la tarea \"" + item.getTitle() + "\"", "{}");
         return item;
     }
 
@@ -235,7 +230,7 @@ public class WorkItemService {
             item.setPriority(request.priority());
         }
         item.touch();
-            if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_UPDATED, "Se actualizó la tarea \"" + item.getTitle() + "\"", "{}");
+        activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_UPDATED, "Se actualizó la tarea \"" + item.getTitle() + "\"", "{}");
         return toRichResponse(item);
     }
 
@@ -248,7 +243,7 @@ public class WorkItemService {
             throw new WorkItemHasChildrenException(childCount);
         }
         workItemRepository.delete(item);
-            if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_DELETED, "Se eliminó la tarea \"" + item.getTitle() + "\"", "{}");
+        activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_DELETED, "Se eliminó la tarea \"" + item.getTitle() + "\"", "{}");
     }
 
     /**

@@ -40,21 +40,20 @@ public class BoardService {
     private final BoardColumnRepository boardColumnRepository;
     private final UserRepository userRepository;
     private final ProjectAuthorizationService authorizationService;
-    private ProjectActivityService activityService;
+    private final ProjectActivityService activityService;
 
     public BoardService(
             WorkItemRepository workItemRepository,
             BoardColumnRepository boardColumnRepository,
             UserRepository userRepository,
-            ProjectAuthorizationService authorizationService) {
+            ProjectAuthorizationService authorizationService,
+            ProjectActivityService activityService) {
         this.workItemRepository = workItemRepository;
         this.boardColumnRepository = boardColumnRepository;
         this.userRepository = userRepository;
         this.authorizationService = authorizationService;
+        this.activityService = activityService;
     }
-
-    @org.springframework.beans.factory.annotation.Autowired
-    void setActivityService(ProjectActivityService service) { this.activityService = service; }
 
     @Transactional
     public WorkItemResponse move(Long itemId, WorkItemMoveRequest request, Long requesterId) {
@@ -90,7 +89,7 @@ public class BoardService {
         }
 
         item.moveTo(targetColumn.getId(), newPosition);
-            if (activityService != null) activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_MOVED, "Se movió la tarea \"" + item.getTitle() + "\" a la columna \"" + targetColumn.getName() + "\"", "{}");
+        activityService.record(item.getProjectId(), requesterId, ActivityEventType.WORK_ITEM_MOVED, "Se movió la tarea \"" + item.getTitle() + "\" a la columna \"" + targetColumn.getName() + "\"", "{}");
         WorkItemResponse response = richResponse(item);
         if (resequenced && !siblings.isEmpty()) {
             List<WorkItemResponse> affectedItems = siblings.stream()

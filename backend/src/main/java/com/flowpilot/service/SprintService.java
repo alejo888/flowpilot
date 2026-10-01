@@ -24,19 +24,18 @@ public class SprintService {
     private final SprintRepository sprintRepository;
     private final ProjectRepository projectRepository;
     private final ProjectAuthorizationService authorizationService;
-    private ProjectActivityService activityService;
+    private final ProjectActivityService activityService;
 
     public SprintService(
             SprintRepository sprintRepository,
             ProjectRepository projectRepository,
-            ProjectAuthorizationService authorizationService) {
+            ProjectAuthorizationService authorizationService,
+            ProjectActivityService activityService) {
         this.sprintRepository = sprintRepository;
         this.projectRepository = projectRepository;
         this.authorizationService = authorizationService;
+        this.activityService = activityService;
     }
-
-    @org.springframework.beans.factory.annotation.Autowired
-    void setActivityService(ProjectActivityService service) { this.activityService = service; }
 
     @Transactional
     public SprintResponse create(Long projectId, SprintCreateRequest request, Long requesterId) {
@@ -46,7 +45,7 @@ public class SprintService {
         Sprint sprint = new Sprint(
                 projectId, request.name(), request.goal(), request.startDate(), request.endDate());
             SprintResponse response = toResponse(sprintRepository.save(sprint));
-            if (activityService != null) activityService.record(projectId, requesterId, ActivityEventType.SPRINT_CREATED, "Se creó el sprint \"" + sprint.getName() + "\"", "{}");
+        activityService.record(projectId, requesterId, ActivityEventType.SPRINT_CREATED, "Se creó el sprint \"" + sprint.getName() + "\"", "{}");
             return response;
     }
 
@@ -66,7 +65,7 @@ public class SprintService {
         }
         validateDates(request.startDate(), request.endDate());
         sprint.update(request.name(), request.goal(), request.startDate(), request.endDate());
-            if (activityService != null) activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_UPDATED, "Se actualizó el sprint \"" + sprint.getName() + "\"", "{}");
+        activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_UPDATED, "Se actualizó el sprint \"" + sprint.getName() + "\"", "{}");
         return toResponse(sprint);
     }
 
@@ -79,7 +78,7 @@ public class SprintService {
         }
         try {
             sprint.start();
-            if (activityService != null) activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_STARTED, "Se inició el sprint \"" + sprint.getName() + "\"", "{}");
+            activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_STARTED, "Se inició el sprint \"" + sprint.getName() + "\"", "{}");
         } catch (IllegalStateException ex) {
             throw new InvalidSprintException(ex.getMessage());
         }
@@ -92,7 +91,7 @@ public class SprintService {
         requirePermission(requesterId, sprint.getProjectId());
         try {
             sprint.complete();
-            if (activityService != null) activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_COMPLETED, "Se completó el sprint \"" + sprint.getName() + "\"", "{}");
+            activityService.record(sprint.getProjectId(), requesterId, ActivityEventType.SPRINT_COMPLETED, "Se completó el sprint \"" + sprint.getName() + "\"", "{}");
         } catch (IllegalStateException ex) {
             throw new InvalidSprintException(ex.getMessage());
         }

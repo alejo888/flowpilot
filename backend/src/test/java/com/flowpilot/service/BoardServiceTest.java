@@ -53,7 +53,8 @@ class BoardServiceTest {
     @BeforeEach
     void setUp() {
         authorizationService = mock(ProjectAuthorizationService.class);
-        boardService = new BoardService(workItemRepository, boardColumnRepository, userRepository, authorizationService);
+        boardService = new BoardService(workItemRepository, boardColumnRepository, userRepository, authorizationService,
+                mock(ProjectActivityService.class));
     }
 
     @Test

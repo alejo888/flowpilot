@@ -56,8 +56,8 @@ class WorkItemServiceInitialBacklogTest {
         ProjectAuthorizationService authorizationService = mock(ProjectAuthorizationService.class);
         activityService = mock(ProjectActivityService.class);
         workItemService = new WorkItemService(
-                workItemRepository, boardColumnRepository, userRepository, authorizationService, sprintRepository);
-        workItemService.setActivityService(activityService);
+                workItemRepository, boardColumnRepository, userRepository, authorizationService, sprintRepository,
+                activityService);
     }
 
     private List<WorkItem> stubSaves() {
