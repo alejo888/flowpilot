@@ -1,5 +1,6 @@
 package com.flowpilot.service;
 
+import com.flowpilot.repository.WorkItemRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -68,7 +69,8 @@ class ProjectServiceTest {
         workItemService = mock(WorkItemService.class);
         projectService = new ProjectService(
                 projectRepository, boardColumnRepository, userRepository, authorizationService, activityService,
-                workItemService);
+                workItemService,
+                new ProjectAccessGuard(authorizationService, projectRepository, mock(WorkItemRepository.class)));
     }
 
     private static ProjectWithBacklogRequest withBacklog(String code, List<BacklogEpicRequest> epics) {

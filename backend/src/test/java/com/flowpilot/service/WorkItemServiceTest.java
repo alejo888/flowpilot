@@ -1,5 +1,6 @@
 package com.flowpilot.service;
 
+import com.flowpilot.repository.ProjectRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -77,7 +78,9 @@ class WorkItemServiceTest {
                 userRepository,
                 authorizationService,
                 sprintRepository,
-                activityService);
+                activityService,
+                new ProjectAccessGuard(
+                        authorizationService, mock(ProjectRepository.class), workItemRepository));
     }
 
     @Test

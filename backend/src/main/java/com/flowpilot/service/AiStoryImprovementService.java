@@ -4,11 +4,6 @@ import com.flowpilot.dto.GenerateAcceptanceCriteriaRequest;
 import com.flowpilot.dto.GeneratedUserStoryResponse;
 import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.WorkItem;
-import com.flowpilot.exception.ProjectNotFoundException;
-import com.flowpilot.exception.WorkItemNotFoundException;
-import com.flowpilot.repository.ProjectRepository;
-import com.flowpilot.repository.WorkItemRepository;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -37,19 +32,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class AiStoryImprovementService {
 
-    private final ProjectRepository projectRepository;
-    private final WorkItemRepository workItemRepository;
-    private final ProjectAuthorizationService authorizationService;
+    private final ProjectAccessGuard accessGuard;
     private final AiPlanningService aiPlanningService;
 
-    public AiStoryImprovementService(
-            ProjectRepository projectRepository,
-            WorkItemRepository workItemRepository,
-            ProjectAuthorizationService authorizationService,
-            AiPlanningService aiPlanningService) {
-        this.projectRepository = projectRepository;
-        this.workItemRepository = workItemRepository;
-        this.authorizationService = authorizationService;
+    public AiStoryImprovementService(ProjectAccessGuard accessGuard, AiPlanningService aiPlanningService) {
+        this.accessGuard = accessGuard;
         this.aiPlanningService = aiPlanningService;
     }
 
@@ -65,19 +52,11 @@ public class AiStoryImprovementService {
      */
     public GeneratedUserStoryResponse generate(
             Long projectId, GenerateAcceptanceCriteriaRequest request, Long requesterId) {
-        if (!projectRepository.existsById(projectId)) {
-            throw new ProjectNotFoundException(projectId);
-        }
+        accessGuard.requireProjectExists(projectId);
 
-        WorkItem story = workItemRepository
-                .findById(request.workItemId())
-                .filter(item -> item.getProjectId().equals(projectId))
-                .orElseThrow(() -> new WorkItemNotFoundException(request.workItemId()));
+        WorkItem story = accessGuard.requireWorkItemInProject(request.workItemId(), projectId);
 
-        if (!authorizationService.hasPermission(requesterId, projectId, Permission.WORKITEM_EDIT)) {
-            throw new AccessDeniedException(
-                    "Falta el permiso " + Permission.WORKITEM_EDIT + " en el proyecto " + projectId);
-        }
+        accessGuard.requirePermission(requesterId, projectId, Permission.WORKITEM_EDIT);
 
         return aiPlanningService.generateStoryImprovement(AiStoryContext.compose(story));
     }

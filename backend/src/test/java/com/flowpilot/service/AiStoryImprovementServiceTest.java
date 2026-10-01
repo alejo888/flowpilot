@@ -59,7 +59,7 @@ class AiStoryImprovementServiceTest {
     @BeforeEach
     void setUp() {
         service = new AiStoryImprovementService(
-                projectRepository, workItemRepository, authorizationService, aiPlanningService);
+                new ProjectAccessGuard(authorizationService, projectRepository, workItemRepository), aiPlanningService);
     }
 
     private static WorkItem story(Long projectId, String title, String description, List<String> criteria) {

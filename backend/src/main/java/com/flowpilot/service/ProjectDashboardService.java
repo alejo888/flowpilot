@@ -6,9 +6,7 @@ import com.flowpilot.entity.Sprint;
 import com.flowpilot.entity.SprintStatus;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.entity.WorkItemPriority;
-import com.flowpilot.exception.ProjectNotFoundException;
 import com.flowpilot.repository.BoardColumnRepository;
-import com.flowpilot.repository.ProjectRepository;
 import com.flowpilot.repository.SprintRepository;
 import com.flowpilot.repository.UserRepository;
 import com.flowpilot.repository.WorkItemRepository;
@@ -18,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,15 +28,16 @@ public class ProjectDashboardService {
      * board_columns} table) — a project whose final column isn't named exactly this reports
      * 0 completed items. See {@code ProjectDashboardServiceTest#completionCountsRequireExactDoneColumnName}.
      */
+    private static final String VIEW_DENIED_MESSAGE = "No autorizado para ver el dashboard del proyecto";
     private static final String DONE_COLUMN_NAME = ProjectService.DEFAULT_COLUMN_NAMES.getLast();
 
-    private final WorkItemRepository items; private final BoardColumnRepository columns; private final SprintRepository sprints; private final UserRepository users; private final ProjectRepository projects; private final ProjectAuthorizationService auth;
-    public ProjectDashboardService(WorkItemRepository items, BoardColumnRepository columns, SprintRepository sprints, UserRepository users, ProjectRepository projects, ProjectAuthorizationService auth) { this.items=items;this.columns=columns;this.sprints=sprints;this.users=users;this.projects=projects;this.auth=auth; }
+    private final WorkItemRepository items; private final BoardColumnRepository columns; private final SprintRepository sprints; private final UserRepository users; private final ProjectAccessGuard accessGuard;
+    public ProjectDashboardService(WorkItemRepository items, BoardColumnRepository columns, SprintRepository sprints, UserRepository users, ProjectAccessGuard accessGuard) { this.items=items;this.columns=columns;this.sprints=sprints;this.users=users;this.accessGuard=accessGuard; }
 
     @Transactional(readOnly = true)
     public ProjectDashboardResponse get(Long projectId, Long userId) {
-        if (!auth.canView(userId, projectId)) throw new AccessDeniedException("No autorizado para ver el dashboard del proyecto");
-        requireProject(projectId);
+        accessGuard.requireCanView(userId, projectId, VIEW_DENIED_MESSAGE);
+        accessGuard.requireProjectExists(projectId);
         List<WorkItem> all=items.findByProjectIdOrderByColumnIdAscPositionAsc(projectId);
         var cols=columns.findByProjectIdOrderByPositionAsc(projectId);
         java.util.Set<Long> doneColumnIds=cols.stream().filter(c->c.getName().equalsIgnoreCase(DONE_COLUMN_NAME)).map(BoardColumn::getId).collect(Collectors.toSet());
@@ -66,18 +64,5 @@ public class ProjectDashboardService {
         var summary=active==null?null:new ProjectDashboardResponse.SprintSummary(active.getId(),active.getName(),active.getGoal(),active.getStartDate(),active.getEndDate());
         long backlogPending=all.stream().filter(i->i.getSprintId()==null).count();
         return new ProjectDashboardResponse(all.size(),completed,columnCounts,summary,sprintItems.size(),sprintCompleted,backlogPending,workload,priority);
-    }
-
-    /**
-     * Explicit existence check (same idiom as {@code SprintService.requireProject}).
-     * {@link ProjectAuthorizationService#canView} short-circuits to {@code true} for a
-     * global ADMINISTRADOR *before* its own internal project lookup runs, so without
-     * this an unknown/deleted projectId would return a fabricated all-zero 200 to an
-     * admin instead of the 404 every other project-scoped endpoint returns.
-     */
-    private void requireProject(Long projectId) {
-        if (!projects.existsById(projectId)) {
-            throw new ProjectNotFoundException(projectId);
-        }
     }
 }

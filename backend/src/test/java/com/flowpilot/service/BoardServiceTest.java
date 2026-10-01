@@ -1,5 +1,6 @@
 package com.flowpilot.service;
 
+import com.flowpilot.repository.ProjectRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -53,7 +54,8 @@ class BoardServiceTest {
     @BeforeEach
     void setUp() {
         authorizationService = mock(ProjectAuthorizationService.class);
-        boardService = new BoardService(workItemRepository, boardColumnRepository, userRepository, authorizationService,
+        boardService = new BoardService(workItemRepository, boardColumnRepository, userRepository,
+                new ProjectAccessGuard(authorizationService, mock(ProjectRepository.class), workItemRepository),
                 mock(ProjectActivityService.class));
     }
 

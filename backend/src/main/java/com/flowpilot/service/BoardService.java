@@ -14,7 +14,6 @@ import com.flowpilot.repository.BoardColumnRepository;
 import com.flowpilot.repository.UserRepository;
 import com.flowpilot.repository.WorkItemRepository;
 import java.util.List;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,19 +38,19 @@ public class BoardService {
     private final WorkItemRepository workItemRepository;
     private final BoardColumnRepository boardColumnRepository;
     private final UserRepository userRepository;
-    private final ProjectAuthorizationService authorizationService;
+    private final ProjectAccessGuard accessGuard;
     private final ProjectActivityService activityService;
 
     public BoardService(
             WorkItemRepository workItemRepository,
             BoardColumnRepository boardColumnRepository,
             UserRepository userRepository,
-            ProjectAuthorizationService authorizationService,
+            ProjectAccessGuard accessGuard,
             ProjectActivityService activityService) {
         this.workItemRepository = workItemRepository;
         this.boardColumnRepository = boardColumnRepository;
         this.userRepository = userRepository;
-        this.authorizationService = authorizationService;
+        this.accessGuard = accessGuard;
         this.activityService = activityService;
     }
 
@@ -60,10 +59,7 @@ public class BoardService {
         WorkItem item = workItemRepository.findById(itemId)
                 .orElseThrow(() -> new WorkItemNotFoundException(itemId));
 
-        if (!authorizationService.hasPermission(requesterId, item.getProjectId(), Permission.WORKITEM_MOVE)) {
-            throw new AccessDeniedException(
-                    "Falta el permiso " + Permission.WORKITEM_MOVE + " en el proyecto " + item.getProjectId());
-        }
+        accessGuard.requirePermission(requesterId, item.getProjectId(), Permission.WORKITEM_MOVE);
 
         BoardColumn targetColumn = boardColumnRepository.findById(request.columnId())
                 .orElseThrow(() -> new BoardColumnNotFoundException(request.columnId()));

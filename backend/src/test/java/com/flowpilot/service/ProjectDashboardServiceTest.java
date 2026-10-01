@@ -35,7 +35,8 @@ class ProjectDashboardServiceTest {
                 new WorkItem(10L, 1L, "A", null, null, 1), new WorkItem(10L, 2L, "B", null, null, 1)));
         when(sprints.findByProjectIdOrderByStartDateAsc(10L)).thenReturn(List.of());
 
-        var result = new ProjectDashboardService(items, columns, sprints, users, projects, auth).get(10L, 7L);
+        var result = new ProjectDashboardService(items, columns, sprints, users,
+                new ProjectAccessGuard(auth, projects, items)).get(10L, 7L);
 
         assertThat(result.totalItems()).isEqualTo(2);
         assertThat(result.completedItems()).isEqualTo(1);
@@ -59,7 +60,8 @@ class ProjectDashboardServiceTest {
         when(auth.canView(7L, 999L)).thenReturn(true); // admin bypass
         when(projects.existsById(999L)).thenReturn(false);
 
-        var service = new ProjectDashboardService(items, columns, sprints, users, projects, auth);
+        var service = new ProjectDashboardService(items, columns, sprints, users,
+                new ProjectAccessGuard(auth, projects, items));
 
         assertThatThrownBy(() -> service.get(999L, 7L))
                 .isInstanceOf(ProjectNotFoundException.class)
@@ -91,7 +93,8 @@ class ProjectDashboardServiceTest {
                 new WorkItem(10L, 2L, "A", null, null, 1)));
         when(sprints.findByProjectIdOrderByStartDateAsc(10L)).thenReturn(List.of());
 
-        var result = new ProjectDashboardService(items, columns, sprints, users, projects, auth).get(10L, 7L);
+        var result = new ProjectDashboardService(items, columns, sprints, users,
+                new ProjectAccessGuard(auth, projects, items)).get(10L, 7L);
 
         assertThat(result.totalItems()).isEqualTo(1);
         assertThat(result.completedItems()).isEqualTo(0);

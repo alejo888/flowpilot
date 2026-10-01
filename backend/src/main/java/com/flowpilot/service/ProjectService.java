@@ -35,6 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ProjectService {
 
+    private static final String VIEW_DENIED_MESSAGE = "No autorizado para ver este proyecto";
+
     /** Design D10: gap-based positions, 1024 step, so future inserts-between never re-sequence. */
     private static final int COLUMN_POSITION_STEP = 1024;
     /** Package-private so {@link ProjectDashboardService} can reuse the canonical "done" column name. */
@@ -47,6 +49,7 @@ public class ProjectService {
     private final ProjectAuthorizationService authorizationService;
     private final ProjectActivityService activityService;
     private final WorkItemService workItemService;
+    private final ProjectAccessGuard accessGuard;
 
     public ProjectService(
             ProjectRepository projectRepository,
@@ -54,13 +57,15 @@ public class ProjectService {
             UserRepository userRepository,
             ProjectAuthorizationService authorizationService,
             ProjectActivityService activityService,
-            WorkItemService workItemService) {
+            WorkItemService workItemService,
+            ProjectAccessGuard accessGuard) {
         this.projectRepository = projectRepository;
         this.boardColumnRepository = boardColumnRepository;
         this.userRepository = userRepository;
         this.authorizationService = authorizationService;
         this.activityService = activityService;
         this.workItemService = workItemService;
+        this.accessGuard = accessGuard;
     }
 
     @Transactional
@@ -114,13 +119,13 @@ public class ProjectService {
     }
 
     public ProjectResponse findById(Long id, Long userId) {
-        requireCanView(userId, id);
+        accessGuard.requireCanView(userId, id, VIEW_DENIED_MESSAGE);
         return toResponse(getOrThrow(id), userId);
     }
 
     @Transactional
     public ProjectResponse update(Long id, ProjectUpdateRequest request, Long userId) {
-        requirePermission(userId, id, Permission.PROJECT_EDIT_SETTINGS);
+        accessGuard.requirePermission(userId, id, Permission.PROJECT_EDIT_SETTINGS);
         Project project = getOrThrow(id);
 
         String code = trimToNull(request.code());
@@ -138,7 +143,7 @@ public class ProjectService {
 
     @Transactional
     public ProjectResponse updateStatus(Long id, ProjectStatusUpdateRequest request, Long userId) {
-        requirePermission(userId, id, Permission.PROJECT_EDIT_SETTINGS);
+        accessGuard.requirePermission(userId, id, Permission.PROJECT_EDIT_SETTINGS);
         Project project = getOrThrow(id);
         project.setStatus(request.status());
         project.touch();
@@ -149,33 +154,16 @@ public class ProjectService {
 
     @Transactional
     public void delete(Long id, Long userId) {
-        requirePermission(userId, id, Permission.PROJECT_DELETE);
+        accessGuard.requirePermission(userId, id, Permission.PROJECT_DELETE);
         Project project = getOrThrow(id);
         projectRepository.delete(project);
     }
 
     public List<BoardColumnResponse> listBoardColumns(Long projectId, Long userId) {
-        requireCanView(userId, projectId);
+        accessGuard.requireCanView(userId, projectId, VIEW_DENIED_MESSAGE);
         return boardColumnRepository.findByProjectIdOrderByPositionAsc(projectId).stream()
                 .map(ProjectService::toColumnResponse)
                 .toList();
-    }
-
-    private void requirePermission(Long userId, Long projectId, Permission permission) {
-        if (!authorizationService.hasPermission(userId, projectId, permission)) {
-            throw new AccessDeniedException("Falta el permiso " + permission + " en el proyecto " + projectId);
-        }
-    }
-
-    /**
-     * Closes the read-authorization gap flagged in the slice-3 verify report:
-     * admin, owner, or a live {@code ProjectMember} may read a single
-     * project's details/columns; everyone else gets 403.
-     */
-    private void requireCanView(Long userId, Long projectId) {
-        if (!authorizationService.canView(userId, projectId)) {
-            throw new AccessDeniedException("No autorizado para ver este proyecto");
-        }
     }
 
     /**

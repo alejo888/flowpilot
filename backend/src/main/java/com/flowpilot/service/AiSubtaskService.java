@@ -5,11 +5,6 @@ import com.flowpilot.dto.GeneratedSubtasksResponse;
 import com.flowpilot.entity.Permission;
 import com.flowpilot.entity.WorkItem;
 import com.flowpilot.exception.InvalidParentException;
-import com.flowpilot.exception.ProjectNotFoundException;
-import com.flowpilot.exception.WorkItemNotFoundException;
-import com.flowpilot.repository.ProjectRepository;
-import com.flowpilot.repository.WorkItemRepository;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -37,19 +32,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class AiSubtaskService {
 
-    private final ProjectRepository projectRepository;
-    private final WorkItemRepository workItemRepository;
-    private final ProjectAuthorizationService authorizationService;
+    private final ProjectAccessGuard accessGuard;
     private final AiPlanningService aiPlanningService;
 
-    public AiSubtaskService(
-            ProjectRepository projectRepository,
-            WorkItemRepository workItemRepository,
-            ProjectAuthorizationService authorizationService,
-            AiPlanningService aiPlanningService) {
-        this.projectRepository = projectRepository;
-        this.workItemRepository = workItemRepository;
-        this.authorizationService = authorizationService;
+    public AiSubtaskService(ProjectAccessGuard accessGuard, AiPlanningService aiPlanningService) {
+        this.accessGuard = accessGuard;
         this.aiPlanningService = aiPlanningService;
     }
 
@@ -66,22 +53,14 @@ public class AiSubtaskService {
      */
     public GeneratedSubtasksResponse generate(
             Long projectId, GenerateSubtasksRequest request, Long requesterId) {
-        if (!projectRepository.existsById(projectId)) {
-            throw new ProjectNotFoundException(projectId);
-        }
+        accessGuard.requireProjectExists(projectId);
 
         WorkItem story = null;
         if (request.workItemId() != null) {
-            story = workItemRepository
-                    .findById(request.workItemId())
-                    .filter(item -> item.getProjectId().equals(projectId))
-                    .orElseThrow(() -> new WorkItemNotFoundException(request.workItemId()));
+            story = accessGuard.requireWorkItemInProject(request.workItemId(), projectId);
         }
 
-        if (!authorizationService.hasPermission(requesterId, projectId, Permission.WORKITEM_CREATE)) {
-            throw new AccessDeniedException(
-                    "Falta el permiso " + Permission.WORKITEM_CREATE + " en el proyecto " + projectId);
-        }
+        accessGuard.requirePermission(requesterId, projectId, Permission.WORKITEM_CREATE);
 
         String storyContext;
         if (story != null) {

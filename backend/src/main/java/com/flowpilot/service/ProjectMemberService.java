@@ -9,14 +9,11 @@ import com.flowpilot.entity.ProjectMember;
 import com.flowpilot.entity.User;
 import com.flowpilot.exception.DuplicateMemberException;
 import com.flowpilot.exception.ProjectMemberNotFoundException;
-import com.flowpilot.exception.ProjectNotFoundException;
 import com.flowpilot.exception.SelfRoleChangeException;
 import com.flowpilot.exception.UserNotFoundException;
 import com.flowpilot.repository.ProjectMemberRepository;
-import com.flowpilot.repository.ProjectRepository;
 import com.flowpilot.repository.UserRepository;
 import java.util.List;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,7 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
  * roster) — unaffected, reads stay membership-based.
  *
  * <p>Every write also explicitly verifies the project exists ({@link
- * #requireProjectExists}) rather than relying only on {@code
+ * ProjectAccessGuard#requireProjectExists}) rather than relying only on {@code
  * ProjectAuthorizationService}'s incidental project lookup — that lookup is
  * skipped entirely for a global-admin caller (the admin bypass short-circuits
  * before touching the project), which previously let an admin's request
@@ -41,29 +38,28 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ProjectMemberService {
 
+    private static final String LIST_DENIED_MESSAGE = "No autorizado para ver los miembros de este proyecto";
+
     private final ProjectMemberRepository projectMemberRepository;
-    private final ProjectAuthorizationService authorizationService;
-    private final ProjectRepository projectRepository;
+    private final ProjectAccessGuard accessGuard;
     private final UserRepository userRepository;
     private final ProjectActivityService activityService;
 
     public ProjectMemberService(
             ProjectMemberRepository projectMemberRepository,
-            ProjectAuthorizationService authorizationService,
-            ProjectRepository projectRepository,
+            ProjectAccessGuard accessGuard,
             UserRepository userRepository,
             ProjectActivityService activityService) {
         this.projectMemberRepository = projectMemberRepository;
-        this.authorizationService = authorizationService;
-        this.projectRepository = projectRepository;
+        this.accessGuard = accessGuard;
         this.userRepository = userRepository;
         this.activityService = activityService;
     }
 
     @Transactional
     public ProjectMemberResponse addMember(Long projectId, ProjectMemberAddRequest request, Long requesterId) {
-        requirePermission(requesterId, projectId, Permission.MEMBER_ADD);
-        requireProjectExists(projectId);
+        accessGuard.requirePermission(requesterId, projectId, Permission.MEMBER_ADD);
+        accessGuard.requireProjectExists(projectId);
         User target = userRepository.findById(request.userId())
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
         if (projectMemberRepository.existsByProjectIdAndUserId(projectId, request.userId())) {
@@ -78,8 +74,8 @@ public class ProjectMemberService {
 
     @Transactional
     public void removeMember(Long projectId, Long userId, Long requesterId) {
-        requirePermission(requesterId, projectId, Permission.MEMBER_REMOVE);
-        requireProjectExists(projectId);
+        accessGuard.requirePermission(requesterId, projectId, Permission.MEMBER_REMOVE);
+        accessGuard.requireProjectExists(projectId);
         ProjectMember member = getOrThrow(projectId, userId);
         activityService.record(projectId, requesterId, ActivityEventType.MEMBER_REMOVED,
                 "Se quitó a " + memberDisplayName(userId) + " del proyecto", "{}");
@@ -92,8 +88,8 @@ public class ProjectMemberService {
         if (userId.equals(requesterId)) {
             throw new SelfRoleChangeException();
         }
-        requirePermission(requesterId, projectId, Permission.MEMBER_CHANGE_ROLE);
-        requireProjectExists(projectId);
+        accessGuard.requirePermission(requesterId, projectId, Permission.MEMBER_CHANGE_ROLE);
+        accessGuard.requireProjectExists(projectId);
         ProjectMember member = getOrThrow(projectId, userId);
         member.setRole(request.role());
         activityService.record(projectId, requesterId, ActivityEventType.MEMBER_ROLE_CHANGED,
@@ -103,25 +99,11 @@ public class ProjectMemberService {
 
     @Transactional(readOnly = true)
     public List<ProjectMemberResponse> listMembers(Long projectId, Long requesterId) {
-        if (!authorizationService.canView(requesterId, projectId)) {
-            throw new AccessDeniedException("No autorizado para ver los miembros de este proyecto");
-        }
-        requireProjectExists(projectId);
+        accessGuard.requireCanView(requesterId, projectId, LIST_DENIED_MESSAGE);
+        accessGuard.requireProjectExists(projectId);
         return projectMemberRepository.findByProjectId(projectId).stream()
                 .map(ProjectMemberService::toResponse)
                 .toList();
-    }
-
-    private void requirePermission(Long requesterId, Long projectId, Permission permission) {
-        if (!authorizationService.hasPermission(requesterId, projectId, permission)) {
-            throw new AccessDeniedException("Falta el permiso " + permission + " en el proyecto " + projectId);
-        }
-    }
-
-    private void requireProjectExists(Long projectId) {
-        if (!projectRepository.existsById(projectId)) {
-            throw new ProjectNotFoundException(projectId);
-        }
     }
 
     private String memberDisplayName(Long userId) {

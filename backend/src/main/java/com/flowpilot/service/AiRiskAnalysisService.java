@@ -5,9 +5,7 @@ import com.flowpilot.dto.GeneratedRiskAdvice;
 import com.flowpilot.dto.RiskAnalysisResponse;
 import com.flowpilot.dto.RiskSignalResponse;
 import com.flowpilot.entity.WorkItem;
-import com.flowpilot.exception.ProjectNotFoundException;
 import com.flowpilot.repository.BoardColumnRepository;
-import com.flowpilot.repository.ProjectRepository;
 import com.flowpilot.repository.SprintRepository;
 import com.flowpilot.repository.UserRepository;
 import com.flowpilot.repository.WorkItemRepository;
@@ -15,7 +13,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -42,8 +39,7 @@ public class AiRiskAnalysisService {
 
     static final String NO_RISKS_SUMMARY = "No se detectaron riesgos.";
 
-    private final ProjectRepository projectRepository;
-    private final ProjectAuthorizationService authorizationService;
+    private final ProjectAccessGuard accessGuard;
     private final WorkItemRepository workItemRepository;
     private final BoardColumnRepository boardColumnRepository;
     private final SprintRepository sprintRepository;
@@ -53,8 +49,7 @@ public class AiRiskAnalysisService {
     private final TransactionTemplate readTx;
 
     public AiRiskAnalysisService(
-            ProjectRepository projectRepository,
-            ProjectAuthorizationService authorizationService,
+            ProjectAccessGuard accessGuard,
             WorkItemRepository workItemRepository,
             BoardColumnRepository boardColumnRepository,
             SprintRepository sprintRepository,
@@ -62,8 +57,7 @@ public class AiRiskAnalysisService {
             ProjectRiskDetector detector,
             AiPlanningService aiPlanningService,
             PlatformTransactionManager transactionManager) {
-        this.projectRepository = projectRepository;
-        this.authorizationService = authorizationService;
+        this.accessGuard = accessGuard;
         this.workItemRepository = workItemRepository;
         this.boardColumnRepository = boardColumnRepository;
         this.sprintRepository = sprintRepository;
@@ -98,12 +92,9 @@ public class AiRiskAnalysisService {
     }
 
     private List<RiskSignalResponse> detectSignals(Long projectId, Long requesterId) {
-        if (!projectRepository.existsById(projectId)) {
-            throw new ProjectNotFoundException(projectId);
-        }
-        if (!authorizationService.canView(requesterId, projectId)) {
-            throw new AccessDeniedException("No autorizado para analizar los riesgos del proyecto " + projectId);
-        }
+        accessGuard.requireProjectExists(projectId);
+        accessGuard.requireCanView(
+                requesterId, projectId, "No autorizado para analizar los riesgos del proyecto " + projectId);
 
         List<WorkItem> items = workItemRepository.findByProjectIdOrderByColumnIdAscPositionAsc(projectId);
         Map<Long, String> userNames = new LinkedHashMap<>();
