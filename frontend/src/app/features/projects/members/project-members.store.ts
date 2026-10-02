@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
+import { problemDetail } from '../../../core/api/problem-detail';
 import { ProjectMember, ProjectRole } from './project-member.model';
 import { ProjectMembersApiService } from './project-members-api.service';
 import { UserSummary } from './user-summary.model';
@@ -66,7 +67,7 @@ export class ProjectMembersStore {
         this.loadingSignal.set(false);
       },
       error: (err: unknown) => {
-        this.errorSignal.set(errorMessage(err, 'No se pudieron cargar los miembros'));
+        this.errorSignal.set(problemDetail(err, 'No se pudieron cargar los miembros'));
         this.loadingSignal.set(false);
       },
     });
@@ -77,7 +78,7 @@ export class ProjectMembersStore {
     this.usersApi.listUsers().subscribe({
       next: (users) => this.usersSignal.set(users),
       error: (err: unknown) => {
-        this.errorSignal.set(errorMessage(err, 'No se pudo cargar la lista de usuarios'));
+        this.errorSignal.set(problemDetail(err, 'No se pudo cargar la lista de usuarios'));
       },
     });
   }
@@ -92,7 +93,7 @@ export class ProjectMembersStore {
         this.addingSignal.set(false);
       },
       error: (err: unknown) => {
-        this.errorSignal.set(errorMessage(err, 'No se pudo agregar el miembro'));
+        this.errorSignal.set(problemDetail(err, 'No se pudo agregar el miembro'));
         this.addingSignal.set(false);
       },
     });
@@ -108,7 +109,7 @@ export class ProjectMembersStore {
         resolve(true);
       },
       error: (err: unknown) => {
-        this.errorSignal.set(errorMessage(err, 'No se pudo cambiar el rol'));
+        this.errorSignal.set(problemDetail(err, 'No se pudo cambiar el rol'));
         this.setMutating(userId, false);
         resolve(false);
       },
@@ -124,7 +125,7 @@ export class ProjectMembersStore {
         this.setMutating(userId, false);
       },
       error: (err: unknown) => {
-        this.errorSignal.set(errorMessage(err, 'No se pudo quitar el miembro'));
+        this.errorSignal.set(problemDetail(err, 'No se pudo quitar el miembro'));
         this.setMutating(userId, false);
       },
     });
@@ -135,8 +136,4 @@ export class ProjectMembersStore {
     if (mutating) next.add(userId); else next.delete(userId);
     this.mutatingUserIdsSignal.set(next);
   }
-}
-
-function errorMessage(err: unknown, fallback: string): string {
-  return (err as { error?: { detail?: string } })?.error?.detail ?? fallback;
 }

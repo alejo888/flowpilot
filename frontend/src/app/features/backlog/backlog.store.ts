@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, forkJoin } from 'rxjs';
 
+import { problemDetail } from '../../core/api/problem-detail';
 import { WorkItem } from '../board/board.model';
 import { BacklogApiService } from './backlog-api.service';
 import { Sprint, SprintRequest } from './backlog.model';
@@ -55,7 +56,7 @@ export class BacklogStore {
       },
       error: (err) => {
         this.loading.set(false);
-        this.error.set(message(err, 'No se pudo cargar el backlog'));
+        this.error.set(problemDetail(err, 'No se pudo cargar el backlog'));
       },
     });
   }
@@ -112,7 +113,7 @@ export class BacklogStore {
           },
           error: (err) => {
             this.mutating.set(false);
-            this.error.set(message(err, 'No se pudo guardar el cambio'));
+            this.error.set(problemDetail(err, 'No se pudo guardar el cambio'));
             resolve(false);
           },
         }),
@@ -138,12 +139,8 @@ export class BacklogStore {
       },
       error: (err) => {
         this.mutating.set(false);
-        this.error.set(message(err, 'No se pudo guardar el cambio'));
+        this.error.set(problemDetail(err, 'No se pudo guardar el cambio'));
       },
     });
   }
-}
-
-function message(err: unknown, fallback: string): string {
-  return (err as { error?: { detail?: string } })?.error?.detail ?? fallback;
 }

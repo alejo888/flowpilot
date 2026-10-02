@@ -1,5 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 
+import { problemDetail } from '../../core/api/problem-detail';
 import { Project, ProjectCreateRequest, ProjectStatus, ProjectUpdateRequest } from './project.model';
 import { ProjectsApiService } from './projects-api.service';
 
@@ -30,7 +31,7 @@ export class ProjectsStore {
     this.errorSignal.set(null); this.loadingSignal.set(true);
     this.api.listProjects().subscribe({
       next: (projects) => { this.projectsSignal.set(projects); this.loadingSignal.set(false); },
-      error: (err: unknown) => { this.errorSignal.set(errorMessage(err, 'No se pudieron cargar los proyectos')); this.loadingSignal.set(false); },
+      error: (err: unknown) => { this.errorSignal.set(problemDetail(err, 'No se pudieron cargar los proyectos')); this.loadingSignal.set(false); },
     });
   }
 
@@ -38,7 +39,7 @@ export class ProjectsStore {
     this.errorSignal.set(null); this.lastCreatedSignal.set(null); this.creatingSignal.set(true);
     this.api.createProject(request).subscribe({
       next: (created) => { this.projectsSignal.set([...this.projectsSignal(), created]); this.lastCreatedSignal.set(created); this.creatingSignal.set(false); },
-      error: (err: unknown) => { this.errorSignal.set(errorMessage(err, 'No se pudo crear el proyecto')); this.creatingSignal.set(false); },
+      error: (err: unknown) => { this.errorSignal.set(problemDetail(err, 'No se pudo crear el proyecto')); this.creatingSignal.set(false); },
     });
   }
 
@@ -46,7 +47,7 @@ export class ProjectsStore {
     this.errorSignal.set(null); this.selectedProjectSignal.set(null); this.detailLoadingSignal.set(true);
     this.api.getProject(id).subscribe({
       next: (project) => { this.selectedProjectSignal.set(project); this.detailLoadingSignal.set(false); },
-      error: (err: unknown) => { this.errorSignal.set(errorMessage(err, 'No se pudo cargar el proyecto')); this.detailLoadingSignal.set(false); },
+      error: (err: unknown) => { this.errorSignal.set(problemDetail(err, 'No se pudo cargar el proyecto')); this.detailLoadingSignal.set(false); },
     });
   }
 
@@ -54,7 +55,7 @@ export class ProjectsStore {
     this.errorSignal.set(null); this.savingSignal.set(true);
     this.api.updateProject(id, request).subscribe({
       next: (project) => { this.selectedProjectSignal.set(project); this.replaceProject(project); this.savingSignal.set(false); },
-      error: (err: unknown) => { this.errorSignal.set(errorMessage(err, 'No se pudo actualizar el proyecto')); this.savingSignal.set(false); },
+      error: (err: unknown) => { this.errorSignal.set(problemDetail(err, 'No se pudo actualizar el proyecto')); this.savingSignal.set(false); },
     });
   }
 
@@ -65,7 +66,7 @@ export class ProjectsStore {
         this.selectedProjectSignal.set(project); this.replaceProject(project); this.savingSignal.set(false); resolve(true);
       },
       error: (err: unknown) => {
-        this.errorSignal.set(errorMessage(err, 'No se pudo actualizar el estado')); this.savingSignal.set(false); resolve(false);
+        this.errorSignal.set(problemDetail(err, 'No se pudo actualizar el estado')); this.savingSignal.set(false); resolve(false);
       },
     }));
   }
@@ -78,7 +79,7 @@ export class ProjectsStore {
         this.deletingSignal.set(false); resolve(true);
       },
       error: (err: unknown) => {
-        this.errorSignal.set(errorMessage(err, 'No se pudo eliminar el proyecto')); this.deletingSignal.set(false); resolve(false);
+        this.errorSignal.set(problemDetail(err, 'No se pudo eliminar el proyecto')); this.deletingSignal.set(false); resolve(false);
       },
     }));
   }
@@ -86,8 +87,4 @@ export class ProjectsStore {
   private replaceProject(project: Project): void {
     this.projectsSignal.set(this.projectsSignal().map((item) => item.id === project.id ? project : item));
   }
-}
-
-function errorMessage(err: unknown, fallback: string): string {
-  return (err as { error?: { detail?: string } })?.error?.detail ?? fallback;
 }

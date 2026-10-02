@@ -1,5 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 
+import { problemDetail } from '../../core/api/problem-detail';
 import { AiStoryImprovementApiService } from './ai-story-improvement.api';
 import { AiProvider } from './board.model';
 
@@ -58,9 +59,7 @@ export class AiStoryImprovementStore {
             return;
           }
           this.loading.set(false);
-          this.error.set(
-            (err as { error?: { detail?: string } })?.error?.detail ?? 'No se pudo mejorar la historia',
-          );
+          this.error.set(problemDetail(err, 'No se pudo mejorar la historia'));
           resolve(false);
         },
       }),

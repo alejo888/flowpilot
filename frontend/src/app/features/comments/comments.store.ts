@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { forkJoin } from 'rxjs';
 
+import { problemDetail } from '../../core/api/problem-detail';
 import { AuthStore } from '../../core/auth/auth.store';
 import { CommentsApiService } from './comments-api.service';
 import { ActivityEvent, Comment } from './comments.model';
@@ -26,7 +27,7 @@ export class CommentsStore {
     this.projectComments.set([]); this.activity.set([]);
     forkJoin({ comments: this.api.listProject(projectId, { limit: 20, offset: 0 }), activity: this.api.listActivity(projectId, { limit: 20, offset: 0 }) }).subscribe({
       next: ({ comments, activity }) => { if (requestId !== this.projectRequest) return; this.projectComments.set(comments); this.activity.set(activity); this.loading.set(false); },
-      error: (err: unknown) => { if (requestId !== this.projectRequest) return; this.error.set(errorMessage(err, 'No se pudieron cargar los comentarios y la actividad')); this.loading.set(false); },
+      error: (err: unknown) => { if (requestId !== this.projectRequest) return; this.error.set(problemDetail(err, 'No se pudieron cargar los comentarios y la actividad')); this.loading.set(false); },
     });
   }
 
@@ -36,7 +37,7 @@ export class CommentsStore {
     this.workItemComments.set([]);
     this.api.listWorkItem(workItemId, { limit: 20, offset: 0 }).subscribe({
       next: comments => { if (requestId !== this.workItemRequest) return; this.workItemComments.set(comments); this.workItemLoading.set(false); },
-      error: err => { if (requestId !== this.workItemRequest) return; this.error.set(errorMessage(err, 'No se pudieron cargar los comentarios')); this.workItemLoading.set(false); },
+      error: err => { if (requestId !== this.workItemRequest) return; this.error.set(problemDetail(err, 'No se pudieron cargar los comentarios')); this.workItemLoading.set(false); },
     });
   }
 
@@ -55,7 +56,7 @@ export class CommentsStore {
     const previous = list(); this.submitting.set(true); this.error.set(null);
     return new Promise(resolve => this.api.delete(commentId).subscribe({
       next: () => { list.set(previous.filter(item => item.id !== commentId)); this.submitting.set(false); resolve(true); },
-      error: err => { this.error.set(errorMessage(err, 'No se pudo eliminar el comentario')); this.submitting.set(false); resolve(false); },
+      error: err => { this.error.set(problemDetail(err, 'No se pudo eliminar el comentario')); this.submitting.set(false); resolve(false); },
     }));
   }
 
@@ -80,9 +81,7 @@ export class CommentsStore {
         );
         this.submitting.set(false); resolve(true);
       },
-      error: err => { this.error.set(errorMessage(err, 'No se pudo guardar el comentario')); this.submitting.set(false); resolve(false); },
+      error: err => { this.error.set(problemDetail(err, 'No se pudo guardar el comentario')); this.submitting.set(false); resolve(false); },
     }));
   }
 }
-
-function errorMessage(err: unknown, fallback: string): string { return (err as { error?: { detail?: string } })?.error?.detail ?? fallback; }
