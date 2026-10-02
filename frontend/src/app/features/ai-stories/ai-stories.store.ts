@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 
-import { problemDetail } from '../../core/api/problem-detail';
+import { LatestRequest } from '../../core/api/latest-request';
 import { BoardApiService } from '../board/board-api.service';
 import { AiStoriesApiService } from './ai-stories.api';
 import { AiProvider, UserStoryDraft } from './ai-stories.model';
@@ -40,89 +40,46 @@ export class AiStoriesStore {
   readonly generatedBy = signal<AiProvider | null>(null);
   readonly model = signal<string | null>(null);
 
-  /** Bumped by every generate() and reset(); a response only lands if it still matches. */
-  private generation = 0;
-  /** Bumped by every confirm() and reset(); a confirm response only lands if it still matches. */
-  private confirmation = 0;
+  /** Invalidated by every generate() and reset(); a response only lands while it is the latest. */
+  private readonly generation = new LatestRequest(this.loading, this.error);
+  /** Invalidated by every confirm() and reset(); a confirm response only lands while it is the latest. */
+  private readonly confirmation = new LatestRequest(this.submitting, this.error);
 
   generate(projectId: number, requirement: string): Promise<boolean> {
-    const token = ++this.generation;
-    this.loading.set(true);
-    this.error.set(null);
     this.success.set(null);
-
-    return new Promise((resolve) =>
-      this.api.generateUserStory(projectId, { requirement }).subscribe({
-        next: (response) => {
-          if (token !== this.generation) {
-            resolve(false);
-            return;
-          }
-          this.draft.set(response.userStory);
-          this.criteria.set([...response.acceptanceCriteria]);
-          this.generatedBy.set(response.generatedBy);
-          this.model.set(response.model);
-          this.loading.set(false);
-          resolve(true);
-        },
-        error: (err: unknown) => {
-          if (token !== this.generation) {
-            resolve(false);
-            return;
-          }
-          this.loading.set(false);
-          this.error.set(problemDetail(err, 'No se pudo generar la historia de usuario'));
-          resolve(false);
-        },
-      }),
-    );
+    return this.generation.run(this.api.generateUserStory(projectId, { requirement }), {
+      onSuccess: (response) => {
+        this.draft.set(response.userStory);
+        this.criteria.set([...response.acceptanceCriteria]);
+        this.generatedBy.set(response.generatedBy);
+        this.model.set(response.model);
+      },
+      fallback: 'No se pudo generar la historia de usuario',
+    });
   }
 
   confirm(projectId: number, payload: ConfirmUserStoryPayload): Promise<boolean> {
-    const token = ++this.confirmation;
-    this.submitting.set(true);
-    this.error.set(null);
     this.success.set(null);
-
-    return new Promise((resolve) =>
-      this.board
-        .createWorkItem(projectId, {
-          title: payload.title,
-          description: payload.description,
-          acceptanceCriteria: payload.acceptanceCriteria,
-          aiGenerated: true,
-          aiModel: this.model(),
-        })
-        .subscribe({
-          next: () => {
-            if (token !== this.confirmation) {
-              resolve(false);
-              return;
-            }
-            this.submitting.set(false);
-            this.success.set('Tarea creada a partir de la historia generada.');
-            this.clearDraft();
-            resolve(true);
-          },
-          error: (err: unknown) => {
-            if (token !== this.confirmation) {
-              resolve(false);
-              return;
-            }
-            this.submitting.set(false);
-            this.error.set(problemDetail(err, 'No se pudo crear la tarea'));
-            resolve(false);
-          },
-        }),
-    );
+    const request = this.board.createWorkItem(projectId, {
+      title: payload.title,
+      description: payload.description,
+      acceptanceCriteria: payload.acceptanceCriteria,
+      aiGenerated: true,
+      aiModel: this.model(),
+    });
+    return this.confirmation.run(request, {
+      onSuccess: () => {
+        this.success.set('Tarea creada a partir de la historia generada.');
+        this.clearDraft();
+      },
+      fallback: 'No se pudo crear la tarea',
+    });
   }
 
   /** Clears draft, flags and messages and invalidates any in-flight generate or confirm, e.g. on screen entry. */
   reset(): void {
-    this.generation++;
-    this.confirmation++;
-    this.loading.set(false);
-    this.submitting.set(false);
+    this.generation.invalidate();
+    this.confirmation.invalidate();
     this.error.set(null);
     this.success.set(null);
     this.clearDraft();

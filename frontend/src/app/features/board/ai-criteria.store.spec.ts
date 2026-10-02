@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { AiCriteriaApiService } from './ai-criteria.api';
 import { AiCriteriaStore, mergeCriteria, mergeCriteriaWithOverflow } from './ai-criteria.store';
@@ -159,5 +159,32 @@ describe('AiCriteriaStore', () => {
     await store.generate(10, 55, ['A']);
 
     expect(store.overflow()).toEqual([]);
+  });
+
+  it('discard() invalidates an in-flight generate so a late response never fills the draft', async () => {
+    const response = new Subject<GeneratedAcceptanceCriteriaResponse>();
+    api.generate.mockReturnValue(response);
+    const pending = store.generate(10, 55, ['A']);
+
+    store.discard();
+    response.next(generated());
+
+    expect(await pending).toBe(false);
+    expect(store.draft()).toBeNull();
+    expect(store.overflow()).toEqual([]);
+    expect(store.loading()).toBe(false);
+  });
+
+  it('discard() invalidates an in-flight generate so a late error is not surfaced', async () => {
+    const response = new Subject<GeneratedAcceptanceCriteriaResponse>();
+    api.generate.mockReturnValue(response);
+    const pending = store.generate(10, 55, ['A']);
+
+    store.discard();
+    response.error({ error: { detail: 'El asistente de IA no está disponible en este momento.' } });
+
+    expect(await pending).toBe(false);
+    expect(store.error()).toBeNull();
+    expect(store.loading()).toBe(false);
   });
 });

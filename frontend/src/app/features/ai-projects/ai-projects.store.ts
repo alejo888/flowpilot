@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 
+import { LatestRequest } from '../../core/api/latest-request';
 import { problemDetail } from '../../core/api/problem-detail';
 import { AiProjectsApiService } from './ai-projects.api';
 import { AiProvider, ProjectDraftResponse, ProjectWithBacklogRequest } from './ai-projects.model';
@@ -32,76 +33,40 @@ export class AiProjectsStore {
   readonly model = signal<string | null>(null);
   readonly createdProjectId = signal<number | null>(null);
 
-  /** Bumped by every generate() and reset(); a response only lands if it still matches. */
-  private generation = 0;
-  /** Bumped by restart(); an in-flight confirm only lands if it still matches. */
-  private confirmation = 0;
+  /** Invalidated by every generate() and reset(); a response only lands while it is the latest. */
+  private readonly generation = new LatestRequest(this.loading, this.error);
+  /** Invalidated by every confirm() and restart(); a confirm response only lands while it is the latest. */
+  private readonly confirmation = new LatestRequest(this.submitting, this.error);
 
   generate(description: string): Promise<boolean> {
-    const token = ++this.generation;
-    this.loading.set(true);
     this.clearErrors();
-
-    return new Promise((resolve) =>
-      this.api.generateDraft({ description }).subscribe({
-        next: (response) => {
-          if (token !== this.generation) {
-            resolve(false);
-            return;
-          }
-          this.draft.set(response);
-          this.generatedBy.set(response.generatedBy);
-          this.model.set(response.model);
-          this.loading.set(false);
-          resolve(true);
-        },
-        error: (err: unknown) => {
-          if (token !== this.generation) {
-            resolve(false);
-            return;
-          }
-          this.loading.set(false);
-          this.error.set(problemDetail(err, 'No se pudo generar la propuesta de proyecto'));
-          resolve(false);
-        },
-      }),
-    );
+    return this.generation.run(this.api.generateDraft({ description }), {
+      onSuccess: (response) => {
+        this.draft.set(response);
+        this.generatedBy.set(response.generatedBy);
+        this.model.set(response.model);
+      },
+      fallback: 'No se pudo generar la propuesta de proyecto',
+    });
   }
 
   confirm(request: ProjectWithBacklogRequest): Promise<boolean> {
-    const token = ++this.confirmation;
-    this.submitting.set(true);
     this.clearErrors();
     this.createdProjectId.set(null);
-
-    return new Promise((resolve) =>
-      this.api.createProjectWithBacklog(request).subscribe({
-        next: (project) => {
-          if (token !== this.confirmation) {
-            resolve(false);
-            return;
-          }
-          this.submitting.set(false);
-          this.clearDraft();
-          this.createdProjectId.set(project.id);
-          resolve(true);
-        },
-        error: (err: unknown) => {
-          if (token !== this.confirmation) {
-            resolve(false);
-            return;
-          }
-          this.submitting.set(false);
-          if ((err as HttpErrorResponse)?.status === 409) {
-            this.codeError.set(problemDetail(err, 'Ya existe un proyecto con ese código'));
-          } else {
-            this.error.set(problemDetail(err, 'No se pudo crear el proyecto'));
-            this.fieldErrors.set((err as HttpErrorResponse)?.error?.errors ?? {});
-          }
-          resolve(false);
-        },
-      }),
-    );
+    return this.confirmation.run(this.api.createProjectWithBacklog(request), {
+      onSuccess: (project) => {
+        this.clearDraft();
+        this.createdProjectId.set(project.id);
+      },
+      onError: (err) => {
+        if ((err as HttpErrorResponse)?.status === 409) {
+          this.codeError.set(problemDetail(err, 'Ya existe un proyecto con ese código'));
+        } else {
+          this.error.set(problemDetail(err, 'No se pudo crear el proyecto'));
+          this.fieldErrors.set((err as HttpErrorResponse)?.error?.errors ?? {});
+        }
+      },
+    });
   }
 
   /**
@@ -122,15 +87,13 @@ export class AiProjectsStore {
    * late result cannot repopulate state.
    */
   restart(): void {
-    this.confirmation++;
-    this.submitting.set(false);
+    this.confirmation.invalidate();
     this.createdProjectId.set(null);
     this.clearDraft();
   }
 
   private clearDraft(): void {
-    this.generation++;
-    this.loading.set(false);
+    this.generation.invalidate();
     this.draft.set(null);
     this.generatedBy.set(null);
     this.model.set(null);

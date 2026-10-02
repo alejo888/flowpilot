@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 
-import { problemDetail } from '../../core/api/problem-detail';
+import { LatestRequest } from '../../core/api/latest-request';
 import { RiskAnalysisApiService } from './risk-analysis.api';
 import { RiskAnalysisResponse } from './risk-analysis.model';
 
@@ -21,42 +21,19 @@ export class RiskAnalysisStore {
   /** `null` = no analysis on screen. */
   readonly result = signal<RiskAnalysisResponse | null>(null);
 
-  /** Bumped by every analyze() and reset(); a response only lands if it still matches. */
-  private generation = 0;
+  /** Invalidated by every analyze() and reset(); a response only lands while it is the latest. */
+  private readonly analysis = new LatestRequest(this.loading, this.error);
 
   analyze(projectId: number): Promise<boolean> {
-    const token = ++this.generation;
-    this.loading.set(true);
-    this.error.set(null);
-
-    return new Promise((resolve) =>
-      this.api.analyze(projectId).subscribe({
-        next: (response) => {
-          if (token !== this.generation) {
-            resolve(false);
-            return;
-          }
-          this.result.set(response);
-          this.loading.set(false);
-          resolve(true);
-        },
-        error: (err: unknown) => {
-          if (token !== this.generation) {
-            resolve(false);
-            return;
-          }
-          this.loading.set(false);
-          this.error.set(problemDetail(err, 'No se pudo analizar los riesgos'));
-          resolve(false);
-        },
-      }),
-    );
+    return this.analysis.run(this.api.analyze(projectId), {
+      onSuccess: (response) => this.result.set(response),
+      fallback: 'No se pudo analizar los riesgos',
+    });
   }
 
   /** Clears result, error and loading and invalidates any in-flight request (e.g. on project switch). */
   reset(): void {
-    this.generation++;
-    this.loading.set(false);
+    this.analysis.invalidate();
     this.result.set(null);
     this.error.set(null);
   }
