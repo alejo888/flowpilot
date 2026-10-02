@@ -1,5 +1,5 @@
 import { signal } from '@angular/core';
-import { EMPTY, Subject, of, throwError } from 'rxjs';
+import { EMPTY, Subject, finalize, of, throwError } from 'rxjs';
 
 import { LatestRequest } from './latest-request';
 
@@ -131,5 +131,63 @@ describe('LatestRequest', () => {
 
     expect(ok).toBe(false);
     expect(busy()).toBe(false);
+  });
+
+  it('still clears busy and resolves false when the success callback throws', async () => {
+    const failure = new Error('apply failed');
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const ok = await request.run(of(1), {
+      onSuccess: () => {
+        throw failure;
+      },
+      fallback,
+    });
+
+    expect(ok).toBe(false);
+    expect(busy()).toBe(false);
+    expect(logged).toHaveBeenCalledWith(expect.any(String), failure);
+    logged.mockRestore();
+  });
+
+  it('still clears busy and resolves false when the error callback throws', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const ok = await request.run(throwError(() => ({ status: 500 })), {
+      onSuccess: () => undefined,
+      onError: () => {
+        throw new Error('handler failed');
+      },
+    });
+
+    expect(ok).toBe(false);
+    expect(busy()).toBe(false);
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
+  });
+
+  it('unsubscribes the in-flight source on invalidate() and resolves its run false', async () => {
+    const teardown = vi.fn();
+    const source = new Subject<number>();
+    const pending = request.run(source.pipe(finalize(teardown)), { onSuccess: () => undefined, fallback });
+
+    request.invalidate();
+
+    expect(teardown).toHaveBeenCalledTimes(1);
+    expect(source.observed).toBe(false);
+    expect(await pending).toBe(false);
+  });
+
+  it('unsubscribes the superseded source when a newer run starts', async () => {
+    const teardown = vi.fn();
+    const first = new Subject<number>();
+    const firstRun = request.run(first.pipe(finalize(teardown)), { onSuccess: () => undefined, fallback });
+
+    const secondRun = request.run(of(2), { onSuccess: () => undefined, fallback });
+
+    expect(teardown).toHaveBeenCalledTimes(1);
+    expect(first.observed).toBe(false);
+    expect(await firstRun).toBe(false);
+    expect(await secondRun).toBe(true);
   });
 });

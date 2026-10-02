@@ -39,7 +39,11 @@ export class AiSubtasksStore {
   private readonly generation = new LatestRequest(this.loading, this.error);
   private readonly confirmation = new LatestRequest(this.submitting, this.error);
 
+  /** Resolves `false` without a request while a confirm is in flight (they share drafts and messages). */
   generate(projectId: number, request: GenerateSubtasksRequest): Promise<boolean> {
+    if (this.submitting()) {
+      return Promise.resolve(false);
+    }
     this.success.set(null);
     return this.generation.run(this.api.generateSubtasks(projectId, request), {
       onSuccess: (response) => {
@@ -56,9 +60,13 @@ export class AiSubtasksStore {
    * batch endpoint. Resolves `true` only once the server returned 201, at
    * which point the generated state is cleared (the component then navigates
    * back to the board). On failure nothing is cleared — the component keeps
-   * the drafts and the column/sprint selections.
+   * the drafts and the column/sprint selections. Resolves `false` without a
+   * request while a generate is in flight, so its success never clears a newer draft.
    */
   confirm(projectId: number, request: WorkItemBatchCreateRequest): Promise<boolean> {
+    if (this.loading()) {
+      return Promise.resolve(false);
+    }
     this.success.set(null);
     return this.confirmation.run(this.api.createBatch(projectId, request), {
       onSuccess: () => {

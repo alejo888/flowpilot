@@ -214,4 +214,30 @@ describe('AiProjectsStore', () => {
 
     expect(store.codeError()).toBeNull();
   });
+
+  it('rejects generate without a request while a confirm is in flight', async () => {
+    api.generateDraft.mockReturnValue(of(draft()));
+    await store.generate('Una tienda online');
+    api.generateDraft.mockClear();
+    api.createProjectWithBacklog.mockReturnValue(new Subject<{ id: number }>().asObservable());
+    void store.confirm(request);
+
+    const ok = await store.generate('Otra tienda');
+
+    expect(ok).toBe(false);
+    expect(api.generateDraft).not.toHaveBeenCalled();
+    expect(store.submitting()).toBe(true);
+    expect(store.draft()?.name).toBe('Tienda');
+  });
+
+  it('rejects confirm without a request while a generate is in flight', async () => {
+    api.generateDraft.mockReturnValue(new Subject<ProjectDraftResponse>().asObservable());
+    void store.generate('Una tienda online');
+
+    const ok = await store.confirm(request);
+
+    expect(ok).toBe(false);
+    expect(api.createProjectWithBacklog).not.toHaveBeenCalled();
+    expect(store.loading()).toBe(true);
+  });
 });

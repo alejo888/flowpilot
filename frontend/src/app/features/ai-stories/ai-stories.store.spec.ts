@@ -200,4 +200,30 @@ describe('AiStoriesStore', () => {
     expect(await result).toBe(false);
     expect(store.error()).toBeNull();
   });
+
+  it('rejects generate without a request while a confirm is in flight', async () => {
+    api.generateUserStory.mockReturnValue(of(generated()));
+    await store.generate(10, 'algo');
+    api.generateUserStory.mockClear();
+    board.createWorkItem.mockReturnValue(new Subject<{ id: number }>().asObservable());
+    void store.confirm(10, { title: 'T', description: 'D', acceptanceCriteria: [] });
+
+    const ok = await store.generate(10, 'otra cosa');
+
+    expect(ok).toBe(false);
+    expect(api.generateUserStory).not.toHaveBeenCalled();
+    expect(store.submitting()).toBe(true);
+    expect(store.draft()).not.toBeNull();
+  });
+
+  it('rejects confirm without a request while a generate is in flight', async () => {
+    api.generateUserStory.mockReturnValue(new Subject<GeneratedUserStoryResponse>().asObservable());
+    void store.generate(10, 'algo');
+
+    const ok = await store.confirm(10, { title: 'T', description: 'D', acceptanceCriteria: [] });
+
+    expect(ok).toBe(false);
+    expect(board.createWorkItem).not.toHaveBeenCalled();
+    expect(store.loading()).toBe(true);
+  });
 });

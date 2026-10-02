@@ -38,7 +38,11 @@ export class AiProjectsStore {
   /** Invalidated by every confirm() and restart(); a confirm response only lands while it is the latest. */
   private readonly confirmation = new LatestRequest(this.submitting, this.error);
 
+  /** Resolves `false` without a request while a confirm is in flight (its success would drop this generate). */
   generate(description: string): Promise<boolean> {
+    if (this.submitting()) {
+      return Promise.resolve(false);
+    }
     this.clearErrors();
     return this.generation.run(this.api.generateDraft({ description }), {
       onSuccess: (response) => {
@@ -50,7 +54,11 @@ export class AiProjectsStore {
     });
   }
 
+  /** Resolves `false` without a request while a generate is in flight, so its success never clears a newer draft. */
   confirm(request: ProjectWithBacklogRequest): Promise<boolean> {
+    if (this.loading()) {
+      return Promise.resolve(false);
+    }
     this.clearErrors();
     this.createdProjectId.set(null);
     return this.confirmation.run(this.api.createProjectWithBacklog(request), {

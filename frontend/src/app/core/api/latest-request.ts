@@ -27,11 +27,17 @@ export type LatestRequestOptions<T> = {
  * so a late reply can never leak a draft, error or busy flag into a newer
  * request, another item or another project.
  *
+ * Dropping a run (via {@link invalidate} or a newer {@link run}) also
+ * unsubscribes its source, so the underlying HTTP request is cancelled instead
+ * of running on unobserved, and resolves the dropped run's promise `false`.
+ *
  * {@link invalidate} also clears the busy signal: the dropped request will
  * never clear it itself. The error signal stays the caller's to manage.
  */
 export class LatestRequest {
   private generation = 0;
+  /** Cancels the pending run (unsubscribe + resolve `false`); null once it settled or was dropped. */
+  private cancelInFlight: (() => void) | null = null;
 
   constructor(
     private readonly busy: WritableSignal<boolean>,
@@ -40,6 +46,7 @@ export class LatestRequest {
 
   /** Subscribes to `source`; resolves `true` only when its first value landed while still current. */
   run<T>(source: Observable<T>, options: LatestRequestOptions<T>): Promise<boolean> {
+    this.dropInFlight();
     const token = ++this.generation;
     this.busy.set(true);
     this.error.set(null);
@@ -55,12 +62,23 @@ export class LatestRequest {
           resolve(false);
           return;
         }
-        apply();
-        this.busy.set(false);
-        resolve(ok);
+        this.cancelInFlight = null;
+        // A throwing callback is a programming error, not a server outcome: log
+        // it and resolve `false` (nothing was confirmed as applied) instead of
+        // rethrowing, so busy is always cleared and the promise always settles.
+        let applied = ok;
+        try {
+          apply();
+        } catch (err: unknown) {
+          applied = false;
+          console.error('LatestRequest: applying the response failed', err);
+        } finally {
+          this.busy.set(false);
+          resolve(applied);
+        }
       };
 
-      source.subscribe({
+      const subscription = source.subscribe({
         next: (value) => settle(() => options.onSuccess(value), true),
         error: (err: unknown) =>
           settle(() => {
@@ -72,12 +90,28 @@ export class LatestRequest {
           }, false),
         complete: () => settle(() => undefined, false),
       });
+
+      // A synchronous source has already settled (and torn down) by now; only a pending one is cancellable.
+      if (!settled) {
+        this.cancelInFlight = () => {
+          settled = true;
+          subscription.unsubscribe();
+          resolve(false);
+        };
+      }
     });
   }
 
-  /** Drops any in-flight run (its late response is ignored) and clears the busy signal. */
+  /** Drops any in-flight run (unsubscribes it, resolves it `false`) and clears the busy signal. */
   invalidate(): void {
+    this.dropInFlight();
     this.generation++;
     this.busy.set(false);
+  }
+
+  private dropInFlight(): void {
+    const cancel = this.cancelInFlight;
+    this.cancelInFlight = null;
+    cancel?.();
   }
 }

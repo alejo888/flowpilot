@@ -45,7 +45,11 @@ export class AiStoriesStore {
   /** Invalidated by every confirm() and reset(); a confirm response only lands while it is the latest. */
   private readonly confirmation = new LatestRequest(this.submitting, this.error);
 
+  /** Resolves `false` without a request while a confirm is in flight (they share draft and messages). */
   generate(projectId: number, requirement: string): Promise<boolean> {
+    if (this.submitting()) {
+      return Promise.resolve(false);
+    }
     this.success.set(null);
     return this.generation.run(this.api.generateUserStory(projectId, { requirement }), {
       onSuccess: (response) => {
@@ -58,7 +62,11 @@ export class AiStoriesStore {
     });
   }
 
+  /** Resolves `false` without a request while a generate is in flight, so its success never clears a newer draft. */
   confirm(projectId: number, payload: ConfirmUserStoryPayload): Promise<boolean> {
+    if (this.loading()) {
+      return Promise.resolve(false);
+    }
     this.success.set(null);
     const request = this.board.createWorkItem(projectId, {
       title: payload.title,

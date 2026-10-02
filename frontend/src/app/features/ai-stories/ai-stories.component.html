@@ -34,7 +34,7 @@
       type="button"
       icon="add"
       testId="ai-generate"
-      [disabled]="store.loading() || !requirement().trim()"
+      [disabled]="store.loading() || store.submitting() || !requirement().trim()"
       (click)="generate()"
     >Generar historia</fp-button>
     @if (store.loading()) {
@@ -100,7 +100,7 @@
         type="button"
         icon="check"
         testId="ai-confirm"
-        [disabled]="store.submitting() || !title().trim()"
+        [disabled]="store.submitting() || store.loading() || !title().trim()"
         (click)="confirm()"
       >Confirmar y crear tarea</fp-button>
     </fp-card>

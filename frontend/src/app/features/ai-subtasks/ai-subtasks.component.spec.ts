@@ -423,4 +423,75 @@ describe('AiSubtasksComponent', () => {
       'El asistente de IA no está disponible en este momento.',
     );
   });
+
+  it('resets the store and the editable state when projectId changes on the same instance', () => {
+    build();
+    storeStub.reset.mockImplementation(() => {
+      storeStub.generated.set(null);
+      storeStub.error.set(null);
+    });
+    fixture.detectChanges();
+    seedDrafts([{ title: 'A', description: 'da' }]);
+    fixture.componentInstance.selectColumn('2');
+    fixture.componentInstance.storyText.set('Historia del proyecto 10');
+    storeStub.error.set('Error del proyecto anterior');
+    fixture.detectChanges();
+
+    fixture.componentRef.setInput('projectId', '11');
+    fixture.detectChanges();
+
+    expect(storeStub.reset).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance.drafts()).toEqual([]);
+    expect(fixture.componentInstance.columnId()).toBeNull();
+    expect(fixture.componentInstance.storyText()).toBe('');
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
+      'Error del proyecto anterior',
+    );
+  });
+
+  it('keeps the new route preselection after a reset triggered by the route change', () => {
+    build([workItem({ id: 55 }), workItem({ id: 77 })]);
+    fixture.componentRef.setInput('workItemId', '55');
+    fixture.detectChanges();
+
+    fixture.componentRef.setInput('projectId', '11');
+    fixture.componentRef.setInput('workItemId', '77');
+    fixture.detectChanges();
+
+    expect(storeStub.reset).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance.mode()).toBe('existing');
+    expect(fixture.componentInstance.selectedStoryId()).toBe(77);
+  });
+
+  it('returns to free-text mode when the new route carries no workItemId', () => {
+    build([workItem({ id: 55 })]);
+    fixture.componentRef.setInput('workItemId', '55');
+    fixture.detectChanges();
+
+    fixture.componentRef.setInput('projectId', '11');
+    fixture.componentRef.setInput('workItemId', undefined);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.mode()).toBe('text');
+    expect(fixture.componentInstance.selectedStoryId()).toBeNull();
+  });
+
+  it('disables generate while a confirm is in flight and confirm while a generate is in flight', () => {
+    build();
+    fixture.detectChanges();
+    fixture.componentInstance.storyText.set('Historia');
+    seedDrafts([{ title: 'A', description: 'da' }]);
+    fixture.componentInstance.selectColumn('1');
+
+    storeStub.submitting.set(true);
+    fixture.detectChanges();
+    const button = (testId: string) => q(testId) as HTMLButtonElement;
+    expect(button('subtasks-generate').disabled).toBe(true);
+
+    storeStub.submitting.set(false);
+    storeStub.loading.set(true);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.canConfirm()).toBe(false);
+    expect(button('subtasks-confirm').disabled).toBe(true);
+  });
 });

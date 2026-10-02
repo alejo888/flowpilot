@@ -191,4 +191,30 @@ describe('AiSubtasksStore', () => {
     expect(store.success()).toBeNull();
     expect(store.submitting()).toBe(false);
   });
+
+  it('rejects generate without a request while a confirm is in flight', async () => {
+    api.generateSubtasks.mockReturnValue(of(generated()));
+    await store.generate(10, { workItemId: 55 });
+    api.generateSubtasks.mockClear();
+    api.createBatch.mockReturnValue(new Subject<unknown>().asObservable());
+    void store.confirm(10, { columnId: 1, subtasks: [{ title: 'A' }] });
+
+    const ok = await store.generate(10, { workItemId: 55 });
+
+    expect(ok).toBe(false);
+    expect(api.generateSubtasks).not.toHaveBeenCalled();
+    expect(store.submitting()).toBe(true);
+    expect(store.generated()).not.toBeNull();
+  });
+
+  it('rejects confirm without a request while a generate is in flight', async () => {
+    api.generateSubtasks.mockReturnValue(new Subject<GeneratedSubtasksResponse>().asObservable());
+    void store.generate(10, { workItemId: 55 });
+
+    const ok = await store.confirm(10, { columnId: 1, subtasks: [{ title: 'A' }] });
+
+    expect(ok).toBe(false);
+    expect(api.createBatch).not.toHaveBeenCalled();
+    expect(store.loading()).toBe(true);
+  });
 });
