@@ -55,7 +55,9 @@ export class AiProjectsComponent {
 
   readonly fieldErrorList = computed(() => Object.values(this.store.fieldErrors()));
   readonly hasBlankTitle = computed(() => this.name().trim() === '' || hasBlankTitle(this.epics()));
-  readonly canConfirm = computed(() => !this.hasBlankTitle() && !this.store.submitting());
+  readonly canConfirm = computed(
+    () => !this.hasBlankTitle() && !this.store.submitting() && !this.store.loading(),
+  );
 
   /** Identity of the draft already copied into the editable fields, so an edit is never clobbered. */
   private seededDraft: ProjectDraftResponse | null = null;
@@ -86,7 +88,7 @@ export class AiProjectsComponent {
 
   async generate(): Promise<void> {
     const description = this.requirement().trim();
-    if (!description || this.store.loading()) {
+    if (!description || this.store.loading() || this.store.submitting()) {
       return;
     }
     await this.store.generate(description);

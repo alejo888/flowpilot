@@ -158,4 +158,65 @@ describe('AiStoriesComponent', () => {
     const title = fixture.nativeElement.querySelector('[data-testid="ai-story-title"]') as HTMLInputElement;
     expect(title.value).toBe('Título en progreso');
   });
+
+  it('resets the store and the editable fields when projectId changes on the same instance', () => {
+    storeStub.reset.mockImplementation(() => {
+      storeStub.draft.set(null);
+      storeStub.error.set(null);
+    });
+    storeStub.draft.set(draft());
+    storeStub.error.set('Error del proyecto anterior');
+    fixture.detectChanges();
+    type('ai-requirement', 'Requisito del proyecto 10');
+    fixture.componentInstance.title.set('Título a medias');
+
+    fixture.componentRef.setInput('projectId', '11');
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(storeStub.reset).toHaveBeenCalledTimes(2);
+    expect(el.querySelector('[data-testid="ai-stories-error"]')).toBeNull();
+    expect(el.querySelector('[data-testid="ai-story-title"]')).toBeNull();
+    expect(fixture.componentInstance.requirement()).toBe('');
+    expect(fixture.componentInstance.title()).toBe('');
+    expect(fixture.componentInstance.description()).toBe('');
+  });
+
+  it('does not wipe what the user typed in the new project when an older confirm lands after a route change', async () => {
+    storeStub.draft.set(draft());
+    fixture.detectChanges();
+    fixture.componentInstance.title.set('Exportar tareas');
+
+    let resolveConfirm!: (ok: boolean) => void;
+    storeStub.confirm.mockReturnValueOnce(new Promise<boolean>((resolve) => (resolveConfirm = resolve)));
+    const confirming = fixture.componentInstance.confirm();
+    fixture.componentRef.setInput('projectId', '11');
+    fixture.detectChanges();
+    fixture.componentInstance.requirement.set('Requisito del proyecto nuevo');
+    resolveConfirm(true);
+    await confirming;
+
+    expect(storeStub.confirm).toHaveBeenCalledWith(10, expect.objectContaining({ title: 'Exportar tareas' }));
+    expect(fixture.componentInstance.requirement()).toBe('Requisito del proyecto nuevo');
+  });
+
+  it('disables generate while a confirm is in flight and confirm while a generate is in flight', () => {
+    storeStub.draft.set(draft());
+    fixture.detectChanges();
+    type('ai-requirement', 'Requisito');
+    fixture.componentInstance.title.set('Título');
+
+    storeStub.submitting.set(true);
+    fixture.detectChanges();
+    const generateButton = () =>
+      fixture.nativeElement.querySelector('[data-testid="ai-generate"]') as HTMLButtonElement;
+    const confirmButton = () =>
+      fixture.nativeElement.querySelector('[data-testid="ai-confirm"]') as HTMLButtonElement;
+    expect(generateButton().disabled).toBe(true);
+
+    storeStub.submitting.set(false);
+    storeStub.loading.set(true);
+    fixture.detectChanges();
+    expect(confirmButton().disabled).toBe(true);
+  });
 });

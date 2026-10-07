@@ -1,9 +1,16 @@
 import { Injectable, inject, signal } from '@angular/core';
 
-import { LatestRequest } from '../../core/api/latest-request';
+import { CONFIRM_TIMEOUT_MS, LatestRequest } from '../../core/api/latest-request';
 import { BoardApiService } from '../board/board-api.service';
 import { AiStoriesApiService } from './ai-stories.api';
 import { AiProvider, UserStoryDraft } from './ai-stories.model';
+
+/**
+ * Shown when a confirm POST outlives {@link CONFIRM_TIMEOUT_MS}: it may still have succeeded
+ * server-side, so the user is told to check before retrying instead of creating duplicates.
+ */
+const CONFIRM_TIMEOUT_MESSAGE =
+  'La operación está tardando demasiado. Es posible que se haya completado: revisa el tablero antes de volver a intentarlo.';
 
 /** Editable fields the user confirms into a real work item. */
 export interface ConfirmUserStoryPayload {
@@ -23,8 +30,11 @@ export interface ConfirmUserStoryPayload {
  * touches the component's editable form state.
  *
  * The store is root-scoped, so the screen calls {@link reset} on entry; a
- * generate or confirm response that lands after that reset is dropped instead
- * of leaking a draft, message or flag into another project or visit.
+ * generate response that lands after that reset is dropped instead of leaking
+ * a draft into another project or visit. An in-flight confirm is NOT dropped:
+ * the create POST is non-idempotent, so its outcome (success message or error)
+ * always lands instead of inviting a duplicate re-confirm. Its success clears
+ * the draft, so it can never resurrect a stale one.
  */
 @Injectable({ providedIn: 'root' })
 export class AiStoriesStore {
@@ -42,10 +52,21 @@ export class AiStoriesStore {
 
   /** Invalidated by every generate() and reset(); a response only lands while it is the latest. */
   private readonly generation = new LatestRequest(this.loading, this.error);
-  /** Invalidated by every confirm() and reset(); a confirm response only lands while it is the latest. */
-  private readonly confirmation = new LatestRequest(this.submitting, this.error);
+  /**
+   * Superseded only by a newer confirm() (which is blocked while one is in flight); reset() keeps it.
+   * `cancelOnDrop: false` still keeps the non-idempotent POST alive if a run is ever dropped. A POST
+   * outliving CONFIRM_TIMEOUT_MS is abandoned with a check-before-retrying message so it cannot lock the screen.
+   */
+  private readonly confirmation = new LatestRequest(this.submitting, this.error, {
+    cancelOnDrop: false,
+    timeout: { ms: CONFIRM_TIMEOUT_MS, message: CONFIRM_TIMEOUT_MESSAGE },
+  });
 
+  /** Resolves `false` without a request while a confirm is in flight (they share draft and messages). */
   generate(projectId: number, requirement: string): Promise<boolean> {
+    if (this.submitting()) {
+      return Promise.resolve(false);
+    }
     this.success.set(null);
     return this.generation.run(this.api.generateUserStory(projectId, { requirement }), {
       onSuccess: (response) => {
@@ -58,7 +79,11 @@ export class AiStoriesStore {
     });
   }
 
+  /** Resolves `false` without a request while a generate is in flight, so its success never clears a newer draft. */
   confirm(projectId: number, payload: ConfirmUserStoryPayload): Promise<boolean> {
+    if (this.loading()) {
+      return Promise.resolve(false);
+    }
     this.success.set(null);
     const request = this.board.createWorkItem(projectId, {
       title: payload.title,
@@ -76,10 +101,12 @@ export class AiStoriesStore {
     });
   }
 
-  /** Clears draft, flags and messages and invalidates any in-flight generate or confirm, e.g. on screen entry. */
+  /**
+   * Clears draft and messages and invalidates any in-flight generate, e.g. on screen entry. An
+   * in-flight confirm keeps running and its outcome still lands (`submitting` stays true until then).
+   */
   reset(): void {
     this.generation.invalidate();
-    this.confirmation.invalidate();
     this.error.set(null);
     this.success.set(null);
     this.clearDraft();

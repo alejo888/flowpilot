@@ -1,4 +1,4 @@
-import { Component, effect, inject, input, numberAttribute, signal } from '@angular/core';
+import { Component, effect, inject, input, numberAttribute, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { FpButtonComponent } from '../../shared/ui/button.component';
@@ -39,7 +39,12 @@ export class AiStoriesComponent {
   private seededDraft: UserStoryDraft | null = null;
 
   constructor() {
-    this.store.reset();
+    // Route inputs are bound in place: moving to another project on the same
+    // route reuses this instance, so reset on every projectId (incl. the first).
+    effect(() => {
+      this.projectId();
+      untracked(() => this.resetScreen());
+    });
     effect(() => {
       const draft = this.store.draft();
       const criteria = this.store.criteria();
@@ -51,9 +56,18 @@ export class AiStoriesComponent {
     });
   }
 
+  private resetScreen(): void {
+    this.store.reset();
+    this.requirement.set('');
+    this.title.set('');
+    this.description.set('');
+    this.criteria.set([]);
+    this.seededDraft = null;
+  }
+
   async generate(): Promise<void> {
     const requirement = this.requirement().trim();
-    if (!requirement || this.store.loading()) {
+    if (!requirement || this.store.loading() || this.store.submitting()) {
       return;
     }
     await this.store.generate(this.projectId(), requirement);
@@ -72,15 +86,18 @@ export class AiStoriesComponent {
   }
 
   async confirm(): Promise<void> {
-    if (!this.title().trim() || this.store.submitting()) {
+    if (!this.title().trim() || this.store.submitting() || this.store.loading()) {
       return;
     }
-    const ok = await this.store.confirm(this.projectId(), {
+    const projectId = this.projectId();
+    const ok = await this.store.confirm(projectId, {
       title: this.title().trim(),
       description: this.description(),
       acceptanceCriteria: this.criteria().map((c) => c.trim()).filter((c) => c.length > 0),
     });
-    if (ok) {
+    // A route change mid-confirm already reset this screen; the landed success
+    // (store message) still shows, but whatever was typed since is kept.
+    if (ok && this.projectId() === projectId) {
       this.title.set('');
       this.description.set('');
       this.criteria.set([]);

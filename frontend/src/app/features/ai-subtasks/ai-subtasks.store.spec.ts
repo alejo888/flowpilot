@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Subject, of, throwError } from 'rxjs';
 
+import { CONFIRM_TIMEOUT_MS } from '../../core/api/latest-request';
 import { AiSubtasksApiService } from './ai-subtasks.api';
 import { GeneratedSubtasksResponse } from './ai-subtasks.model';
 import { AiSubtasksStore } from './ai-subtasks.store';
@@ -179,16 +180,87 @@ describe('AiSubtasksStore', () => {
     expect(store.model()).toBe('nuevo');
   });
 
-  it('ignores a confirm response that lands after reset()', async () => {
+  it('keeps an in-flight confirm across reset(): its success still lands and leaves the draft cleared', async () => {
+    api.generateSubtasks.mockReturnValue(of(generated()));
+    await store.generate(10, { workItemId: 1 });
     const response = new Subject<unknown>();
     api.createBatch.mockReturnValue(response);
     const pending = store.confirm(10, { columnId: 3, subtasks: [{ title: 'A' }] });
 
     store.reset();
+    expect(store.generated()).toBeNull();
+    expect(store.submitting()).toBe(true);
+    api.generateSubtasks.mockClear();
+    expect(await store.generate(11, { storyText: 'otra' })).toBe(false);
+    expect(api.generateSubtasks).not.toHaveBeenCalled();
+
     response.next([]);
 
-    expect(await pending).toBe(false);
-    expect(store.success()).toBeNull();
+    expect(await pending).toBe(true);
+    expect(store.success()).toBe('Subtareas creadas.');
+    expect(store.generated()).toBeNull();
+    expect(store.model()).toBeNull();
     expect(store.submitting()).toBe(false);
+  });
+
+  it('surfaces a confirm error that lands after reset()', async () => {
+    const response = new Subject<unknown>();
+    api.createBatch.mockReturnValue(response);
+    const pending = store.confirm(10, { columnId: 3, subtasks: [{ title: 'A' }] });
+
+    store.reset();
+    response.error({ error: { detail: 'Sin permiso' } });
+
+    expect(await pending).toBe(false);
+    expect(store.error()).toBe('Sin permiso');
+    expect(store.submitting()).toBe(false);
+  });
+
+  it('rejects generate without a request while a confirm is in flight', async () => {
+    api.generateSubtasks.mockReturnValue(of(generated()));
+    await store.generate(10, { workItemId: 55 });
+    api.generateSubtasks.mockClear();
+    api.createBatch.mockReturnValue(new Subject<unknown>().asObservable());
+    void store.confirm(10, { columnId: 1, subtasks: [{ title: 'A' }] });
+
+    const ok = await store.generate(10, { workItemId: 55 });
+
+    expect(ok).toBe(false);
+    expect(api.generateSubtasks).not.toHaveBeenCalled();
+    expect(store.submitting()).toBe(true);
+    expect(store.generated()).not.toBeNull();
+  });
+
+  it('rejects confirm without a request while a generate is in flight', async () => {
+    api.generateSubtasks.mockReturnValue(new Subject<GeneratedSubtasksResponse>().asObservable());
+    void store.generate(10, { workItemId: 55 });
+
+    const ok = await store.confirm(10, { columnId: 1, subtasks: [{ title: 'A' }] });
+
+    expect(ok).toBe(false);
+    expect(api.createBatch).not.toHaveBeenCalled();
+    expect(store.loading()).toBe(true);
+  });
+  it('a hung confirm times out: submitting clears, the drafts stay and the screen is usable again', async () => {
+    vi.useFakeTimers();
+    try {
+      api.generateSubtasks.mockReturnValue(of(generated()));
+      await store.generate(10, { workItemId: 55 });
+      api.createBatch.mockReturnValue(new Subject<unknown>().asObservable());
+
+      const result = store.confirm(10, { columnId: 3, subtasks: [{ title: 'A' }] });
+      vi.advanceTimersByTime(CONFIRM_TIMEOUT_MS);
+
+      expect(await result).toBe(false);
+      expect(store.submitting()).toBe(false);
+      expect(store.error()).toBe(
+        'La operación está tardando demasiado. Es posible que se haya completado: revisa el tablero antes de volver a intentarlo.',
+      );
+      expect(store.success()).toBeNull();
+      expect(store.generated()).toHaveLength(2);
+      expect(await store.generate(10, { workItemId: 55 })).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

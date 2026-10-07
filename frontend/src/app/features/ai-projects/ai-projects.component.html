@@ -43,7 +43,7 @@
         type="button"
         icon="add"
         testId="ai-project-generate"
-        [disabled]="store.loading() || !requirement().trim()"
+        [disabled]="store.loading() || store.submitting() || !requirement().trim()"
         (click)="generate()"
       >Generar propuesta</fp-button>
       <p class="hint" role="status">

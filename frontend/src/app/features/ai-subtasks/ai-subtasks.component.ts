@@ -1,4 +1,13 @@
-import { Component, computed, effect, inject, input, numberAttribute, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  numberAttribute,
+  signal,
+  untracked,
+} from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 
 import { FpButtonComponent } from '../../shared/ui/button.component';
@@ -113,12 +122,19 @@ export class AiSubtasksComponent {
       }
     });
 
+    // Route inputs are bound in place: moving to another project or story on
+    // the same route reuses this instance, so every change starts a clean
+    // screen, then applies the new route's `?workItemId=` preselection.
     effect(() => {
+      this.projectId();
       const preselected = this.workItemId();
-      if (preselected != null) {
-        this.mode.set('existing');
-        this.selectedStoryId.set(preselected);
-      }
+      untracked(() => {
+        this.resetScreen();
+        if (preselected != null) {
+          this.mode.set('existing');
+          this.selectedStoryId.set(preselected);
+        }
+      });
     });
 
     effect(() => {
@@ -128,6 +144,18 @@ export class AiSubtasksComponent {
         this.drafts.set(generated.map((draft) => ({ ...draft })));
       }
     });
+  }
+
+  private resetScreen(): void {
+    this.store.reset();
+    this.mode.set('text');
+    this.storyText.set('');
+    this.selectedStoryId.set(null);
+    this.drafts.set([]);
+    this.confirming.set(false);
+    this.columnId.set(null);
+    this.sprintId.set(null);
+    this.seededList = null;
   }
 
   setMode(mode: GenerationMode): void {
@@ -147,7 +175,7 @@ export class AiSubtasksComponent {
   }
 
   async generate(): Promise<void> {
-    if (this.store.loading()) {
+    if (this.store.loading() || this.store.submitting()) {
       return;
     }
     if (this.mode() === 'existing') {
@@ -199,7 +227,8 @@ export class AiSubtasksComponent {
       this.columnId() !== null &&
       this.drafts().length > 0 &&
       !this.hasBlankDraftTitle() &&
-      !this.store.submitting(),
+      !this.store.submitting() &&
+      !this.store.loading(),
   );
 
   async confirm(): Promise<void> {
@@ -222,7 +251,10 @@ export class AiSubtasksComponent {
       request.sprintId = this.sprintId() as number;
     }
 
-    const ok = await this.store.confirm(this.projectId(), request);
+    // Captured before the await: a route change mid-confirm resets the screen
+    // but must not redirect the landed outcome to the new route's project.
+    const projectId = this.projectId();
+    const ok = await this.store.confirm(projectId, request);
     if (!ok) {
       return;
     }
@@ -230,7 +262,7 @@ export class AiSubtasksComponent {
     this.columnId.set(null);
     this.sprintId.set(null);
     this.seededList = null;
-    await this.router.navigate(['/projects', this.projectId(), 'board']);
+    await this.router.navigate(['/projects', projectId, 'board']);
   }
 
   addDraft(): void {

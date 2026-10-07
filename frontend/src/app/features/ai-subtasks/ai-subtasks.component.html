@@ -79,6 +79,7 @@
       testId="subtasks-generate"
       [disabled]="
         store.loading() ||
+        store.submitting() ||
         (mode() === 'existing' ? selectedStoryId() === null : !storyText().trim())
       "
       (click)="generate()"

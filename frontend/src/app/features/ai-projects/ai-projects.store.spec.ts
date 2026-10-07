@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { Subject, of, throwError } from 'rxjs';
 
+import { CONFIRM_TIMEOUT_MS } from '../../core/api/latest-request';
 import { AiProjectsApiService } from './ai-projects.api';
 import { ProjectDraftResponse, ProjectWithBacklogRequest } from './ai-projects.model';
 import { AiProjectsStore } from './ai-projects.store';
@@ -137,7 +138,7 @@ describe('AiProjectsStore', () => {
     expect(store.codeError()).toBe('Código duplicado');
   });
 
-  it('restart() invalidates an in-flight confirm so a late success is ignored', async () => {
+  it('restart() keeps an in-flight confirm: its success still lands with the created id', async () => {
     api.generateDraft.mockReturnValue(of(draft()));
     await store.generate('x');
     const pending = new Subject<{ id: number }>();
@@ -145,11 +146,17 @@ describe('AiProjectsStore', () => {
 
     const result = store.confirm(request);
     store.restart();
+    expect(store.draft()).toBeNull();
+    expect(store.submitting()).toBe(true);
+    api.generateDraft.mockClear();
+    expect(await store.generate('otra')).toBe(false);
+    expect(api.generateDraft).not.toHaveBeenCalled();
+
     pending.next({ id: 9 });
     pending.complete();
 
-    expect(await result).toBe(false);
-    expect(store.createdProjectId()).toBeNull();
+    expect(await result).toBe(true);
+    expect(store.createdProjectId()).toBe(9);
     expect(store.submitting()).toBe(false);
     expect(store.draft()).toBeNull();
   });
@@ -213,5 +220,54 @@ describe('AiProjectsStore', () => {
     await store.confirm(request);
 
     expect(store.codeError()).toBeNull();
+  });
+
+  it('rejects generate without a request while a confirm is in flight', async () => {
+    api.generateDraft.mockReturnValue(of(draft()));
+    await store.generate('Una tienda online');
+    api.generateDraft.mockClear();
+    api.createProjectWithBacklog.mockReturnValue(new Subject<{ id: number }>().asObservable());
+    void store.confirm(request);
+
+    const ok = await store.generate('Otra tienda');
+
+    expect(ok).toBe(false);
+    expect(api.generateDraft).not.toHaveBeenCalled();
+    expect(store.submitting()).toBe(true);
+    expect(store.draft()?.name).toBe('Tienda');
+  });
+
+  it('rejects confirm without a request while a generate is in flight', async () => {
+    api.generateDraft.mockReturnValue(new Subject<ProjectDraftResponse>().asObservable());
+    void store.generate('Una tienda online');
+
+    const ok = await store.confirm(request);
+
+    expect(ok).toBe(false);
+    expect(api.createProjectWithBacklog).not.toHaveBeenCalled();
+    expect(store.loading()).toBe(true);
+  });
+  it('a hung confirm times out: submitting clears, the draft stays and the screen is usable again', async () => {
+    vi.useFakeTimers();
+    try {
+      api.generateDraft.mockReturnValue(of(draft()));
+      await store.generate('x');
+      api.createProjectWithBacklog.mockReturnValue(new Subject<{ id: number }>().asObservable());
+
+      const result = store.confirm(request);
+      vi.advanceTimersByTime(CONFIRM_TIMEOUT_MS);
+
+      expect(await result).toBe(false);
+      expect(store.submitting()).toBe(false);
+      expect(store.error()).toBe(
+        'La operación está tardando demasiado. Es posible que se haya completado: revisa la lista de proyectos antes de volver a intentarlo.',
+      );
+      expect(store.draft()?.name).toBe('Tienda');
+      expect(store.createdProjectId()).toBeNull();
+      api.generateDraft.mockReturnValue(of(draft({ name: 'Otra' })));
+      expect(await store.generate('otra')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
