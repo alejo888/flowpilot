@@ -1,5 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 
+import { problemDetail } from '../../core/api/problem-detail';
 import { BoardApiService } from '../board/board-api.service';
 import { AiStoriesApiService } from './ai-stories.api';
 import { AiProvider, UserStoryDraft } from './ai-stories.model';
@@ -70,7 +71,7 @@ export class AiStoriesStore {
             return;
           }
           this.loading.set(false);
-          this.error.set(message(err, 'No se pudo generar la historia de usuario'));
+          this.error.set(problemDetail(err, 'No se pudo generar la historia de usuario'));
           resolve(false);
         },
       }),
@@ -109,7 +110,7 @@ export class AiStoriesStore {
               return;
             }
             this.submitting.set(false);
-            this.error.set(message(err, 'No se pudo crear la tarea'));
+            this.error.set(problemDetail(err, 'No se pudo crear la tarea'));
             resolve(false);
           },
         }),
@@ -133,8 +134,4 @@ export class AiStoriesStore {
     this.generatedBy.set(null);
     this.model.set(null);
   }
-}
-
-function message(err: unknown, fallback: string): string {
-  return (err as { error?: { detail?: string } })?.error?.detail ?? fallback;
 }

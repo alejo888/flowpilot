@@ -1,5 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 
+import { problemDetail } from '../../core/api/problem-detail';
 import { RiskAnalysisApiService } from './risk-analysis.api';
 import { RiskAnalysisResponse } from './risk-analysis.model';
 
@@ -45,9 +46,7 @@ export class RiskAnalysisStore {
             return;
           }
           this.loading.set(false);
-          this.error.set(
-            (err as { error?: { detail?: string } })?.error?.detail ?? 'No se pudo analizar los riesgos',
-          );
+          this.error.set(problemDetail(err, 'No se pudo analizar los riesgos'));
           resolve(false);
         },
       }),

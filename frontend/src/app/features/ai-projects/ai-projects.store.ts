@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 
+import { problemDetail } from '../../core/api/problem-detail';
 import { AiProjectsApiService } from './ai-projects.api';
 import { AiProvider, ProjectDraftResponse, ProjectWithBacklogRequest } from './ai-projects.model';
 
@@ -60,7 +61,7 @@ export class AiProjectsStore {
             return;
           }
           this.loading.set(false);
-          this.error.set(detail(err) ?? 'No se pudo generar la propuesta de proyecto');
+          this.error.set(problemDetail(err, 'No se pudo generar la propuesta de proyecto'));
           resolve(false);
         },
       }),
@@ -91,11 +92,10 @@ export class AiProjectsStore {
             return;
           }
           this.submitting.set(false);
-          const message = detail(err);
           if ((err as HttpErrorResponse)?.status === 409) {
-            this.codeError.set(message ?? 'Ya existe un proyecto con ese código');
+            this.codeError.set(problemDetail(err, 'Ya existe un proyecto con ese código'));
           } else {
-            this.error.set(message ?? 'No se pudo crear el proyecto');
+            this.error.set(problemDetail(err, 'No se pudo crear el proyecto'));
             this.fieldErrors.set((err as HttpErrorResponse)?.error?.errors ?? {});
           }
           resolve(false);
@@ -142,8 +142,4 @@ export class AiProjectsStore {
     this.fieldErrors.set({});
     this.codeError.set(null);
   }
-}
-
-function detail(err: unknown): string | undefined {
-  return (err as { error?: { detail?: string } })?.error?.detail;
 }

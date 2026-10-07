@@ -1,13 +1,10 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, catchError, finalize, map, of, shareReplay } from 'rxjs';
 
+import { problemDetail } from '../api/problem-detail';
 import { AuthApiService } from './auth-api.service';
 import { AccessTokenResponse, GlobalRole } from './auth.model';
 import { decodeRole, decodeUserId } from './jwt-claims';
-
-interface ProblemDetailLike {
-  error?: { detail?: string };
-}
 
 /**
  * Signals-based session state (spec: frontend-auth-session; design decision
@@ -38,7 +35,7 @@ export class AuthStore {
     this.errorSignal.set(null);
     this.api.login({ email, password }).subscribe({
       next: (response) => this.setSession(response),
-      error: (err: unknown) => this.errorSignal.set(this.extractDetail(err)),
+      error: (err: unknown) => this.errorSignal.set(problemDetail(err, 'No se pudo iniciar sesión')),
     });
   }
 
@@ -86,10 +83,5 @@ export class AuthStore {
     this.accessTokenSignal.set(response.accessToken);
     this.expiresAtSignal.set(Date.now() + response.expiresIn * 1000);
     this.roleSignal.set(decodeRole(response.accessToken));
-  }
-
-  private extractDetail(err: unknown): string {
-    const problem = err as ProblemDetailLike;
-    return problem?.error?.detail ?? 'No se pudo iniciar sesión';
   }
 }

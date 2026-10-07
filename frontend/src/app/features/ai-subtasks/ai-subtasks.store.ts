@@ -1,5 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 
+import { problemDetail } from '../../core/api/problem-detail';
 import { AiSubtasksApiService } from './ai-subtasks.api';
 import {
   AiProvider,
@@ -49,7 +50,7 @@ export class AiSubtasksStore {
         },
         error: (err: unknown) => {
           this.loading.set(false);
-          this.error.set(message(err, 'No se pudieron generar las subtareas'));
+          this.error.set(problemDetail(err, 'No se pudieron generar las subtareas'));
           resolve(false);
         },
       }),
@@ -78,7 +79,7 @@ export class AiSubtasksStore {
         },
         error: (err: unknown) => {
           this.submitting.set(false);
-          this.error.set(message(err, 'No se pudieron crear las subtareas'));
+          this.error.set(problemDetail(err, 'No se pudieron crear las subtareas'));
           resolve(false);
         },
       }),
@@ -90,8 +91,4 @@ export class AiSubtasksStore {
     this.generatedBy.set(null);
     this.model.set(null);
   }
-}
-
-function message(err: unknown, fallback: string): string {
-  return (err as { error?: { detail?: string } })?.error?.detail ?? fallback;
 }

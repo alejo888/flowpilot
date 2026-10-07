@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
+import { problemDetail } from '../../core/api/problem-detail';
 import { AdminUsersApiService } from './admin-users-api.service';
 import { AdminUser, GlobalRole } from './admin-user.model';
 
@@ -29,7 +30,7 @@ export class AdminUsersStore {
     this.errorSignal.set(null);
     this.api.listUsers().subscribe({
       next: (users) => this.usersSignal.set(users),
-      error: (err: unknown) => this.errorSignal.set(errorMessage(err, 'No se pudo cargar la lista de usuarios')),
+      error: (err: unknown) => this.errorSignal.set(problemDetail(err, 'No se pudo cargar la lista de usuarios')),
     });
   }
 
@@ -37,7 +38,7 @@ export class AdminUsersStore {
     this.errorSignal.set(null);
     this.api.setStatus(id, { active }).subscribe({
       next: (updated) => this.replace(updated),
-      error: (err: unknown) => this.errorSignal.set(errorMessage(err, 'No se pudo actualizar el estado')),
+      error: (err: unknown) => this.errorSignal.set(problemDetail(err, 'No se pudo actualizar el estado')),
     });
   }
 
@@ -45,21 +46,11 @@ export class AdminUsersStore {
     this.errorSignal.set(null);
     this.api.changeRole(id, { role }).subscribe({
       next: (updated) => this.replace(updated),
-      error: (err: unknown) => this.errorSignal.set(errorMessage(err, 'No se pudo actualizar el rol')),
+      error: (err: unknown) => this.errorSignal.set(problemDetail(err, 'No se pudo actualizar el rol')),
     });
   }
 
   private replace(updated: AdminUser): void {
     this.usersSignal.set(this.usersSignal().map((u) => (u.id === updated.id ? updated : u)));
   }
-}
-
-/**
- * `HttpErrorResponse` implements `Error` but does not extend it, so
- * `err instanceof Error` is always false for real HTTP failures — reads the
- * RFC 7807 `detail` field the backend actually sends instead (design
- * pattern from `AuthStore`/`ProjectsStore`).
- */
-function errorMessage(err: unknown, fallback: string): string {
-  return (err as { error?: { detail?: string } })?.error?.detail ?? fallback;
 }

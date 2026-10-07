@@ -1,5 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 
+import { problemDetail } from '../../core/api/problem-detail';
 import { AiCriteriaApiService } from './ai-criteria.api';
 import { AiProvider } from './board.model';
 
@@ -104,7 +105,7 @@ export class AiCriteriaStore {
         },
         error: (err: unknown) => {
           this.loading.set(false);
-          this.error.set(message(err, 'No se pudieron generar los criterios de aceptación'));
+          this.error.set(problemDetail(err, 'No se pudieron generar los criterios de aceptación'));
           resolve(false);
         },
       }),
@@ -120,8 +121,4 @@ export class AiCriteriaStore {
     this.draft.set(null);
     this.overflow.set([]);
   }
-}
-
-function message(err: unknown, fallback: string): string {
-  return (err as { error?: { detail?: string } })?.error?.detail ?? fallback;
 }

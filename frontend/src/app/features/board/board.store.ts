@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { forkJoin } from 'rxjs';
 
+import { problemDetail } from '../../core/api/problem-detail';
 import { BoardApiService } from './board-api.service';
 import { BoardColumn, WorkItem, WorkItemCreateRequest, WorkItemUpdateRequest } from './board.model';
 
@@ -95,7 +96,7 @@ export class BoardStore {
         }
         this.columnsSignal.set([]);
         this.itemsSignal.set([]);
-        this.errorSignal.set(errorMessage(err, 'No se pudo cargar el tablero'));
+        this.errorSignal.set(problemDetail(err, 'No se pudo cargar el tablero'));
       },
     });
   }
@@ -133,7 +134,7 @@ export class BoardStore {
       },
       error: (err: unknown) => {
         if (requestId === this.detailRequestId) {
-          this.errorSignal.set(errorMessage(err, 'No se pudo cargar la tarea'));
+          this.errorSignal.set(problemDetail(err, 'No se pudo cargar la tarea'));
         }
       },
     });
@@ -206,7 +207,7 @@ export class BoardStore {
       },
       error: (err: unknown) => {
         this.itemsSignal.set(previousItems);
-        this.errorSignal.set(errorMessage(err, 'No se pudo mover la tarea'));
+        this.errorSignal.set(problemDetail(err, 'No se pudo mover la tarea'));
       },
     });
   }
@@ -227,7 +228,7 @@ export class BoardStore {
 
   private failMutation(err: unknown, fallback: string): void {
     this.successSignal.set(null);
-    this.errorSignal.set(errorMessage(err, fallback));
+    this.errorSignal.set(problemDetail(err, fallback));
     this.mutatingSignal.set(false);
   }
 
@@ -239,16 +240,6 @@ export class BoardStore {
     }
     this.itemsSignal.set([...items, nextItem]);
   }
-}
-
-/**
- * `HttpErrorResponse` implements `Error` but does not extend it, so
- * `err instanceof Error` is always false for real HTTP failures — reads the
- * RFC 7807 `detail` field the backend actually sends instead (design
- * pattern from `AuthStore`/`AdminUsersStore`).
- */
-function errorMessage(err: unknown, fallback: string): string {
-  return (err as { error?: { detail?: string } })?.error?.detail ?? fallback;
 }
 
 function optimisticPosition(items: WorkItem[], movingItem: WorkItem, targetColumnId: number, index: number): number {

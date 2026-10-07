@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { ProjectDashboardApiService } from './project-dashboard-api.service';
 import { ProjectDashboard } from './project-dashboard.model';
 
+import { problemDetail } from '../../core/api/problem-detail';
 @Injectable({ providedIn: 'root' })
 export class ProjectDashboardStore {
   private readonly api = inject(ProjectDashboardApiService);
@@ -22,11 +23,7 @@ export class ProjectDashboardStore {
     this.dashboard.set(null);
     this.api.get(projectId).subscribe({
       next: d => { if (requestId !== this.loadRequestId) return; this.dashboard.set(d); this.loading.set(false); },
-      error: (err: unknown) => { if (requestId !== this.loadRequestId) return; this.dashboard.set(null); this.error.set(errorMessage(err, 'No se pudo cargar el dashboard')); this.loading.set(false); },
+      error: (err: unknown) => { if (requestId !== this.loadRequestId) return; this.dashboard.set(null); this.error.set(problemDetail(err, 'No se pudo cargar el dashboard')); this.loading.set(false); },
     });
   }
-}
-
-function errorMessage(err: unknown, fallback: string): string {
-  return (err as { error?: { detail?: string } })?.error?.detail ?? fallback;
 }
