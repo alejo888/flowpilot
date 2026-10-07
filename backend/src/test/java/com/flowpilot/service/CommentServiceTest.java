@@ -3,6 +3,9 @@ package com.flowpilot.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -90,7 +93,7 @@ class CommentServiceTest {
         Comment second = comment(2L, 10L, null, 1L, "next");
         when(comments.findByProjectIdAndWorkItemIdIsNullOrderByCreatedAtDescIdDesc(10L, PageRequest.of(1, 1)))
                 .thenReturn(List.of(second));
-        when(users.findById(1L)).thenReturn(Optional.empty());
+        when(users.findAllById(List.of(1L))).thenReturn(List.of());
 
         assertThat(service.listProject(10L, 1L, 1, 1)).extracting(r -> r.content()).containsExactly("next");
     }
@@ -109,7 +112,7 @@ class CommentServiceTest {
         Comment third = comment(3L, 10L, null, 1L, "older");
         when(comments.findByProjectIdAndWorkItemIdIsNullOrderByCreatedAtDescIdDesc(any(), any()))
                 .thenReturn(List.of(first, second), List.of(third));
-        when(users.findById(1L)).thenReturn(Optional.empty());
+        when(users.findAllById(List.of(1L))).thenReturn(List.of());
 
         assertThat(service.listProject(10L, 1L, 2, 1)).extracting(r -> r.content()).containsExactly("next", "older");
         verify(comments).findByProjectIdAndWorkItemIdIsNullOrderByCreatedAtDescIdDesc(10L, PageRequest.of(0, 2));
@@ -183,6 +186,45 @@ class CommentServiceTest {
         when(comments.findById(404L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.delete(404L, 1L))
                 .isInstanceOf(com.flowpilot.exception.CommentNotFoundException.class);
+    }
+
+    @Test
+    void listResolvesAuthorNamesWithOneBatchLookupPerPage() throws Exception {
+        when(projects.findById(10L)).thenReturn(Optional.of(mock(com.flowpilot.entity.Project.class)));
+        when(auth.canView(1L, 10L)).thenReturn(true);
+        Comment a = comment(1L, 10L, null, 4L, "a");
+        Comment b = comment(2L, 10L, null, 5L, "b");
+        Comment c = comment(3L, 10L, null, 4L, "c");
+        Comment d = comment(4L, 10L, null, 6L, "d"); // author 6 no longer exists -> null name, as before
+        when(comments.findByProjectIdAndWorkItemIdIsNullOrderByCreatedAtDescIdDesc(10L, PageRequest.of(0, 20)))
+                .thenReturn(List.of(a, b, c, d));
+        when(users.findAllById(List.of(4L, 5L, 6L))).thenReturn(List.of(user(4L, "Ana"), user(5L, "Beto")));
+
+        var result = service.listProject(10L, 1L, 20, 0);
+
+        assertThat(result).extracting(r -> r.authorName()).containsExactly("Ana", "Beto", "Ana", null);
+        verify(users, times(1)).findAllById(any());
+        verify(users, never()).findById(anyLong());
+    }
+
+    @Test
+    void workItemListResolvesAuthorNamesWithOneBatchLookup() throws Exception {
+        WorkItem item = item(50L, 10L);
+        when(workItems.findById(50L)).thenReturn(Optional.of(item));
+        when(auth.canView(1L, 10L)).thenReturn(true);
+        when(comments.findByWorkItemIdOrderByCreatedAtDescIdDesc(50L, PageRequest.of(0, 20)))
+                .thenReturn(List.of(comment(1L, 10L, 50L, 4L, "a"), comment(2L, 10L, 50L, 4L, "b")));
+        when(users.findAllById(List.of(4L))).thenReturn(List.of(user(4L, "Ana")));
+
+        assertThat(service.listWorkItem(50L, 1L, 20, 0)).extracting(r -> r.authorName()).containsExactly("Ana", "Ana");
+        verify(users, times(1)).findAllById(any());
+        verify(users, never()).findById(anyLong());
+    }
+
+    private User user(Long id, String name) throws Exception {
+        User value = new User(name, "u" + id + "@flowpilot.local", "hash", com.flowpilot.entity.GlobalRole.MIEMBRO_EQUIPO, true);
+        Field field = User.class.getDeclaredField("id"); field.setAccessible(true); field.set(value, id);
+        return value;
     }
 
     private Comment comment(Long id, Long projectId, Long workItemId, Long authorId, String content) throws Exception {

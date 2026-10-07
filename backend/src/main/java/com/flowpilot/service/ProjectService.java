@@ -20,7 +20,9 @@ import com.flowpilot.repository.BoardColumnRepository;
 import com.flowpilot.repository.ProjectRepository;
 import com.flowpilot.repository.UserRepository;
 import java.time.LocalDate;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -106,6 +108,7 @@ public class ProjectService {
         }
     }
 
+    @Transactional(readOnly = true)
     public List<ProjectResponse> list(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
@@ -115,7 +118,8 @@ public class ProjectService {
         List<Project> projects = user.getRole() == GlobalRole.ADMINISTRADOR
                 ? projectRepository.findAll()
                 : projectRepository.findVisibleToUser(userId);
-        return projects.stream().map(p -> toResponse(p, userId)).toList();
+        Map<Long, EnumSet<Permission>> permissions = authorizationService.permissionsForProjects(user, projects);
+        return projects.stream().map(p -> toResponse(p, permissions.get(p.getId()))).toList();
     }
 
     public ProjectResponse findById(Long id, Long userId) {
@@ -235,6 +239,10 @@ public class ProjectService {
     }
 
     private ProjectResponse toResponse(Project project, Long callerId) {
+        return toResponse(project, authorizationService.permissionsFor(callerId, project.getId()));
+    }
+
+    private ProjectResponse toResponse(Project project, EnumSet<Permission> callerPermissions) {
         return new ProjectResponse(
                 project.getId(),
                 project.getName(),
@@ -248,7 +256,7 @@ public class ProjectService {
                 project.getEstimatedEndDate(),
                 project.getTechnologies(),
                 project.getRepositoryUrl(),
-                authorizationService.permissionsFor(callerId, project.getId()));
+                callerPermissions);
     }
 
     private static BoardColumnResponse toColumnResponse(BoardColumn column) {
