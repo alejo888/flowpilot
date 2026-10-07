@@ -476,6 +476,29 @@ describe('AiSubtasksComponent', () => {
     expect(fixture.componentInstance.selectedStoryId()).toBeNull();
   });
 
+  it('navigates to the ORIGINAL board when a confirm lands after a route change reset the screen', async () => {
+    build([workItem({ id: 55, childCount: 0 })]);
+    fixture.componentRef.setInput('workItemId', '55');
+    fixture.detectChanges();
+    seedDrafts([{ title: 'A', description: '' }]);
+    fixture.componentInstance.selectColumn('1');
+
+    let resolveConfirm!: (ok: boolean) => void;
+    storeStub.confirm.mockReturnValueOnce(new Promise<boolean>((resolve) => (resolveConfirm = resolve)));
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    const confirming = fixture.componentInstance.confirm();
+    fixture.componentRef.setInput('projectId', '11');
+    fixture.componentRef.setInput('workItemId', '77');
+    fixture.detectChanges();
+    resolveConfirm(true);
+    await confirming;
+
+    expect(storeStub.confirm).toHaveBeenCalledWith(10, expect.objectContaining({ parentWorkItemId: 55 }));
+    expect(navigate).toHaveBeenCalledWith(['/projects', 10, 'board']);
+    expect(fixture.componentInstance.drafts()).toEqual([]);
+  });
+
   it('disables generate while a confirm is in flight and confirm while a generate is in flight', () => {
     build();
     fixture.detectChanges();

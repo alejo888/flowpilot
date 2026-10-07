@@ -137,7 +137,7 @@ describe('AiProjectsStore', () => {
     expect(store.codeError()).toBe('Código duplicado');
   });
 
-  it('restart() invalidates an in-flight confirm so a late success is ignored', async () => {
+  it('restart() keeps an in-flight confirm: its success still lands with the created id', async () => {
     api.generateDraft.mockReturnValue(of(draft()));
     await store.generate('x');
     const pending = new Subject<{ id: number }>();
@@ -145,11 +145,17 @@ describe('AiProjectsStore', () => {
 
     const result = store.confirm(request);
     store.restart();
+    expect(store.draft()).toBeNull();
+    expect(store.submitting()).toBe(true);
+    api.generateDraft.mockClear();
+    expect(await store.generate('otra')).toBe(false);
+    expect(api.generateDraft).not.toHaveBeenCalled();
+
     pending.next({ id: 9 });
     pending.complete();
 
-    expect(await result).toBe(false);
-    expect(store.createdProjectId()).toBeNull();
+    expect(await result).toBe(true);
+    expect(store.createdProjectId()).toBe(9);
     expect(store.submitting()).toBe(false);
     expect(store.draft()).toBeNull();
   });

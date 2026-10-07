@@ -179,16 +179,39 @@ describe('AiSubtasksStore', () => {
     expect(store.model()).toBe('nuevo');
   });
 
-  it('ignores a confirm response that lands after reset()', async () => {
+  it('keeps an in-flight confirm across reset(): its success still lands and leaves the draft cleared', async () => {
+    api.generateSubtasks.mockReturnValue(of(generated()));
+    await store.generate(10, { workItemId: 1 });
     const response = new Subject<unknown>();
     api.createBatch.mockReturnValue(response);
     const pending = store.confirm(10, { columnId: 3, subtasks: [{ title: 'A' }] });
 
     store.reset();
+    expect(store.generated()).toBeNull();
+    expect(store.submitting()).toBe(true);
+    api.generateSubtasks.mockClear();
+    expect(await store.generate(11, { storyText: 'otra' })).toBe(false);
+    expect(api.generateSubtasks).not.toHaveBeenCalled();
+
     response.next([]);
 
+    expect(await pending).toBe(true);
+    expect(store.success()).toBe('Subtareas creadas.');
+    expect(store.generated()).toBeNull();
+    expect(store.model()).toBeNull();
+    expect(store.submitting()).toBe(false);
+  });
+
+  it('surfaces a confirm error that lands after reset()', async () => {
+    const response = new Subject<unknown>();
+    api.createBatch.mockReturnValue(response);
+    const pending = store.confirm(10, { columnId: 3, subtasks: [{ title: 'A' }] });
+
+    store.reset();
+    response.error({ error: { detail: 'Sin permiso' } });
+
     expect(await pending).toBe(false);
-    expect(store.success()).toBeNull();
+    expect(store.error()).toBe('Sin permiso');
     expect(store.submitting()).toBe(false);
   });
 

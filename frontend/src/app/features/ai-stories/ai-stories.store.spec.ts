@@ -166,7 +166,7 @@ describe('AiStoriesStore', () => {
     expect(store.success()).toBeNull();
   });
 
-  it('ignores a confirm response that lands after reset, keeping the new visit draft', async () => {
+  it('keeps an in-flight confirm across reset: its success still lands and no stale draft reappears', async () => {
     api.generateUserStory.mockReturnValue(of(generated()));
     await store.generate(10, 'algo');
     const pending = new Subject<{ id: number }>();
@@ -174,20 +174,23 @@ describe('AiStoriesStore', () => {
 
     const result = store.confirm(10, { title: 'T', description: 'D', acceptanceCriteria: [] });
     store.reset();
-    expect(store.submitting()).toBe(false);
-    api.generateUserStory.mockReturnValue(of(generated({ model: 'nuevo' })));
-    await store.generate(20, 'otra visita');
+    expect(store.draft()).toBeNull();
+    expect(store.submitting()).toBe(true);
+    api.generateUserStory.mockClear();
+    expect(await store.generate(20, 'otra visita')).toBe(false);
+    expect(api.generateUserStory).not.toHaveBeenCalled();
+
     pending.next({ id: 1 });
     pending.complete();
 
-    expect(await result).toBe(false);
-    expect(store.draft()).not.toBeNull();
-    expect(store.model()).toBe('nuevo');
-    expect(store.success()).toBeNull();
+    expect(await result).toBe(true);
+    expect(store.success()).toBe('Tarea creada a partir de la historia generada.');
+    expect(store.draft()).toBeNull();
+    expect(store.model()).toBeNull();
     expect(store.submitting()).toBe(false);
   });
 
-  it('ignores a confirm error that lands after reset', async () => {
+  it('surfaces a confirm error that lands after reset', async () => {
     api.generateUserStory.mockReturnValue(of(generated()));
     await store.generate(10, 'algo');
     const pending = new Subject<{ id: number }>();
@@ -198,7 +201,8 @@ describe('AiStoriesStore', () => {
     pending.error({ error: { detail: 'Sin permiso' } });
 
     expect(await result).toBe(false);
-    expect(store.error()).toBeNull();
+    expect(store.error()).toBe('Sin permiso');
+    expect(store.submitting()).toBe(false);
   });
 
   it('rejects generate without a request while a confirm is in flight', async () => {

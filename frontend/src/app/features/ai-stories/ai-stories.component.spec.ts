@@ -182,6 +182,24 @@ describe('AiStoriesComponent', () => {
     expect(fixture.componentInstance.description()).toBe('');
   });
 
+  it('does not wipe what the user typed in the new project when an older confirm lands after a route change', async () => {
+    storeStub.draft.set(draft());
+    fixture.detectChanges();
+    fixture.componentInstance.title.set('Exportar tareas');
+
+    let resolveConfirm!: (ok: boolean) => void;
+    storeStub.confirm.mockReturnValueOnce(new Promise<boolean>((resolve) => (resolveConfirm = resolve)));
+    const confirming = fixture.componentInstance.confirm();
+    fixture.componentRef.setInput('projectId', '11');
+    fixture.detectChanges();
+    fixture.componentInstance.requirement.set('Requisito del proyecto nuevo');
+    resolveConfirm(true);
+    await confirming;
+
+    expect(storeStub.confirm).toHaveBeenCalledWith(10, expect.objectContaining({ title: 'Exportar tareas' }));
+    expect(fixture.componentInstance.requirement()).toBe('Requisito del proyecto nuevo');
+  });
+
   it('disables generate while a confirm is in flight and confirm while a generate is in flight', () => {
     storeStub.draft.set(draft());
     fixture.detectChanges();

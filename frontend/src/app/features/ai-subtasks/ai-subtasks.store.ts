@@ -20,9 +20,12 @@ import {
  * of discarding them. Nothing here touches the component's editable form state.
  *
  * {@link confirm} turns the edited drafts into work items through the
- * transactional batch endpoint. Each request is token-guarded: a response that
- * lands after {@link reset} (or after a newer request of the same kind) is
- * dropped instead of repopulating state.
+ * transactional batch endpoint. A generate response that lands after
+ * {@link reset} (or after a newer generate) is dropped instead of repopulating
+ * state. An in-flight confirm is deliberately NOT dropped by {@link reset}: the
+ * batch POST is non-idempotent, so its outcome (success message, cleared draft,
+ * or error) always lands and the caller can act on it instead of re-confirming
+ * into duplicate subtasks.
  */
 @Injectable({ providedIn: 'root' })
 export class AiSubtasksStore {
@@ -37,7 +40,7 @@ export class AiSubtasksStore {
   readonly model = signal<string | null>(null);
 
   private readonly generation = new LatestRequest(this.loading, this.error);
-  /** A dropped confirm is not cancelled: the non-idempotent batch POST runs to completion unobserved. */
+  /** Never invalidated by reset(); `cancelOnDrop: false` still keeps the non-idempotent POST alive if ever dropped. */
   private readonly confirmation = new LatestRequest(this.submitting, this.error, { cancelOnDrop: false });
 
   /** Resolves `false` without a request while a confirm is in flight (they share drafts and messages). */
@@ -78,10 +81,13 @@ export class AiSubtasksStore {
     });
   }
 
-  /** Clears draft, flags and messages and invalidates any in-flight generate or confirm. */
+  /**
+   * Clears draft and messages and invalidates any in-flight generate. An
+   * in-flight confirm keeps running and its outcome still lands (`submitting`
+   * stays true until then, so generate/confirm remain blocked meanwhile).
+   */
   reset(): void {
     this.generation.invalidate();
-    this.confirmation.invalidate();
     this.error.set(null);
     this.success.set(null);
     this.clearDraft();

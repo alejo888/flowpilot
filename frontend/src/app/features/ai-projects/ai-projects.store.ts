@@ -36,8 +36,8 @@ export class AiProjectsStore {
   /** Invalidated by every generate() and reset(); a response only lands while it is the latest. */
   private readonly generation = new LatestRequest(this.loading, this.error);
   /**
-   * Invalidated by every confirm() and restart(); a confirm response only lands while it is the latest.
-   * A dropped confirm is not cancelled: the non-idempotent POST runs to completion unobserved.
+   * Superseded only by a newer confirm() (blocked while one is in flight); neither reset() nor
+   * restart() drops it, so the non-idempotent POST's outcome always lands.
    */
   private readonly confirmation = new LatestRequest(this.submitting, this.error, { cancelOnDrop: false });
 
@@ -93,12 +93,14 @@ export class AiProjectsStore {
   }
 
   /**
-   * Unconditional clean slate for a fresh visit to the screen: also invalidates
-   * an in-flight confirm (the root-scoped store outlives the component) so its
-   * late result cannot repopulate state.
+   * Clean slate for a fresh visit to the screen (the root-scoped store outlives
+   * the component): drops the draft, errors and any in-flight generate. An
+   * in-flight confirm is NOT dropped: its non-idempotent POST still lands, so a
+   * success still exposes {@link createdProjectId} (and the confirming caller
+   * still navigates to the new board) instead of silently creating a project
+   * the user would then re-create. `submitting` stays true until it settles.
    */
   restart(): void {
-    this.confirmation.invalidate();
     this.createdProjectId.set(null);
     this.clearDraft();
   }

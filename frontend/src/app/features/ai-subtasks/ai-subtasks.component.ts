@@ -251,7 +251,10 @@ export class AiSubtasksComponent {
       request.sprintId = this.sprintId() as number;
     }
 
-    const ok = await this.store.confirm(this.projectId(), request);
+    // Captured before the await: a route change mid-confirm resets the screen
+    // but must not redirect the landed outcome to the new route's project.
+    const projectId = this.projectId();
+    const ok = await this.store.confirm(projectId, request);
     if (!ok) {
       return;
     }
@@ -259,7 +262,7 @@ export class AiSubtasksComponent {
     this.columnId.set(null);
     this.sprintId.set(null);
     this.seededList = null;
-    await this.router.navigate(['/projects', this.projectId(), 'board']);
+    await this.router.navigate(['/projects', projectId, 'board']);
   }
 
   addDraft(): void {

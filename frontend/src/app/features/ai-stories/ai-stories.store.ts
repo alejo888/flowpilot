@@ -23,8 +23,11 @@ export interface ConfirmUserStoryPayload {
  * touches the component's editable form state.
  *
  * The store is root-scoped, so the screen calls {@link reset} on entry; a
- * generate or confirm response that lands after that reset is dropped instead
- * of leaking a draft, message or flag into another project or visit.
+ * generate response that lands after that reset is dropped instead of leaking
+ * a draft into another project or visit. An in-flight confirm is NOT dropped:
+ * the create POST is non-idempotent, so its outcome (success message or error)
+ * always lands instead of inviting a duplicate re-confirm. Its success clears
+ * the draft, so it can never resurrect a stale one.
  */
 @Injectable({ providedIn: 'root' })
 export class AiStoriesStore {
@@ -43,8 +46,8 @@ export class AiStoriesStore {
   /** Invalidated by every generate() and reset(); a response only lands while it is the latest. */
   private readonly generation = new LatestRequest(this.loading, this.error);
   /**
-   * Invalidated by every confirm() and reset(); a confirm response only lands while it is the latest.
-   * A dropped confirm is not cancelled: the non-idempotent POST runs to completion unobserved.
+   * Superseded only by a newer confirm() (which is blocked while one is in flight); reset() keeps it.
+   * `cancelOnDrop: false` still keeps the non-idempotent POST alive if a run is ever dropped.
    */
   private readonly confirmation = new LatestRequest(this.submitting, this.error, { cancelOnDrop: false });
 
@@ -87,10 +90,12 @@ export class AiStoriesStore {
     });
   }
 
-  /** Clears draft, flags and messages and invalidates any in-flight generate or confirm, e.g. on screen entry. */
+  /**
+   * Clears draft and messages and invalidates any in-flight generate, e.g. on screen entry. An
+   * in-flight confirm keeps running and its outcome still lands (`submitting` stays true until then).
+   */
   reset(): void {
     this.generation.invalidate();
-    this.confirmation.invalidate();
     this.error.set(null);
     this.success.set(null);
     this.clearDraft();

@@ -89,12 +89,15 @@ export class AiStoriesComponent {
     if (!this.title().trim() || this.store.submitting() || this.store.loading()) {
       return;
     }
-    const ok = await this.store.confirm(this.projectId(), {
+    const projectId = this.projectId();
+    const ok = await this.store.confirm(projectId, {
       title: this.title().trim(),
       description: this.description(),
       acceptanceCriteria: this.criteria().map((c) => c.trim()).filter((c) => c.length > 0),
     });
-    if (ok) {
+    // A route change mid-confirm already reset this screen; the landed success
+    // (store message) still shows, but whatever was typed since is kept.
+    if (ok && this.projectId() === projectId) {
       this.title.set('');
       this.description.set('');
       this.criteria.set([]);
