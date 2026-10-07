@@ -16,49 +16,12 @@ import { AiStoryImprovementStore } from './ai-story-improvement.store';
 import { CriteriaOverflowNoticeComponent } from './criteria-overflow-notice.component';
 import { StoryImprovementPreviewComponent } from './story-improvement-preview.component';
 import { columnAccent } from './column-accent';
-import { WorkItem, WorkItemCreateRequest, WorkItemPriority, WorkItemUpdateRequest } from './board.model';
+import { emptyForm, formFromItem, requestFromForm } from './work-item-form';
+import { WorkItem } from './board.model';
 import { BoardStore } from './board.store';
 import { CommentsStore } from '../comments/comments.store';
 import { hasPermission } from '../projects/project.model';
 import { ProjectsStore } from '../projects/projects.store';
-
-type WorkItemForm = {
-  title: string;
-  description: string;
-  assignedUserId: number | null;
-  /**
-   * Not edited in this screen (sprint assignment lives in the backlog screen),
-   * but round-tripped so a board edit never drops the item's current sprint:
-   * `PUT /api/work-items/{id}` treats an omitted `sprintId` as an explicit
-   * "move to backlog" (that null IS the backlog screen's unassign contract).
-   */
-  sprintId?: number | null;
-  /**
-   * Not edited in this screen (no priority UI here yet), but round-tripped
-   * the same way as `sprintId` above so submitting the edit form never wipes
-   * the item's current priority back to the backend default.
-   */
-  priority?: WorkItemPriority | null;
-  /**
-   * The item's parent work item (single-level hierarchy). Edited by the
-   * detail panel's parent `<select>` and round-tripped like `sprintId`
-   * above so a board edit never silently clears an existing parent link
-   * (`PUT /api/work-items/{id}` treats an omitted `parentWorkItemId` as an
-   * explicit clear).
-   */
-  parentWorkItemId?: number | null;
-  /**
-   * The item's structured acceptance criteria. Not edited in this screen, but
-   * round-tripped like `sprintId`/`priority`/`parentWorkItemId` above so a
-   * board-panel edit never wipes an AI story's criteria: `PUT /api/work-items/{id}`
-   * replaces the stored list with whatever it receives (an omitted value
-   * becomes `[]`). `emptyForm()` leaves it `undefined` so the create path
-   * posts nothing and the backend stores `[]`.
-   */
-  acceptanceCriteria?: string[];
-};
-
-const emptyForm = (): WorkItemForm => ({ title: '', description: '', assignedUserId: null });
 
 /**
  * Minimal kanban board (spec: kanban-board). Fetches a project's board
@@ -675,53 +638,4 @@ export class BoardComponent {
     const endIndex = this.columnItems(targetColumnId).filter((existing) => existing.id !== item.id).length;
     this.store.moveItem(item.id, targetColumnId, endIndex);
   }
-}
-
-function formFromItem(item: WorkItem): WorkItemForm {
-  return {
-    title: item.title,
-    description: item.description ?? '',
-    assignedUserId: item.assignedUserId,
-    sprintId: item.sprintId ?? null,
-    priority: item.priority ?? null,
-    parentWorkItemId: item.parentWorkItemId ?? null,
-    acceptanceCriteria: item.acceptanceCriteria ?? [],
-  };
-}
-
-function requestFromForm(form: WorkItemForm): WorkItemCreateRequest | WorkItemUpdateRequest | null {
-  const title = form.title.trim();
-  if (!title) {
-    return null;
-  }
-
-  const rawAssignee = form.assignedUserId as number | string | null | undefined;
-  const assignedUserId = Number(rawAssignee);
-
-  const request: WorkItemCreateRequest | WorkItemUpdateRequest = {
-    title,
-    description: form.description.trim() || null,
-    assignedUserId:
-      rawAssignee === null || rawAssignee === undefined || rawAssignee === '' || Number.isNaN(assignedUserId)
-        ? null
-        : assignedUserId,
-  };
-
-  if (form.sprintId !== undefined) {
-    request.sprintId = form.sprintId;
-  }
-
-  if (form.priority !== undefined) {
-    request.priority = form.priority;
-  }
-
-  if (form.parentWorkItemId !== undefined) {
-    request.parentWorkItemId = form.parentWorkItemId;
-  }
-
-  if (form.acceptanceCriteria !== undefined) {
-    request.acceptanceCriteria = form.acceptanceCriteria;
-  }
-
-  return request;
 }
