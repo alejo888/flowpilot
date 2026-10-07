@@ -8,6 +8,7 @@ import { AiConfigService } from '../../core/ai/ai-config.service';
 import { BoardComponent } from './board.component';
 import { BoardStore } from './board.store';
 import { WorkItemCommentsComponent } from './work-item-comments.component';
+import { WorkItemDetailPanelComponent } from './work-item-detail-panel.component';
 import { AiCriteriaStore } from './ai-criteria.store';
 import { AiStoryImprovementStore, StorySuggestion } from './ai-story-improvement.store';
 import { AiProvider, BoardColumn, WorkItem } from './board.model';
@@ -134,6 +135,9 @@ describe('BoardComponent', () => {
   };
   let projectsStoreStub: { selectedProject: ReturnType<typeof signal<Project | null>>; loadProject: ReturnType<typeof vi.fn> };
   let aiConfigStub: { aiEnabled: ReturnType<typeof signal<boolean>>; load: ReturnType<typeof vi.fn> };
+  /** The open detail panel's component (it owns the edit form since the board split). */
+  const detailPanel = () =>
+    fixture.debugElement.query(By.directive(WorkItemDetailPanelComponent)).componentInstance as WorkItemDetailPanelComponent;
 
   beforeEach(async () => {
     aiConfigStub = { aiEnabled: signal(false), load: vi.fn() };
@@ -227,6 +231,41 @@ describe('BoardComponent', () => {
     expect(storeStub.selectItem).toHaveBeenCalledWith(null);
   });
 
+  it('closes the detail panel from its close button', () => {
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    (compiled.querySelector('[data-testid="detail-panel-close"]') as HTMLButtonElement).click();
+
+    expect(storeStub.selectItem).toHaveBeenCalledWith(null);
+  });
+
+  it('opens the delete confirmation dialog from the detail panel delete button', () => {
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    (compiled.querySelector('[data-testid="detail-delete-button"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(compiled.querySelector('[data-testid="delete-dialog"]')?.textContent).toContain('Design schema');
+    expect(storeStub.deleteItem).not.toHaveBeenCalled();
+  });
+
+  it('drops stale AI suggestions when the detail panel closes', () => {
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+    aiCriteriaStub.discard.mockClear();
+    aiStoryStub.reset.mockClear();
+
+    storeStub.selectedItem.set(null);
+    fixture.detectChanges();
+
+    expect(aiCriteriaStub.discard).toHaveBeenCalled();
+    expect(aiStoryStub.reset).toHaveBeenCalled();
+  });
+
   it('hides the "Generar subtareas" action while the AI assistant is disabled', () => {
     storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
     fixture.detectChanges();
@@ -310,12 +349,12 @@ describe('BoardComponent', () => {
     storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Design schema'), description: 'Old' });
     fixture.detectChanges();
 
-    fixture.componentInstance.editForm = {
+    detailPanel().editForm = {
       title: '  Schema editado ',
       description: '',
       assignedUserId: null,
     };
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(500, {
       title: 'Schema editado',
@@ -328,8 +367,8 @@ describe('BoardComponent', () => {
     storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Design schema'), sprintId: 7 });
     fixture.detectChanges();
 
-    fixture.componentInstance.editForm.title = 'Schema editado';
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().editForm.title = 'Schema editado';
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(500, {
       title: 'Schema editado',
@@ -346,8 +385,8 @@ describe('BoardComponent', () => {
     storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Design schema'), priority: 'HIGH' });
     fixture.detectChanges();
 
-    fixture.componentInstance.editForm.title = 'Schema editado';
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().editForm.title = 'Schema editado';
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(500, {
       title: 'Schema editado',
@@ -367,8 +406,8 @@ describe('BoardComponent', () => {
     });
     fixture.detectChanges();
 
-    fixture.componentInstance.editForm.title = 'Schema editado';
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().editForm.title = 'Schema editado';
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(
       500,
@@ -413,7 +452,7 @@ describe('BoardComponent', () => {
     inputs[1].dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(
       500,
@@ -495,7 +534,7 @@ describe('BoardComponent', () => {
     findButton(fixture.nativeElement, 'Añadir a la tarea').click();
     fixture.detectChanges();
 
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(
       500,
@@ -519,7 +558,7 @@ describe('BoardComponent', () => {
     fixture.detectChanges();
 
     expect(aiCriteriaStub.discard).toHaveBeenCalled();
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().submitUpdate(500);
     expect(storeStub.updateItem).toHaveBeenCalledWith(
       500,
       expect.objectContaining({ acceptanceCriteria: ['Dado A'] }),
@@ -551,7 +590,7 @@ describe('BoardComponent', () => {
         ?.textContent,
     ).toContain('El asistente de IA no está disponible en este momento.');
 
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().submitUpdate(500);
     expect(storeStub.updateItem).toHaveBeenCalledWith(
       500,
       expect.objectContaining({ acceptanceCriteria: ['Editado a mano'] }),
@@ -640,7 +679,7 @@ describe('BoardComponent', () => {
 
     it('shows the overflow notice in the preview against the form criteria, and apply still yields the capped merge', () => {
       openEditableItem();
-      fixture.componentInstance.onCriteriaChange(['1', '2', '3', '4', '5', '6']);
+      detailPanel().onCriteriaChange(['1', '2', '3', '4', '5', '6']);
       aiStoryStub.suggestion.set({ description: 'D', criteria: ['s1', 's2', 's3', 's4'] });
       fixture.detectChanges();
 
@@ -652,7 +691,7 @@ describe('BoardComponent', () => {
 
       (el.querySelector('[data-testid="improve-story-apply"]') as HTMLButtonElement).click();
       fixture.detectChanges();
-      fixture.componentInstance.submitUpdate(500);
+      detailPanel().submitUpdate(500);
       expect(storeStub.updateItem).toHaveBeenCalledWith(
         500,
         expect.objectContaining({ acceptanceCriteria: ['1', '2', '3', '4', '5', '6', 's1', 's2'] }),
@@ -668,7 +707,7 @@ describe('BoardComponent', () => {
       fixture.detectChanges();
 
       expect(aiStoryStub.discard).toHaveBeenCalled();
-      fixture.componentInstance.submitUpdate(500);
+      detailPanel().submitUpdate(500);
       expect(storeStub.updateItem).toHaveBeenCalledWith(
         500,
         expect.objectContaining({
@@ -691,7 +730,7 @@ describe('BoardComponent', () => {
       fixture.detectChanges();
 
       expect(aiStoryStub.discard).toHaveBeenCalled();
-      fixture.componentInstance.submitUpdate(500);
+      detailPanel().submitUpdate(500);
       expect(storeStub.updateItem).toHaveBeenCalledWith(
         500,
         expect.objectContaining({ description: 'Descripción original', acceptanceCriteria: ['Dado A'] }),
@@ -700,14 +739,14 @@ describe('BoardComponent', () => {
 
     it('surfaces the Spanish error without touching the typed description', () => {
       openEditableItem();
-      fixture.componentInstance.editForm = { ...fixture.componentInstance.editForm, description: 'Escrito a mano' };
+      detailPanel().editForm = { ...detailPanel().editForm, description: 'Escrito a mano' };
       aiStoryStub.error.set('El asistente de IA no está disponible en este momento.');
       fixture.detectChanges();
 
       expect(
         (fixture.nativeElement as HTMLElement).querySelector('[data-testid="improve-story-error"]')?.textContent,
       ).toContain('El asistente de IA no está disponible en este momento.');
-      fixture.componentInstance.submitUpdate(500);
+      detailPanel().submitUpdate(500);
       expect(storeStub.updateItem).toHaveBeenCalledWith(
         500,
         expect.objectContaining({ description: 'Escrito a mano' }),
@@ -999,8 +1038,8 @@ describe('BoardComponent', () => {
     storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Child'), parentWorkItemId: 900 });
     fixture.detectChanges();
 
-    fixture.componentInstance.editForm.title = 'Child editado';
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().editForm.title = 'Child editado';
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(500, expect.objectContaining({ parentWorkItemId: 900 }));
   });
@@ -1009,8 +1048,8 @@ describe('BoardComponent', () => {
     storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Child'), parentWorkItemId: 900 });
     fixture.detectChanges();
 
-    fixture.componentInstance.editForm.parentWorkItemId = null;
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().editForm.parentWorkItemId = null;
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(500, expect.objectContaining({ parentWorkItemId: null }));
   });
