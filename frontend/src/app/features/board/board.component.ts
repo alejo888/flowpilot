@@ -1,14 +1,13 @@
-import { CdkDrag, CdkDragDrop, CdkDropList, CdkDropListGroup } from '@angular/cdk/drag-drop';
+import { CdkDragDrop, CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { FormsModule } from '@angular/forms';
 import { Component, computed, effect, inject, input, numberAttribute, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import { FpBadgeComponent } from '../../shared/ui/badge.component';
 import { FpButtonComponent } from '../../shared/ui/button.component';
-import { FpCardComponent } from '../../shared/ui/card.component';
 import { FpIconComponent } from '../../shared/ui/icon.component';
 import { FpDialogComponent } from '../../shared/ui/dialog.component';
 import { AiConfigService } from '../../core/ai/ai-config.service';
+import { BoardColumnComponent } from './board-column.component';
 import { AcceptanceCriteriaEditorComponent } from './acceptance-criteria-editor.component';
 import { AiCriteriaStore, mergeCriteria } from './ai-criteria.store';
 import { AiStoryImprovementStore } from './ai-story-improvement.store';
@@ -35,19 +34,16 @@ import { ProjectsStore } from '../projects/projects.store';
   standalone: true,
   imports: [
     RouterLink,
-        CdkDropListGroup,
-    CdkDropList,
-    CdkDrag,
+    CdkDropListGroup,
     FormsModule,
-    FpBadgeComponent,
     FpButtonComponent,
-        FpIconComponent,
-    FpCardComponent,
+    FpIconComponent,
     FpDialogComponent,
     AcceptanceCriteriaEditorComponent,
     CriteriaOverflowNoticeComponent,
     StoryImprovementPreviewComponent,
     WorkItemCommentsComponent,
+    BoardColumnComponent,
   ],
   template: `
     <div class="board" cdkDropListGroup>
@@ -111,38 +107,16 @@ import { ProjectsStore } from '../projects/projects.store';
         <div class="board-columns">
           @for (column of columns(); track column.id; let $i = $index) {
             <section
+              fpBoardColumn
               class="board-column"
               [class.board-column--inactive-mobile]="column.id !== activeColumnId()"
               [style.--fp-column-accent]="columnAccent(column.name, $i)"
-            >
-              <h3 data-testid="column-name" class="board-column-name">{{ column.name }}</h3>
-              <div
-                class="board-column-list"
-                cdkDropList
-                [id]="'column-' + column.id"
-                [cdkDropListData]="column.id"
-                (cdkDropListDropped)="onDrop($event)"
-              >
-                @for (item of columnItems(column.id); track item.id) {
-                  <fp-card class="board-card" cdkDrag [cdkDragData]="item" [cdkDragDisabled]="!canMoveWorkItem()">
-                    <button class="card-title" type="button" (click)="openDetail(item)">
-                      <span data-testid="work-item-title">{{ item.title }}</span>
-                    </button>
-                    @if (item.assignedUserId !== null) {
-                      <span class="assignee">Asignado a {{ item.assignedUserName ?? '#' + item.assignedUserId }}</span>
-                    }
-                    @if (item.parentWorkItemTitle) {
-                      <span class="assignee">↳ historia: {{ item.parentWorkItemTitle }}</span>
-                    }
-                    @if (item.childCount) {
-                      <fp-badge data-testid="child-count-badge">
-                        {{ item.childCount }} {{ item.childCount === 1 ? 'subtarea' : 'subtareas' }}
-                      </fp-badge>
-                    }
-                  </fp-card>
-                }
-              </div>
-            </section>
+              [column]="column"
+              [items]="columnItems(column.id)"
+              [canMove]="canMoveWorkItem()"
+              (itemDropped)="onDrop($event)"
+              (itemOpened)="openDetail($event)"
+            ></section>
           }
         </div>
 

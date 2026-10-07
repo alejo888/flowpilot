@@ -1,3 +1,4 @@
+import { CdkDropList, CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -855,6 +856,14 @@ describe('BoardComponent', () => {
 
     expect(sections[0].style.getPropertyValue('--fp-column-accent')).toBe('#9a9186');
     expect(sections[1].style.getPropertyValue('--fp-column-accent')).toBe('#2a6f8c');
+  });
+
+  it('connects every column drop list through the board cdkDropListGroup', () => {
+    const group = fixture.debugElement.query(By.directive(CdkDropListGroup)).injector.get(CdkDropListGroup);
+    const lists = fixture.debugElement.queryAll(By.directive(CdkDropList)).map((debug) => debug.injector.get(CdkDropList));
+
+    expect(lists.map((list) => list.id)).toEqual(['column-1', 'column-2']);
+    expect(lists.every((list) => group._items.has(list))).toBe(true);
   });
 
   it('calls store.moveItem with the target column and index on drop', () => {
