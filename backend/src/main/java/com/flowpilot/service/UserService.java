@@ -56,6 +56,7 @@ public class UserService {
         this.authRateLimiter = authRateLimiter;
     }
 
+    @Transactional(readOnly = true)
     public List<UserSummaryResponse> listUsers(Long callerId) {
         requireActive(callerId);
         return userRepository.findAll().stream()
@@ -63,6 +64,7 @@ public class UserService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public UserSummaryResponse findById(Long callerId, Long id) {
         requireActive(callerId);
         User user = userRepository.findById(id)
@@ -70,6 +72,7 @@ public class UserService {
         return toSummary(user);
     }
 
+    @Transactional(readOnly = true)
     public UserAdminResponse getProfile(Long id) {
         User user = requireActive(id);
         return toAdminResponse(user);

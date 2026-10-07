@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Matrix-backed authorization seam for project-scoped writes (spec:
@@ -95,6 +96,7 @@ public class ProjectAuthorizationService {
      * Design's {@code hasPermission(userId, projectId, permission)} pseudocode,
      * all 4 steps.
      */
+    @Transactional(readOnly = true)
     public boolean hasPermission(Long userId, Long projectId, Permission permission) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
@@ -126,6 +128,7 @@ public class ProjectAuthorizationService {
      * matrix-granted set for the caller's live {@link ProjectMember} role, or
      * an empty set when the caller is not a member.
      */
+    @Transactional(readOnly = true)
     public EnumSet<Permission> permissionsFor(Long userId, Long projectId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
@@ -143,6 +146,7 @@ public class ProjectAuthorizationService {
      * caller already loaded: {@code memberRole} is the caller's live
      * membership role in {@code project}, or {@code null} when not a member.
      */
+    @Transactional(readOnly = true)
     public EnumSet<Permission> permissionsFor(User caller, Project project, ProjectRole memberRole) {
         return decidePermissions(caller, () -> project, () -> memberRole);
     }
@@ -153,6 +157,7 @@ public class ProjectAuthorizationService {
      * ONE query, and only if some project actually reaches the membership
      * step (a deactivated caller or a global admin issues no query at all).
      */
+    @Transactional(readOnly = true)
     public Map<Long, EnumSet<Permission>> permissionsForProjects(User caller, Collection<Project> projects) {
         List<Long> projectIds = projects.stream().map(Project::getId).toList();
         var memberships = new Object() {
@@ -203,6 +208,7 @@ public class ProjectAuthorizationService {
      * Read gate: admin OR owner OR a live {@code ProjectMember} of the
      * project (design's {@code canRead} formula). Unaffected by slice 8a.
      */
+    @Transactional(readOnly = true)
     public boolean canView(Long userId, Long projectId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
