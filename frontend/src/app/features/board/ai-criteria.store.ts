@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 
-import { problemDetail } from '../../core/api/problem-detail';
+import { LatestRequest } from '../../core/api/latest-request';
 import { AiCriteriaApiService } from './ai-criteria.api';
 import { AiProvider } from './board.model';
 
@@ -73,7 +73,9 @@ export function mergeCriteria(
  * {@link generate} resolves `Promise<boolean>` — `true` only once the server
  * returned a draft — so the panel can keep whatever the user typed on failure.
  * Nothing here is persisted; the panel attaches an accepted draft through the
- * existing `PUT /api/work-items/{id}`.
+ * existing `PUT /api/work-items/{id}`. {@link discard} also invalidates an
+ * in-flight generate, so suggestions requested for one item never land on the
+ * next one the board opens.
  */
 @Injectable({ providedIn: 'root' })
 export class AiCriteriaStore {
@@ -88,36 +90,31 @@ export class AiCriteriaStore {
   readonly generatedBy = signal<AiProvider | null>(null);
   readonly model = signal<string | null>(null);
 
-  generate(projectId: number, workItemId: number, existing: string[]): Promise<boolean> {
-    this.loading.set(true);
-    this.error.set(null);
+  private readonly generation = new LatestRequest(this.loading, this.error);
 
-    return new Promise((resolve) =>
-      this.api.generate(projectId, workItemId).subscribe({
-        next: (response) => {
-          const result = mergeCriteriaWithOverflow(existing, response.criteria);
-          this.draft.set(result.merged);
-          this.overflow.set(result.overflow);
-          this.generatedBy.set(response.generatedBy);
-          this.model.set(response.model);
-          this.loading.set(false);
-          resolve(true);
-        },
-        error: (err: unknown) => {
-          this.loading.set(false);
-          this.error.set(problemDetail(err, 'No se pudieron generar los criterios de aceptación'));
-          resolve(false);
-        },
-      }),
-    );
+  generate(projectId: number, workItemId: number, existing: string[]): Promise<boolean> {
+    return this.generation.run(this.api.generate(projectId, workItemId), {
+      onSuccess: (response) => {
+        const result = mergeCriteriaWithOverflow(existing, response.criteria);
+        this.draft.set(result.merged);
+        this.overflow.set(result.overflow);
+        this.generatedBy.set(response.generatedBy);
+        this.model.set(response.model);
+      },
+      fallback: 'No se pudieron generar los criterios de aceptación',
+    });
   }
 
   setDraft(next: string[]): void {
     this.draft.set(next);
   }
 
-  /** Discards the on-screen suggestions. Leaves the item's saved criteria untouched. */
+  /**
+   * Discards the on-screen suggestions and invalidates any in-flight generate.
+   * Leaves the item's saved criteria and the error untouched.
+   */
   discard(): void {
+    this.generation.invalidate();
     this.draft.set(null);
     this.overflow.set([]);
   }

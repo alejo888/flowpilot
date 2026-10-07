@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 
-import { problemDetail } from '../../core/api/problem-detail';
+import { LatestRequest } from '../../core/api/latest-request';
 import { AiStoryImprovementApiService } from './ai-story-improvement.api';
 import { AiProvider } from './board.model';
 
@@ -29,41 +29,21 @@ export class AiStoryImprovementStore {
   readonly generatedBy = signal<AiProvider | null>(null);
   readonly model = signal<string | null>(null);
 
-  /** Bumped by every generate() and reset(); a response only lands if it still matches. */
-  private generation = 0;
+  /** Invalidated by every generate() and reset(); a response only lands while it is the latest. */
+  private readonly generation = new LatestRequest(this.loading, this.error);
 
   generate(projectId: number, workItemId: number): Promise<boolean> {
-    const token = ++this.generation;
-    this.loading.set(true);
-    this.error.set(null);
-
-    return new Promise((resolve) =>
-      this.api.improve(projectId, workItemId).subscribe({
-        next: (response) => {
-          if (token !== this.generation) {
-            resolve(false);
-            return;
-          }
-          this.suggestion.set({
-            description: response.userStory.text,
-            criteria: response.acceptanceCriteria,
-          });
-          this.generatedBy.set(response.generatedBy);
-          this.model.set(response.model);
-          this.loading.set(false);
-          resolve(true);
-        },
-        error: (err: unknown) => {
-          if (token !== this.generation) {
-            resolve(false);
-            return;
-          }
-          this.loading.set(false);
-          this.error.set(problemDetail(err, 'No se pudo mejorar la historia'));
-          resolve(false);
-        },
-      }),
-    );
+    return this.generation.run(this.api.improve(projectId, workItemId), {
+      onSuccess: (response) => {
+        this.suggestion.set({
+          description: response.userStory.text,
+          criteria: response.acceptanceCriteria,
+        });
+        this.generatedBy.set(response.generatedBy);
+        this.model.set(response.model);
+      },
+      fallback: 'No se pudo mejorar la historia',
+    });
   }
 
   /** Drops the on-screen suggestion and any stale error; does not invalidate an in-flight request. */
@@ -74,8 +54,7 @@ export class AiStoryImprovementStore {
 
   /** Clears suggestion, error and loading and invalidates any in-flight request, e.g. when the open work item changes. */
   reset(): void {
-    this.generation++;
-    this.loading.set(false);
+    this.generation.invalidate();
     this.suggestion.set(null);
     this.error.set(null);
   }

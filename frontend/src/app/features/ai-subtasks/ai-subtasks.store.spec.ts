@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { AiSubtasksApiService } from './ai-subtasks.api';
 import { GeneratedSubtasksResponse } from './ai-subtasks.model';
@@ -124,5 +124,71 @@ describe('AiSubtasksStore', () => {
     expect(store.generated()).toBeNull();
     expect(store.generatedBy()).toBeNull();
     expect(store.model()).toBeNull();
+  });
+
+  it('reset() clears loading, submitting and error', () => {
+    api.generateSubtasks.mockReturnValue(new Subject());
+    void store.generate(10, { workItemId: 1 });
+    store.error.set('algo');
+
+    store.reset();
+
+    expect(store.loading()).toBe(false);
+    expect(store.submitting()).toBe(false);
+    expect(store.error()).toBeNull();
+  });
+
+  it('ignores a generate response that lands after reset()', async () => {
+    const response = new Subject<GeneratedSubtasksResponse>();
+    api.generateSubtasks.mockReturnValue(response);
+    const pending = store.generate(10, { workItemId: 1 });
+
+    store.reset();
+    response.next(generated());
+
+    expect(await pending).toBe(false);
+    expect(store.generated()).toBeNull();
+    expect(store.model()).toBeNull();
+    expect(store.loading()).toBe(false);
+  });
+
+  it('ignores a generate error that lands after reset()', async () => {
+    const response = new Subject<GeneratedSubtasksResponse>();
+    api.generateSubtasks.mockReturnValue(response);
+    const pending = store.generate(10, { workItemId: 1 });
+
+    store.reset();
+    response.error({ error: { detail: 'tarde' } });
+
+    expect(await pending).toBe(false);
+    expect(store.error()).toBeNull();
+  });
+
+  it('ignores a superseded generate response', async () => {
+    const first = new Subject<GeneratedSubtasksResponse>();
+    const second = new Subject<GeneratedSubtasksResponse>();
+    api.generateSubtasks.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    const firstRun = store.generate(10, { workItemId: 1 });
+    const secondRun = store.generate(10, { workItemId: 2 });
+
+    second.next(generated({ model: 'nuevo' }));
+    first.next(generated({ model: 'viejo' }));
+
+    expect(await secondRun).toBe(true);
+    expect(await firstRun).toBe(false);
+    expect(store.model()).toBe('nuevo');
+  });
+
+  it('ignores a confirm response that lands after reset()', async () => {
+    const response = new Subject<unknown>();
+    api.createBatch.mockReturnValue(response);
+    const pending = store.confirm(10, { columnId: 3, subtasks: [{ title: 'A' }] });
+
+    store.reset();
+    response.next([]);
+
+    expect(await pending).toBe(false);
+    expect(store.success()).toBeNull();
+    expect(store.submitting()).toBe(false);
   });
 });

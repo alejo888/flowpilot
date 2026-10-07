@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 
-import { problemDetail } from '../../core/api/problem-detail';
+import { LatestRequest } from '../../core/api/latest-request';
 import { AiSubtasksApiService } from './ai-subtasks.api';
 import {
   AiProvider,
@@ -19,8 +19,10 @@ import {
  * component can keep the user's typed text and edited rows on failure instead
  * of discarding them. Nothing here touches the component's editable form state.
  *
- * The confirm step (column/sprint pickers + transactional batch create) lands
- * in PR 3b; this store only covers generation and draft provenance.
+ * {@link confirm} turns the edited drafts into work items through the
+ * transactional batch endpoint. Each request is token-guarded: a response that
+ * lands after {@link reset} (or after a newer request of the same kind) is
+ * dropped instead of repopulating state.
  */
 @Injectable({ providedIn: 'root' })
 export class AiSubtasksStore {
@@ -34,27 +36,19 @@ export class AiSubtasksStore {
   readonly generatedBy = signal<AiProvider | null>(null);
   readonly model = signal<string | null>(null);
 
-  generate(projectId: number, request: GenerateSubtasksRequest): Promise<boolean> {
-    this.loading.set(true);
-    this.error.set(null);
-    this.success.set(null);
+  private readonly generation = new LatestRequest(this.loading, this.error);
+  private readonly confirmation = new LatestRequest(this.submitting, this.error);
 
-    return new Promise((resolve) =>
-      this.api.generateSubtasks(projectId, request).subscribe({
-        next: (response) => {
-          this.generated.set(response.subtasks.map((s) => ({ ...s })));
-          this.generatedBy.set(response.generatedBy);
-          this.model.set(response.model);
-          this.loading.set(false);
-          resolve(true);
-        },
-        error: (err: unknown) => {
-          this.loading.set(false);
-          this.error.set(problemDetail(err, 'No se pudieron generar las subtareas'));
-          resolve(false);
-        },
-      }),
-    );
+  generate(projectId: number, request: GenerateSubtasksRequest): Promise<boolean> {
+    this.success.set(null);
+    return this.generation.run(this.api.generateSubtasks(projectId, request), {
+      onSuccess: (response) => {
+        this.generated.set(response.subtasks.map((s) => ({ ...s })));
+        this.generatedBy.set(response.generatedBy);
+        this.model.set(response.model);
+      },
+      fallback: 'No se pudieron generar las subtareas',
+    });
   }
 
   /**
@@ -65,28 +59,26 @@ export class AiSubtasksStore {
    * the drafts and the column/sprint selections.
    */
   confirm(projectId: number, request: WorkItemBatchCreateRequest): Promise<boolean> {
-    this.submitting.set(true);
-    this.error.set(null);
     this.success.set(null);
-
-    return new Promise((resolve) =>
-      this.api.createBatch(projectId, request).subscribe({
-        next: () => {
-          this.submitting.set(false);
-          this.success.set('Subtareas creadas.');
-          this.reset();
-          resolve(true);
-        },
-        error: (err: unknown) => {
-          this.submitting.set(false);
-          this.error.set(problemDetail(err, 'No se pudieron crear las subtareas'));
-          resolve(false);
-        },
-      }),
-    );
+    return this.confirmation.run(this.api.createBatch(projectId, request), {
+      onSuccess: () => {
+        this.success.set('Subtareas creadas.');
+        this.clearDraft();
+      },
+      fallback: 'No se pudieron crear las subtareas',
+    });
   }
 
+  /** Clears draft, flags and messages and invalidates any in-flight generate or confirm. */
   reset(): void {
+    this.generation.invalidate();
+    this.confirmation.invalidate();
+    this.error.set(null);
+    this.success.set(null);
+    this.clearDraft();
+  }
+
+  private clearDraft(): void {
     this.generated.set(null);
     this.generatedBy.set(null);
     this.model.set(null);
