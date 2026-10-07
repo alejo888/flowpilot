@@ -1,10 +1,17 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 
-import { LatestRequest } from '../../core/api/latest-request';
+import { CONFIRM_TIMEOUT_MS, LatestRequest } from '../../core/api/latest-request';
 import { problemDetail } from '../../core/api/problem-detail';
 import { AiProjectsApiService } from './ai-projects.api';
 import { AiProvider, ProjectDraftResponse, ProjectWithBacklogRequest } from './ai-projects.model';
+
+/**
+ * Shown when a confirm POST outlives {@link CONFIRM_TIMEOUT_MS}: it may still have succeeded
+ * server-side, so the user is told to check before retrying instead of creating duplicates.
+ */
+const CONFIRM_TIMEOUT_MESSAGE =
+  'La operación está tardando demasiado. Es posible que se haya completado: revisa la lista de proyectos antes de volver a intentarlo.';
 
 /**
  * Signals store for AI project creation (vision 7.4). Holds the raw draft, the
@@ -37,9 +44,14 @@ export class AiProjectsStore {
   private readonly generation = new LatestRequest(this.loading, this.error);
   /**
    * Superseded only by a newer confirm() (blocked while one is in flight); neither reset() nor
-   * restart() drops it, so the non-idempotent POST's outcome always lands.
+   * restart() drops it, so the non-idempotent POST's outcome always lands — unless it outlives
+   * CONFIRM_TIMEOUT_MS, when it is abandoned with a check-before-retrying message so a hung POST
+   * cannot lock the screen.
    */
-  private readonly confirmation = new LatestRequest(this.submitting, this.error, { cancelOnDrop: false });
+  private readonly confirmation = new LatestRequest(this.submitting, this.error, {
+    cancelOnDrop: false,
+    timeout: { ms: CONFIRM_TIMEOUT_MS, message: CONFIRM_TIMEOUT_MESSAGE },
+  });
 
   /** Resolves `false` without a request while a confirm is in flight (its success would drop this generate). */
   generate(description: string): Promise<boolean> {

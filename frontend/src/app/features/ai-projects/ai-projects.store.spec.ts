@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { Subject, of, throwError } from 'rxjs';
 
+import { CONFIRM_TIMEOUT_MS } from '../../core/api/latest-request';
 import { AiProjectsApiService } from './ai-projects.api';
 import { ProjectDraftResponse, ProjectWithBacklogRequest } from './ai-projects.model';
 import { AiProjectsStore } from './ai-projects.store';
@@ -245,5 +246,28 @@ describe('AiProjectsStore', () => {
     expect(ok).toBe(false);
     expect(api.createProjectWithBacklog).not.toHaveBeenCalled();
     expect(store.loading()).toBe(true);
+  });
+  it('a hung confirm times out: submitting clears, the draft stays and the screen is usable again', async () => {
+    vi.useFakeTimers();
+    try {
+      api.generateDraft.mockReturnValue(of(draft()));
+      await store.generate('x');
+      api.createProjectWithBacklog.mockReturnValue(new Subject<{ id: number }>().asObservable());
+
+      const result = store.confirm(request);
+      vi.advanceTimersByTime(CONFIRM_TIMEOUT_MS);
+
+      expect(await result).toBe(false);
+      expect(store.submitting()).toBe(false);
+      expect(store.error()).toBe(
+        'La operación está tardando demasiado. Es posible que se haya completado: revisa la lista de proyectos antes de volver a intentarlo.',
+      );
+      expect(store.draft()?.name).toBe('Tienda');
+      expect(store.createdProjectId()).toBeNull();
+      api.generateDraft.mockReturnValue(of(draft({ name: 'Otra' })));
+      expect(await store.generate('otra')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

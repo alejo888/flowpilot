@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 
-import { LatestRequest } from '../../core/api/latest-request';
+import { CONFIRM_TIMEOUT_MS, LatestRequest } from '../../core/api/latest-request';
 import { AiSubtasksApiService } from './ai-subtasks.api';
 import {
   AiProvider,
@@ -8,6 +8,13 @@ import {
   SubtaskDraft,
   WorkItemBatchCreateRequest,
 } from './ai-subtasks.model';
+
+/**
+ * Shown when a confirm POST outlives {@link CONFIRM_TIMEOUT_MS}: it may still have succeeded
+ * server-side, so the user is told to check before retrying instead of creating duplicates.
+ */
+const CONFIRM_TIMEOUT_MESSAGE =
+  'La operación está tardando demasiado. Es posible que se haya completado: revisa el tablero antes de volver a intentarlo.';
 
 /**
  * Signals store for AI subtask generation (spec: ai-subtask-generation).
@@ -40,8 +47,14 @@ export class AiSubtasksStore {
   readonly model = signal<string | null>(null);
 
   private readonly generation = new LatestRequest(this.loading, this.error);
-  /** Never invalidated by reset(); `cancelOnDrop: false` still keeps the non-idempotent POST alive if ever dropped. */
-  private readonly confirmation = new LatestRequest(this.submitting, this.error, { cancelOnDrop: false });
+  /**
+   * Never invalidated by reset(); `cancelOnDrop: false` still keeps the non-idempotent POST alive if ever dropped.
+   * A POST outliving CONFIRM_TIMEOUT_MS is abandoned with a check-before-retrying message so it cannot lock the screen.
+   */
+  private readonly confirmation = new LatestRequest(this.submitting, this.error, {
+    cancelOnDrop: false,
+    timeout: { ms: CONFIRM_TIMEOUT_MS, message: CONFIRM_TIMEOUT_MESSAGE },
+  });
 
   /** Resolves `false` without a request while a confirm is in flight (they share drafts and messages). */
   generate(projectId: number, request: GenerateSubtasksRequest): Promise<boolean> {

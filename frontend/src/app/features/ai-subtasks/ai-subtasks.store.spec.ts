@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Subject, of, throwError } from 'rxjs';
 
+import { CONFIRM_TIMEOUT_MS } from '../../core/api/latest-request';
 import { AiSubtasksApiService } from './ai-subtasks.api';
 import { GeneratedSubtasksResponse } from './ai-subtasks.model';
 import { AiSubtasksStore } from './ai-subtasks.store';
@@ -239,5 +240,27 @@ describe('AiSubtasksStore', () => {
     expect(ok).toBe(false);
     expect(api.createBatch).not.toHaveBeenCalled();
     expect(store.loading()).toBe(true);
+  });
+  it('a hung confirm times out: submitting clears, the drafts stay and the screen is usable again', async () => {
+    vi.useFakeTimers();
+    try {
+      api.generateSubtasks.mockReturnValue(of(generated()));
+      await store.generate(10, { workItemId: 55 });
+      api.createBatch.mockReturnValue(new Subject<unknown>().asObservable());
+
+      const result = store.confirm(10, { columnId: 3, subtasks: [{ title: 'A' }] });
+      vi.advanceTimersByTime(CONFIRM_TIMEOUT_MS);
+
+      expect(await result).toBe(false);
+      expect(store.submitting()).toBe(false);
+      expect(store.error()).toBe(
+        'La operación está tardando demasiado. Es posible que se haya completado: revisa el tablero antes de volver a intentarlo.',
+      );
+      expect(store.success()).toBeNull();
+      expect(store.generated()).toHaveLength(2);
+      expect(await store.generate(10, { workItemId: 55 })).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

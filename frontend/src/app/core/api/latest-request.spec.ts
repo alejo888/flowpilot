@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 import { EMPTY, Subject, finalize, of, throwError } from 'rxjs';
 
-import { LatestRequest } from './latest-request';
+import { CONFIRM_TIMEOUT_MS, LatestRequest } from './latest-request';
 
 describe('LatestRequest', () => {
   const fallback = 'No se pudo completar la acción';
@@ -254,6 +254,110 @@ describe('LatestRequest', () => {
       expect(await firstRun).toBe(false);
       expect(await secondRun).toBe(true);
       expect(seen).toEqual([2]);
+    });
+  });
+  it('never times out when no timeout is configured', async () => {
+    vi.useFakeTimers();
+    try {
+      const source = new Subject<number>();
+      const onSuccess = vi.fn();
+      const pending = request.run(source, { onSuccess, fallback });
+
+      vi.advanceTimersByTime(CONFIRM_TIMEOUT_MS * 10);
+      expect(busy()).toBe(true);
+      expect(source.observed).toBe(true);
+
+      source.next(7);
+      expect(await pending).toBe(true);
+      expect(onSuccess).toHaveBeenCalledWith(7);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  describe('with a timeout', () => {
+    const timeoutMessage = 'La operación está tardando demasiado.';
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      request = new LatestRequest(busy, error, {
+        cancelOnDrop: false,
+        timeout: { ms: 1_000, message: timeoutMessage },
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('resolves false, clears busy and sets the timeout message once the source hangs', async () => {
+      const source = new Subject<number>();
+      const onSuccess = vi.fn();
+      const pending = request.run(source, { onSuccess, fallback });
+
+      vi.advanceTimersByTime(999);
+      expect(busy()).toBe(true);
+      vi.advanceTimersByTime(1);
+
+      expect(await pending).toBe(false);
+      expect(busy()).toBe(false);
+      expect(error()).toBe(timeoutMessage);
+      expect(source.observed).toBe(false);
+
+      source.next(1);
+      expect(onSuccess).not.toHaveBeenCalled();
+    });
+
+    it('uses the timeout message instead of a custom onError hook', async () => {
+      const onError = vi.fn();
+      const pending = request.run(new Subject<number>(), { onSuccess: () => undefined, onError });
+
+      vi.advanceTimersByTime(1_000);
+
+      expect(await pending).toBe(false);
+      expect(onError).not.toHaveBeenCalled();
+      expect(error()).toBe(timeoutMessage);
+    });
+
+    it('does not fire once a value landed before the deadline', async () => {
+      const source = new Subject<number>();
+      const pending = request.run(source, { onSuccess: () => undefined, fallback });
+
+      source.next(1);
+      expect(await pending).toBe(true);
+      vi.advanceTimersByTime(5_000);
+
+      expect(error()).toBeNull();
+      expect(busy()).toBe(false);
+    });
+
+    it('a dropped run timing out touches no state', async () => {
+      const pending = request.run(new Subject<number>(), { onSuccess: () => undefined, fallback });
+      request.invalidate();
+      busy.set(true);
+      error.set('estado nuevo');
+
+      vi.advanceTimersByTime(1_000);
+
+      expect(await pending).toBe(false);
+      expect(busy()).toBe(true);
+      expect(error()).toBe('estado nuevo');
+    });
+
+    it('a superseded run timing out does not touch the newer run', async () => {
+      const first = new Subject<number>();
+      const second = new Subject<number>();
+      const firstRun = request.run(first, { onSuccess: () => undefined, fallback });
+      vi.advanceTimersByTime(600);
+      const secondRun = request.run(second, { onSuccess: () => undefined, fallback });
+
+      vi.advanceTimersByTime(600);
+      expect(await firstRun).toBe(false);
+      expect(busy()).toBe(true);
+      expect(error()).toBeNull();
+
+      second.next(2);
+      expect(await secondRun).toBe(true);
     });
   });
 });

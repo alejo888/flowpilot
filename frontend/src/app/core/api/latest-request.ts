@@ -1,5 +1,5 @@
 import { WritableSignal } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, TimeoutError, timeout } from 'rxjs';
 
 import { problemDetail } from './problem-detail';
 
@@ -26,7 +26,16 @@ export interface LatestRequestConfig {
    * server instead of being cancelled at an unknown point.
    */
   cancelOnDrop?: boolean;
+  /**
+   * Abandons a run that produced no value within `ms`: busy clears, the promise
+   * resolves `false` and the error signal gets `message` (bypassing `fallback`
+   * and `onError`). Omit for no timeout.
+   */
+  timeout?: { ms: number; message: string };
 }
+
+/** Client-side deadline for non-idempotent AI confirm POSTs (HttpClient has none of its own). */
+export const CONFIRM_TIMEOUT_MS = 30_000;
 
 /**
  * Token-guarded Observable -> `Promise<boolean>` bridge for signals stores.
@@ -45,6 +54,16 @@ export interface LatestRequestConfig {
  *
  * {@link invalidate} also clears the busy signal: the dropped request will
  * never clear it itself. The error signal stays the caller's to manage.
+ *
+ * With a configured `timeout`, a run that produced no value in time is
+ * abandoned: rxjs `timeout` unsubscribes the source, so its response can no
+ * longer land, and the run settles like a failure carrying the timeout
+ * message. It is the one case where even a `cancelOnDrop: false` write is
+ * given up on (otherwise a hung request would keep busy set forever), so for a
+ * non-idempotent write the message should warn that the request may still have
+ * succeeded server-side and must be checked before retrying. The deadline only
+ * acts through the same token guard: a dropped or superseded run that times
+ * out touches no state.
  */
 export class LatestRequest {
   private generation = 0;
@@ -91,11 +110,14 @@ export class LatestRequest {
         }
       };
 
-      const subscription = source.subscribe({
+      const timed = this.config.timeout ? source.pipe(timeout(this.config.timeout.ms)) : source;
+      const subscription = timed.subscribe({
         next: (value) => settle(() => options.onSuccess(value), true),
         error: (err: unknown) =>
           settle(() => {
-            if ('onError' in options) {
+            if (err instanceof TimeoutError && this.config.timeout) {
+              this.error.set(this.config.timeout.message);
+            } else if ('onError' in options) {
               options.onError(err);
             } else {
               this.error.set(problemDetail(err, options.fallback));

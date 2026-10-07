@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Subject, of, throwError } from 'rxjs';
 
+import { CONFIRM_TIMEOUT_MS } from '../../core/api/latest-request';
 import { BoardApiService } from '../board/board-api.service';
 import { AiStoriesApiService } from './ai-stories.api';
 import { GeneratedUserStoryResponse } from './ai-stories.model';
@@ -229,5 +230,28 @@ describe('AiStoriesStore', () => {
     expect(ok).toBe(false);
     expect(board.createWorkItem).not.toHaveBeenCalled();
     expect(store.loading()).toBe(true);
+  });
+  it('a hung confirm times out: submitting clears, the draft stays and the screen is usable again', async () => {
+    vi.useFakeTimers();
+    try {
+      api.generateUserStory.mockReturnValue(of(generated()));
+      await store.generate(10, 'algo');
+      board.createWorkItem.mockReturnValue(new Subject<{ id: number }>().asObservable());
+
+      const result = store.confirm(10, { title: 'T', description: 'D', acceptanceCriteria: [] });
+      vi.advanceTimersByTime(CONFIRM_TIMEOUT_MS);
+
+      expect(await result).toBe(false);
+      expect(store.submitting()).toBe(false);
+      expect(store.error()).toBe(
+        'La operación está tardando demasiado. Es posible que se haya completado: revisa el tablero antes de volver a intentarlo.',
+      );
+      expect(store.success()).toBeNull();
+      expect(store.draft()).not.toBeNull();
+      expect(store.criteria()).toEqual(['Criterio A', 'Criterio B']);
+      expect(await store.generate(10, 'otra')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
