@@ -1,10 +1,12 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 
 import { AiConfigService } from '../../core/ai/ai-config.service';
 import { BoardComponent } from './board.component';
 import { BoardStore } from './board.store';
+import { WorkItemCommentsComponent } from './work-item-comments.component';
 import { AiCriteriaStore } from './ai-criteria.store';
 import { AiStoryImprovementStore, StorySuggestion } from './ai-story-improvement.store';
 import { AiProvider, BoardColumn, WorkItem } from './board.model';
@@ -1156,75 +1158,25 @@ describe('BoardComponent work-item comments', () => {
     fixture.detectChanges();
   });
 
-  it('keeps the draft when creating a work-item comment fails and clears it on success', async () => {
-    commentsStub.createWorkItem.mockResolvedValueOnce(false);
-    fixture.componentInstance.commentDraft = '  Texto importante ';
-
-    await fixture.componentInstance.submitWorkComment();
-
-    expect(commentsStub.createWorkItem).toHaveBeenCalledWith(500, 'Texto importante');
-    expect(fixture.componentInstance.commentDraft).toBe('  Texto importante ');
-
+  // Comment list/create/edit/delete behavior is covered by
+  // work-item-comments.component.spec.ts; these check the board wiring.
+  it('renders the comments section inside the detail panel bound to the open item', async () => {
     commentsStub.createWorkItem.mockResolvedValueOnce(true);
-    await fixture.componentInstance.submitWorkComment();
+    const panel = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="detail-panel"]');
+    expect(panel?.querySelector('[data-testid="work-comment-form"]')).not.toBeNull();
 
-    expect(fixture.componentInstance.commentDraft).toBe('');
+    const comments = fixture.debugElement.query(By.directive(WorkItemCommentsComponent))
+      .componentInstance as WorkItemCommentsComponent;
+    comments.commentDraft = 'Hola';
+    await comments.submitWorkComment();
+
+    expect(commentsStub.createWorkItem).toHaveBeenCalledWith(500, 'Hola');
   });
 
-  it('stays in edit mode when saving a work-item comment fails and exits on success', async () => {
-    commentsStub.update.mockResolvedValueOnce(false);
-    fixture.componentInstance.editingCommentId.set(7);
-    fixture.componentInstance.editingContent.set('Corregido');
+  it('loads the item comments when a card is opened', () => {
+    fixture.componentInstance.openDetail(item(500, 1, 1024, 'Design schema'));
 
-    await fixture.componentInstance.saveComment(7);
-
-    expect(commentsStub.update).toHaveBeenCalledWith(7, 'Corregido', 'workItem');
-    expect(fixture.componentInstance.editingCommentId()).toBe(7);
-
-    commentsStub.update.mockResolvedValueOnce(true);
-    await fixture.componentInstance.saveComment(7);
-
-    expect(fixture.componentInstance.editingCommentId()).toBeNull();
-  });
-
-  it('keeps the delete confirmation open when deleting a work-item comment fails and closes it on success', async () => {
-    commentsStub.delete.mockResolvedValueOnce(false);
-    fixture.componentInstance.deletingCommentId.set(7);
-
-    await fixture.componentInstance.deleteCommentConfirmed();
-
-    expect(commentsStub.delete).toHaveBeenCalledWith(7, 'workItem');
-    expect(fixture.componentInstance.deletingCommentId()).toBe(7);
-
-    commentsStub.delete.mockResolvedValueOnce(true);
-    await fixture.componentInstance.deleteCommentConfirmed();
-
-    expect(fixture.componentInstance.deletingCommentId()).toBeNull();
-  });
-
-  it('shows the failure reason inside the still-open comment delete dialog, not behind its backdrop', async () => {
-    commentsStub.delete.mockImplementationOnce(async () => {
-      commentsStub.error.set('No se pudo eliminar el comentario');
-      return false;
-    });
-    fixture.componentInstance.deletingCommentId.set(7);
-    fixture.detectChanges();
-
-    await fixture.componentInstance.deleteCommentConfirmed();
-    fixture.detectChanges();
-
-    const dialog = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="comment-delete-dialog"]');
-    expect(dialog).not.toBeNull();
-    const panel = dialog?.querySelector('.fp-dialog__panel');
-    const alert = panel?.querySelector('[data-testid="comment-delete-dialog-error"]');
-    expect(alert?.getAttribute('role')).toBe('alert');
-    expect(alert?.textContent).toContain('No se pudo eliminar el comentario');
-    // The section-level copy is suppressed while the dialog is open so the
-    // same message is not announced twice by two `role="alert"` nodes.
-    const sectionAlerts = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('.work-comments [role="alert"]'),
-    );
-    expect(sectionAlerts).toHaveLength(0);
+    expect(commentsStub.loadWorkItem).toHaveBeenCalledWith(500);
   });
 });
 
