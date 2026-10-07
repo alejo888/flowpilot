@@ -190,4 +190,70 @@ describe('LatestRequest', () => {
     expect(await firstRun).toBe(false);
     expect(await secondRun).toBe(true);
   });
+  describe('with cancelOnDrop: false', () => {
+    beforeEach(() => {
+      request = new LatestRequest(busy, error, { cancelOnDrop: false });
+    });
+
+    it('resolves the dropped run false on invalidate() but keeps the source subscribed', async () => {
+      const teardown = vi.fn();
+      const source = new Subject<number>();
+      const pending = request.run(source.pipe(finalize(teardown)), { onSuccess: () => undefined, fallback });
+
+      request.invalidate();
+
+      expect(await pending).toBe(false);
+      expect(teardown).not.toHaveBeenCalled();
+      expect(source.observed).toBe(true);
+    });
+
+    it('lets a late response complete unobserved without touching state', async () => {
+      const source = new Subject<number>();
+      const onSuccess = vi.fn();
+      const pending = request.run(source, { onSuccess, fallback });
+
+      request.invalidate();
+      busy.set(true);
+      error.set('estado nuevo');
+      source.next(1);
+      source.complete();
+
+      expect(await pending).toBe(false);
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(busy()).toBe(true);
+      expect(error()).toBe('estado nuevo');
+      expect(source.observed).toBe(false);
+    });
+
+    it('lets a late error complete unobserved without touching state', async () => {
+      const source = new Subject<number>();
+      const onError = vi.fn();
+      const pending = request.run(source, { onSuccess: () => undefined, onError });
+
+      request.invalidate();
+      error.set('estado nuevo');
+      source.error({ error: { detail: 'tarde' } });
+
+      expect(await pending).toBe(false);
+      expect(onError).not.toHaveBeenCalled();
+      expect(error()).toBe('estado nuevo');
+      expect(busy()).toBe(false);
+    });
+
+    it('keeps the superseded source subscribed when a newer run starts', async () => {
+      const teardown = vi.fn();
+      const first = new Subject<number>();
+      const seen: number[] = [];
+      const firstRun = request.run(first.pipe(finalize(teardown)), { onSuccess: (v) => seen.push(v), fallback });
+
+      const secondRun = request.run(of(2), { onSuccess: (v) => seen.push(v), fallback });
+
+      expect(teardown).not.toHaveBeenCalled();
+      expect(first.observed).toBe(true);
+      first.next(1);
+      expect(await firstRun).toBe(false);
+      expect(await secondRun).toBe(true);
+      expect(seen).toEqual([2]);
+    });
+  });
 });

@@ -37,7 +37,8 @@ export class AiSubtasksStore {
   readonly model = signal<string | null>(null);
 
   private readonly generation = new LatestRequest(this.loading, this.error);
-  private readonly confirmation = new LatestRequest(this.submitting, this.error);
+  /** A dropped confirm is not cancelled: the non-idempotent batch POST runs to completion unobserved. */
+  private readonly confirmation = new LatestRequest(this.submitting, this.error, { cancelOnDrop: false });
 
   /** Resolves `false` without a request while a confirm is in flight (they share drafts and messages). */
   generate(projectId: number, request: GenerateSubtasksRequest): Promise<boolean> {

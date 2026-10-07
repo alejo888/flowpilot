@@ -42,8 +42,11 @@ export class AiStoriesStore {
 
   /** Invalidated by every generate() and reset(); a response only lands while it is the latest. */
   private readonly generation = new LatestRequest(this.loading, this.error);
-  /** Invalidated by every confirm() and reset(); a confirm response only lands while it is the latest. */
-  private readonly confirmation = new LatestRequest(this.submitting, this.error);
+  /**
+   * Invalidated by every confirm() and reset(); a confirm response only lands while it is the latest.
+   * A dropped confirm is not cancelled: the non-idempotent POST runs to completion unobserved.
+   */
+  private readonly confirmation = new LatestRequest(this.submitting, this.error, { cancelOnDrop: false });
 
   /** Resolves `false` without a request while a confirm is in flight (they share draft and messages). */
   generate(projectId: number, requirement: string): Promise<boolean> {

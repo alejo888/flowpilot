@@ -18,6 +18,16 @@ export type LatestRequestOptions<T> = {
     }
 );
 
+/** Construction-time behaviour of a {@link LatestRequest}. */
+export interface LatestRequestConfig {
+  /**
+   * Whether dropping a run unsubscribes its source (default `true`). Pass
+   * `false` for non-idempotent writes so a dropped POST still reaches the
+   * server instead of being cancelled at an unknown point.
+   */
+  cancelOnDrop?: boolean;
+}
+
 /**
  * Token-guarded Observable -> `Promise<boolean>` bridge for signals stores.
  *
@@ -27,21 +37,24 @@ export type LatestRequestOptions<T> = {
  * so a late reply can never leak a draft, error or busy flag into a newer
  * request, another item or another project.
  *
- * Dropping a run (via {@link invalidate} or a newer {@link run}) also
- * unsubscribes its source, so the underlying HTTP request is cancelled instead
- * of running on unobserved, and resolves the dropped run's promise `false`.
+ * Dropping a run (via {@link invalidate} or a newer {@link run}) resolves the
+ * dropped run's promise `false` and, by default, unsubscribes its source so the
+ * underlying HTTP request is cancelled instead of running on unobserved. With
+ * `cancelOnDrop: false` the source is left subscribed: the request runs to
+ * completion unobserved and its eventual response still touches no state.
  *
  * {@link invalidate} also clears the busy signal: the dropped request will
  * never clear it itself. The error signal stays the caller's to manage.
  */
 export class LatestRequest {
   private generation = 0;
-  /** Cancels the pending run (unsubscribe + resolve `false`); null once it settled or was dropped. */
+  /** Drops the pending run (resolve `false`, unsubscribe unless kept); null once it settled or was dropped. */
   private cancelInFlight: (() => void) | null = null;
 
   constructor(
     private readonly busy: WritableSignal<boolean>,
     private readonly error: WritableSignal<string | null>,
+    private readonly config: LatestRequestConfig = {},
   ) {}
 
   /** Subscribes to `source`; resolves `true` only when its first value landed while still current. */
@@ -95,14 +108,16 @@ export class LatestRequest {
       if (!settled) {
         this.cancelInFlight = () => {
           settled = true;
-          subscription.unsubscribe();
+          if (this.config.cancelOnDrop ?? true) {
+            subscription.unsubscribe();
+          }
           resolve(false);
         };
       }
     });
   }
 
-  /** Drops any in-flight run (unsubscribes it, resolves it `false`) and clears the busy signal. */
+  /** Drops any in-flight run (resolves it `false`, unsubscribes it unless `cancelOnDrop` is false) and clears busy. */
   invalidate(): void {
     this.dropInFlight();
     this.generation++;
