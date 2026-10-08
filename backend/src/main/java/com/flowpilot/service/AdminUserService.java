@@ -40,6 +40,7 @@ public class AdminUserService {
         this.userRepository = userRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<UserAdminResponse> listUsers(Long callerId) {
         requireAdmin(callerId);
         return userRepository.findAll().stream().map(AdminUserService::toResponse).toList();

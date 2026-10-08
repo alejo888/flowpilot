@@ -122,6 +122,7 @@ public class ProjectService {
         return projects.stream().map(p -> toResponse(p, permissions.get(p.getId()))).toList();
     }
 
+    @Transactional(readOnly = true)
     public ProjectResponse findById(Long id, Long userId) {
         accessGuard.requireCanView(userId, id, VIEW_DENIED_MESSAGE);
         return toResponse(getOrThrow(id), userId);
@@ -163,6 +164,7 @@ public class ProjectService {
         projectRepository.delete(project);
     }
 
+    @Transactional(readOnly = true)
     public List<BoardColumnResponse> listBoardColumns(Long projectId, Long userId) {
         accessGuard.requireCanView(userId, projectId, VIEW_DENIED_MESSAGE);
         return boardColumnRepository.findByProjectIdOrderByPositionAsc(projectId).stream()

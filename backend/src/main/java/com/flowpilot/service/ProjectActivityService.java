@@ -9,6 +9,7 @@ import com.flowpilot.repository.ProjectRepository;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ProjectActivityService {
@@ -24,6 +25,7 @@ public class ProjectActivityService {
   * got a silent {@code 200 []} instead of the {@code 404} every other
   * caller (whose {@code canView} path does reach the project lookup) gets.
   */
+ @Transactional(readOnly = true)
  public List<ActivityResponse> list(Long projectId, int limit, int offset){
   if(projects.findById(projectId).isEmpty()) throw new ProjectNotFoundException(projectId);
   validate(limit,offset);

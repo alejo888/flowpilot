@@ -45,6 +45,7 @@ public class SprintService {
             return response;
     }
 
+    @Transactional(readOnly = true)
     public List<SprintResponse> list(Long projectId, Long requesterId) {
         accessGuard.requireCanView(requesterId, projectId, VIEW_DENIED_MESSAGE);
         return sprintRepository.findByProjectIdOrderByStartDateAsc(projectId).stream()

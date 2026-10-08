@@ -190,12 +190,14 @@ public class WorkItemService {
         return item;
     }
 
+    @Transactional(readOnly = true)
     public WorkItemResponse findById(Long id, Long requesterId) {
         WorkItem item = getOrThrow(id);
         accessGuard.requireCanView(requesterId, item.getProjectId(), VIEW_DENIED_MESSAGE);
         return toRichResponse(item);
     }
 
+    @Transactional(readOnly = true)
     public List<WorkItemResponse> list(Long projectId, Long requesterId) {
         accessGuard.requireCanView(requesterId, projectId, VIEW_DENIED_MESSAGE);
         List<WorkItem> items = workItemRepository.findByProjectIdOrderByColumnIdAscPositionAsc(projectId);
