@@ -31,6 +31,7 @@ import com.flowpilot.exception.ProjectNotFoundException;
 import com.flowpilot.repository.BoardColumnRepository;
 import com.flowpilot.repository.ProjectRepository;
 import com.flowpilot.repository.UserRepository;
+import java.util.Map;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
 import java.util.EnumSet;
@@ -424,6 +425,28 @@ class ProjectServiceTest {
         List<ProjectResponse> result = projectService.list(3L);
 
         assertThat(result).extracting(ProjectResponse::id).containsExactly(11L, 12L);
+    }
+
+    @Test
+    void listComputesCallerPermissionsInOneBatchInsteadOfPerRow() throws Exception {
+        User member = user(2L, GlobalRole.MIEMBRO_EQUIPO);
+        Project owned = project(11L, 2L);
+        Project shared = project(13L, 9L);
+        List<Project> visible = List.of(owned, shared);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(member));
+        when(projectRepository.findVisibleToUser(2L)).thenReturn(visible);
+        when(authorizationService.permissionsForProjects(member, visible)).thenReturn(Map.of(
+                11L, EnumSet.allOf(Permission.class),
+                13L, EnumSet.of(Permission.WORKITEM_CREATE)));
+
+        List<ProjectResponse> result = projectService.list(2L);
+
+        assertThat(result.get(0).callerPermissions()).containsExactlyInAnyOrder(Permission.values());
+        assertThat(result.get(1).callerPermissions()).containsExactly(Permission.WORKITEM_CREATE);
+        verify(authorizationService, times(1)).permissionsForProjects(member, visible);
+        verify(authorizationService, never()).permissionsFor(
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
+        verify(userRepository, times(1)).findById(2L);
     }
 
     private Project project(Long id, Long ownerId) throws Exception {

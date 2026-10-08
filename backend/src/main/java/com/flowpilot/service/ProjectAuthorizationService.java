@@ -14,9 +14,14 @@ import com.flowpilot.repository.ProjectRepository;
 import com.flowpilot.repository.RolePermissionRepository;
 import com.flowpilot.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.springframework.stereotype.Service;
 
 /**
@@ -124,23 +129,74 @@ public class ProjectAuthorizationService {
     public EnumSet<Permission> permissionsFor(Long userId, Long projectId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
-        if (!user.isActive()) {
+        return decidePermissions(
+                user,
+                () -> projectRepository.findById(projectId)
+                        .orElseThrow(() -> new ProjectNotFoundException(projectId)),
+                () -> projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
+                        .map(ProjectMember::getRole)
+                        .orElse(null));
+    }
+
+    /**
+     * Same decision as {@link #permissionsFor(Long, Long)}, over data the
+     * caller already loaded: {@code memberRole} is the caller's live
+     * membership role in {@code project}, or {@code null} when not a member.
+     */
+    public EnumSet<Permission> permissionsFor(User caller, Project project, ProjectRole memberRole) {
+        return decidePermissions(caller, () -> project, () -> memberRole);
+    }
+
+    /**
+     * {@link #permissionsFor(Long, Long)} for many projects at once, keyed by
+     * project id: the caller's memberships across all of them are loaded in
+     * ONE query, and only if some project actually reaches the membership
+     * step (a deactivated caller or a global admin issues no query at all).
+     */
+    public Map<Long, EnumSet<Permission>> permissionsForProjects(User caller, Collection<Project> projects) {
+        List<Long> projectIds = projects.stream().map(Project::getId).toList();
+        var memberships = new Object() {
+            private Map<Long, ProjectRole> roles;
+
+            ProjectRole roleIn(Long projectId) {
+                if (roles == null) {
+                    roles = new HashMap<>();
+                    projectMemberRepository.findByUserIdAndProjectIdIn(caller.getId(), projectIds)
+                            .forEach(member -> roles.put(member.getProjectId(), member.getRole()));
+                }
+                return roles.get(projectId);
+            }
+        };
+        Map<Long, EnumSet<Permission>> result = new LinkedHashMap<>();
+        for (Project project : projects) {
+            result.put(project.getId(),
+                    decidePermissions(caller, () -> project, () -> memberships.roleIn(project.getId())));
+        }
+        return result;
+    }
+
+    /**
+     * The single permission-set rule chain (steps 0-4 of {@link
+     * #hasPermission}). The project and the membership role are suppliers so
+     * each is only resolved when its step is reached — a deactivated caller or
+     * a global admin never needs either, and an owner never needs the role.
+     */
+    private EnumSet<Permission> decidePermissions(
+            User caller, Supplier<Project> project, Supplier<ProjectRole> memberRole) {
+        if (!caller.isActive()) {
             return EnumSet.noneOf(Permission.class);
         }
-        if (user.getRole() == GlobalRole.ADMINISTRADOR) {
+        if (caller.getRole() == GlobalRole.ADMINISTRADOR) {
             return EnumSet.allOf(Permission.class);
         }
-
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ProjectNotFoundException(projectId));
-        if (project.getOwnerId().equals(userId)) {
+        if (project.get().getOwnerId().equals(caller.getId())) {
             return EnumSet.allOf(Permission.class);
         }
-
-        return projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
-                .map(ProjectMember::getRole)
-                .map(role -> EnumSet.copyOf(grants.getOrDefault(role, EnumSet.noneOf(Permission.class))))
-                .orElseGet(() -> EnumSet.noneOf(Permission.class));
+        ProjectRole role = memberRole.get();
+        if (role == null) {
+            return EnumSet.noneOf(Permission.class);
+        }
+        return EnumSet.copyOf(grants.getOrDefault(role, EnumSet.noneOf(Permission.class)));
     }
 
     /**

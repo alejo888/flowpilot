@@ -6,7 +6,9 @@ import com.flowpilot.exception.CommentNotFoundException;
 import com.flowpilot.exception.ProjectNotFoundException;
 import com.flowpilot.exception.WorkItemNotFoundException;
 import com.flowpilot.repository.*;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.springframework.data.domain.PageRequest;
@@ -20,8 +22,8 @@ public class CommentService {
  public CommentService(CommentRepository comments, ProjectRepository projects, WorkItemRepository workItems, UserRepository users, ProjectAuthorizationService auth, ProjectActivityService activity){this.comments=comments;this.projects=projects;this.workItems=workItems;this.users=users;this.auth=auth;this.activity=activity;}
  @Transactional public CommentResponse createForProject(Long projectId, CommentCreateRequest request, Long authorId){requireProject(projectId); requireCreate(authorId,projectId); return save(projectId,null,request.content(),authorId);}
  @Transactional public CommentResponse createForWorkItem(Long workItemId, CommentCreateRequest request, Long authorId){WorkItem item=workItems.findById(workItemId).orElseThrow(()->new WorkItemNotFoundException(workItemId)); requireCreate(authorId,item.getProjectId()); return save(item.getProjectId(),workItemId,request.content(),authorId);}
- public List<CommentResponse> listProject(Long projectId,Long userId,int limit,int offset){requireProject(projectId); requireView(userId,projectId); return paginate(limit,offset,pageable->comments.findByProjectIdAndWorkItemIdIsNullOrderByCreatedAtDescIdDesc(projectId,pageable));}
- public List<CommentResponse> listWorkItem(Long workItemId,Long userId,int limit,int offset){WorkItem item=workItems.findById(workItemId).orElseThrow(()->new WorkItemNotFoundException(workItemId)); requireView(userId,item.getProjectId()); return paginate(limit,offset,pageable->comments.findByWorkItemIdOrderByCreatedAtDescIdDesc(workItemId,pageable));}
+ @Transactional(readOnly=true) public List<CommentResponse> listProject(Long projectId,Long userId,int limit,int offset){requireProject(projectId); requireView(userId,projectId); return paginate(limit,offset,pageable->comments.findByProjectIdAndWorkItemIdIsNullOrderByCreatedAtDescIdDesc(projectId,pageable));}
+ @Transactional(readOnly=true) public List<CommentResponse> listWorkItem(Long workItemId,Long userId,int limit,int offset){WorkItem item=workItems.findById(workItemId).orElseThrow(()->new WorkItemNotFoundException(workItemId)); requireView(userId,item.getProjectId()); return paginate(limit,offset,pageable->comments.findByWorkItemIdOrderByCreatedAtDescIdDesc(workItemId,pageable));}
  @Transactional public CommentResponse update(Long id,CommentUpdateRequest request,Long userId){Comment c=requireComment(id); requireView(userId,c.getProjectId()); requireCreate(userId,c.getProjectId()); requireAuthor(c,userId); c.updateContent(request.content()); activity.record(c.getProjectId(),userId,ActivityEventType.COMMENT_UPDATED,"Comentario actualizado","{\"commentId\":"+id+"}"); return response(c);}
  @Transactional public void delete(Long id,Long userId){Comment c=requireComment(id); requireView(userId,c.getProjectId()); requireAuthor(c,userId); comments.delete(c); activity.record(c.getProjectId(),userId,ActivityEventType.COMMENT_DELETED,"Comentario eliminado","{\"commentId\":"+id+"}");}
  private CommentResponse save(Long projectId,Long workItemId,String content,Long authorId){Comment c=comments.save(new Comment(projectId,workItemId,authorId,content)); activity.record(projectId,authorId,ActivityEventType.COMMENT_CREATED,"Comentario creado","{\"commentId\":"+c.getId()+"}"); return response(c);}
@@ -43,7 +45,16 @@ public class CommentService {
   if(remainder>0 && items.size()==limit){
    items = Stream.concat(items.stream(), query.apply(PageRequest.of(page+1,limit)).stream()).toList();
   }
-  return items.stream().skip(remainder).limit(limit).map(this::response).toList();
+  List<Comment> pageItems = items.stream().skip(remainder).limit(limit).toList();
+  Map<Long,String> names = authorNamesFor(pageItems);
+  return pageItems.stream().map(c->response(c,names.get(c.getAuthorId()))).toList();
  }
- private CommentResponse response(Comment c){String name=users.findById(c.getAuthorId()).map(User::getName).orElse(null);return new CommentResponse(c.getId(),c.getProjectId(),c.getWorkItemId(),c.getAuthorId(),name,c.getContent(),c.getCreatedAt(),c.getUpdatedAt());}
+ /** One batched user lookup for every distinct author on the page (a missing author maps to a null name, as the single lookup does). */
+ private Map<Long,String> authorNamesFor(List<Comment> page){
+  if(page.isEmpty()) return Map.of();
+  List<Long> authorIds = page.stream().map(Comment::getAuthorId).distinct().toList();
+  Map<Long,String> names = new HashMap<>(); users.findAllById(authorIds).forEach(u->names.put(u.getId(),u.getName())); return names;
+ }
+ private CommentResponse response(Comment c){return response(c,users.findById(c.getAuthorId()).map(User::getName).orElse(null));}
+ private CommentResponse response(Comment c,String authorName){return new CommentResponse(c.getId(),c.getProjectId(),c.getWorkItemId(),c.getAuthorId(),authorName,c.getContent(),c.getCreatedAt(),c.getUpdatedAt());}
 }

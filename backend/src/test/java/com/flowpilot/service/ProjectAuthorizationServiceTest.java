@@ -1,6 +1,13 @@
 package com.flowpilot.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.flowpilot.entity.GlobalRole;
@@ -16,10 +23,14 @@ import com.flowpilot.repository.ProjectRepository;
 import com.flowpilot.repository.RolePermissionRepository;
 import com.flowpilot.repository.UserRepository;
 import java.lang.reflect.Field;
+import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -298,6 +309,77 @@ class ProjectAuthorizationServiceTest {
         when(projectMemberRepository.findByProjectIdAndUserId(10L, 5L)).thenReturn(Optional.empty());
 
         assertThat(authorizationService.permissionsFor(5L, 10L)).isEmpty();
+    }
+
+    @Test
+    void permissionsForProjectsLoadsCallerMembershipsInOneQueryAndMatchesPerProjectRules() throws Exception {
+        setUp(List.of(
+                rolePermission(ProjectRole.DEVELOPER, Permission.WORKITEM_CREATE, true),
+                rolePermission(ProjectRole.DEVELOPER, Permission.WORKITEM_MOVE, true),
+                rolePermission(ProjectRole.DEVELOPER, Permission.PROJECT_DELETE, false)));
+        User caller = user(4L, GlobalRole.MIEMBRO_EQUIPO);
+        Project owned = project(10L, 4L);
+        Project memberOf = project(11L, 9L);
+        Project outsider = project(12L, 9L);
+        when(projectMemberRepository.findByUserIdAndProjectIdIn(eq(4L), anyCollection()))
+                .thenReturn(List.of(new ProjectMember(11L, 4L, ProjectRole.DEVELOPER)));
+
+        Map<Long, EnumSet<Permission>> result =
+                authorizationService.permissionsForProjects(caller, List.of(owned, memberOf, outsider));
+
+        assertThat(result.get(10L)).containsExactlyInAnyOrder(Permission.values());
+        assertThat(result.get(11L)).containsExactlyInAnyOrder(Permission.WORKITEM_CREATE, Permission.WORKITEM_MOVE);
+        assertThat(result.get(12L)).isEmpty();
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<Long>> ids = ArgumentCaptor.forClass(Collection.class);
+        verify(projectMemberRepository, times(1)).findByUserIdAndProjectIdIn(eq(4L), ids.capture());
+        assertThat(ids.getValue()).containsExactlyInAnyOrder(10L, 11L, 12L);
+        verify(projectMemberRepository, never()).findByProjectIdAndUserId(anyLong(), anyLong());
+        verify(userRepository, never()).findById(any());
+        verify(projectRepository, never()).findById(any());
+    }
+
+    @Test
+    void permissionsForProjectsGivesAdminEverythingWithoutAnyQuery() throws Exception {
+        setUp(List.of(rolePermission(ProjectRole.DEVELOPER, Permission.WORKITEM_CREATE, false)));
+        User admin = user(3L, GlobalRole.ADMINISTRADOR);
+
+        Map<Long, EnumSet<Permission>> result =
+                authorizationService.permissionsForProjects(admin, List.of(project(10L, 1L), project(11L, 2L)));
+
+        assertThat(result.get(10L)).containsExactlyInAnyOrder(Permission.values());
+        assertThat(result.get(11L)).containsExactlyInAnyOrder(Permission.values());
+        verify(projectMemberRepository, never()).findByUserIdAndProjectIdIn(anyLong(), anyCollection());
+    }
+
+    @Test
+    void permissionsForProjectsGivesDeactivatedCallerNothingWithoutAnyQuery() throws Exception {
+        setUp(List.of(rolePermission(ProjectRole.DEVELOPER, Permission.WORKITEM_CREATE, true)));
+        User deactivated = inactiveUser(4L, GlobalRole.ADMINISTRADOR);
+
+        Map<Long, EnumSet<Permission>> result =
+                authorizationService.permissionsForProjects(deactivated, List.of(project(10L, 4L), project(11L, 9L)));
+
+        assertThat(result.get(10L)).isEmpty();
+        assertThat(result.get(11L)).isEmpty();
+        verify(projectMemberRepository, never()).findByUserIdAndProjectIdIn(anyLong(), anyCollection());
+    }
+
+    @Test
+    void preloadedOverloadMatchesIdBasedPermissionsFor() throws Exception {
+        setUp(List.of(
+                rolePermission(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_ADD, true),
+                rolePermission(ProjectRole.PROJECT_MANAGER, Permission.MEMBER_REMOVE, true)));
+        User member = user(4L, GlobalRole.MIEMBRO_EQUIPO);
+        Project project = project(10L, 1L);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(member));
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(project));
+        when(projectMemberRepository.findByProjectIdAndUserId(10L, 4L))
+                .thenReturn(Optional.of(new ProjectMember(10L, 4L, ProjectRole.PROJECT_MANAGER)));
+
+        assertThat(authorizationService.permissionsFor(member, project, ProjectRole.PROJECT_MANAGER))
+                .isEqualTo(authorizationService.permissionsFor(4L, 10L));
+        assertThat(authorizationService.permissionsFor(member, project, null)).isEmpty();
     }
 
     private RolePermission rolePermission(ProjectRole role, Permission permission, boolean granted) {
