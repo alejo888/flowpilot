@@ -1,10 +1,14 @@
+import { CdkDropList, CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 
 import { AiConfigService } from '../../core/ai/ai-config.service';
 import { BoardComponent } from './board.component';
 import { BoardStore } from './board.store';
+import { WorkItemCommentsComponent } from './work-item-comments.component';
+import { WorkItemDetailPanelComponent } from './work-item-detail-panel.component';
 import { AiCriteriaStore } from './ai-criteria.store';
 import { AiStoryImprovementStore, StorySuggestion } from './ai-story-improvement.store';
 import { AiProvider, BoardColumn, WorkItem } from './board.model';
@@ -131,6 +135,9 @@ describe('BoardComponent', () => {
   };
   let projectsStoreStub: { selectedProject: ReturnType<typeof signal<Project | null>>; loadProject: ReturnType<typeof vi.fn> };
   let aiConfigStub: { aiEnabled: ReturnType<typeof signal<boolean>>; load: ReturnType<typeof vi.fn> };
+  /** The open detail panel's component (it owns the edit form since the board split). */
+  const detailPanel = () =>
+    fixture.debugElement.query(By.directive(WorkItemDetailPanelComponent)).componentInstance as WorkItemDetailPanelComponent;
 
   beforeEach(async () => {
     aiConfigStub = { aiEnabled: signal(false), load: vi.fn() };
@@ -224,6 +231,41 @@ describe('BoardComponent', () => {
     expect(storeStub.selectItem).toHaveBeenCalledWith(null);
   });
 
+  it('closes the detail panel from its close button', () => {
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    (compiled.querySelector('[data-testid="detail-panel-close"]') as HTMLButtonElement).click();
+
+    expect(storeStub.selectItem).toHaveBeenCalledWith(null);
+  });
+
+  it('opens the delete confirmation dialog from the detail panel delete button', () => {
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    (compiled.querySelector('[data-testid="detail-delete-button"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(compiled.querySelector('[data-testid="delete-dialog"]')?.textContent).toContain('Design schema');
+    expect(storeStub.deleteItem).not.toHaveBeenCalled();
+  });
+
+  it('drops stale AI suggestions when the detail panel closes', () => {
+    storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
+    fixture.detectChanges();
+    aiCriteriaStub.discard.mockClear();
+    aiStoryStub.reset.mockClear();
+
+    storeStub.selectedItem.set(null);
+    fixture.detectChanges();
+
+    expect(aiCriteriaStub.discard).toHaveBeenCalled();
+    expect(aiStoryStub.reset).toHaveBeenCalled();
+  });
+
   it('hides the "Generar subtareas" action while the AI assistant is disabled', () => {
     storeStub.selectedItem.set(item(500, 1, 1024, 'Design schema'));
     fixture.detectChanges();
@@ -307,12 +349,12 @@ describe('BoardComponent', () => {
     storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Design schema'), description: 'Old' });
     fixture.detectChanges();
 
-    fixture.componentInstance.editForm = {
+    detailPanel().editForm = {
       title: '  Schema editado ',
       description: '',
       assignedUserId: null,
     };
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(500, {
       title: 'Schema editado',
@@ -325,8 +367,8 @@ describe('BoardComponent', () => {
     storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Design schema'), sprintId: 7 });
     fixture.detectChanges();
 
-    fixture.componentInstance.editForm.title = 'Schema editado';
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().editForm.title = 'Schema editado';
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(500, {
       title: 'Schema editado',
@@ -343,8 +385,8 @@ describe('BoardComponent', () => {
     storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Design schema'), priority: 'HIGH' });
     fixture.detectChanges();
 
-    fixture.componentInstance.editForm.title = 'Schema editado';
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().editForm.title = 'Schema editado';
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(500, {
       title: 'Schema editado',
@@ -364,8 +406,8 @@ describe('BoardComponent', () => {
     });
     fixture.detectChanges();
 
-    fixture.componentInstance.editForm.title = 'Schema editado';
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().editForm.title = 'Schema editado';
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(
       500,
@@ -410,7 +452,7 @@ describe('BoardComponent', () => {
     inputs[1].dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(
       500,
@@ -492,7 +534,7 @@ describe('BoardComponent', () => {
     findButton(fixture.nativeElement, 'Añadir a la tarea').click();
     fixture.detectChanges();
 
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(
       500,
@@ -516,7 +558,7 @@ describe('BoardComponent', () => {
     fixture.detectChanges();
 
     expect(aiCriteriaStub.discard).toHaveBeenCalled();
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().submitUpdate(500);
     expect(storeStub.updateItem).toHaveBeenCalledWith(
       500,
       expect.objectContaining({ acceptanceCriteria: ['Dado A'] }),
@@ -548,7 +590,7 @@ describe('BoardComponent', () => {
         ?.textContent,
     ).toContain('El asistente de IA no está disponible en este momento.');
 
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().submitUpdate(500);
     expect(storeStub.updateItem).toHaveBeenCalledWith(
       500,
       expect.objectContaining({ acceptanceCriteria: ['Editado a mano'] }),
@@ -637,7 +679,7 @@ describe('BoardComponent', () => {
 
     it('shows the overflow notice in the preview against the form criteria, and apply still yields the capped merge', () => {
       openEditableItem();
-      fixture.componentInstance.onCriteriaChange(['1', '2', '3', '4', '5', '6']);
+      detailPanel().onCriteriaChange(['1', '2', '3', '4', '5', '6']);
       aiStoryStub.suggestion.set({ description: 'D', criteria: ['s1', 's2', 's3', 's4'] });
       fixture.detectChanges();
 
@@ -649,7 +691,7 @@ describe('BoardComponent', () => {
 
       (el.querySelector('[data-testid="improve-story-apply"]') as HTMLButtonElement).click();
       fixture.detectChanges();
-      fixture.componentInstance.submitUpdate(500);
+      detailPanel().submitUpdate(500);
       expect(storeStub.updateItem).toHaveBeenCalledWith(
         500,
         expect.objectContaining({ acceptanceCriteria: ['1', '2', '3', '4', '5', '6', 's1', 's2'] }),
@@ -665,7 +707,7 @@ describe('BoardComponent', () => {
       fixture.detectChanges();
 
       expect(aiStoryStub.discard).toHaveBeenCalled();
-      fixture.componentInstance.submitUpdate(500);
+      detailPanel().submitUpdate(500);
       expect(storeStub.updateItem).toHaveBeenCalledWith(
         500,
         expect.objectContaining({
@@ -688,7 +730,7 @@ describe('BoardComponent', () => {
       fixture.detectChanges();
 
       expect(aiStoryStub.discard).toHaveBeenCalled();
-      fixture.componentInstance.submitUpdate(500);
+      detailPanel().submitUpdate(500);
       expect(storeStub.updateItem).toHaveBeenCalledWith(
         500,
         expect.objectContaining({ description: 'Descripción original', acceptanceCriteria: ['Dado A'] }),
@@ -697,14 +739,14 @@ describe('BoardComponent', () => {
 
     it('surfaces the Spanish error without touching the typed description', () => {
       openEditableItem();
-      fixture.componentInstance.editForm = { ...fixture.componentInstance.editForm, description: 'Escrito a mano' };
+      detailPanel().editForm = { ...detailPanel().editForm, description: 'Escrito a mano' };
       aiStoryStub.error.set('El asistente de IA no está disponible en este momento.');
       fixture.detectChanges();
 
       expect(
         (fixture.nativeElement as HTMLElement).querySelector('[data-testid="improve-story-error"]')?.textContent,
       ).toContain('El asistente de IA no está disponible en este momento.');
-      fixture.componentInstance.submitUpdate(500);
+      detailPanel().submitUpdate(500);
       expect(storeStub.updateItem).toHaveBeenCalledWith(
         500,
         expect.objectContaining({ description: 'Escrito a mano' }),
@@ -855,6 +897,14 @@ describe('BoardComponent', () => {
     expect(sections[1].style.getPropertyValue('--fp-column-accent')).toBe('#2a6f8c');
   });
 
+  it('connects every column drop list through the board cdkDropListGroup', () => {
+    const group = fixture.debugElement.query(By.directive(CdkDropListGroup)).injector.get(CdkDropListGroup);
+    const lists = fixture.debugElement.queryAll(By.directive(CdkDropList)).map((debug) => debug.injector.get(CdkDropList));
+
+    expect(lists.map((list) => list.id)).toEqual(['column-1', 'column-2']);
+    expect(lists.every((list) => group._items.has(list))).toBe(true);
+  });
+
   it('calls store.moveItem with the target column and index on drop', () => {
     const dropEvent = {
       previousContainer: { data: 1, id: 'column-1' },
@@ -988,8 +1038,8 @@ describe('BoardComponent', () => {
     storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Child'), parentWorkItemId: 900 });
     fixture.detectChanges();
 
-    fixture.componentInstance.editForm.title = 'Child editado';
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().editForm.title = 'Child editado';
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(500, expect.objectContaining({ parentWorkItemId: 900 }));
   });
@@ -998,8 +1048,8 @@ describe('BoardComponent', () => {
     storeStub.selectedItem.set({ ...item(500, 1, 1024, 'Child'), parentWorkItemId: 900 });
     fixture.detectChanges();
 
-    fixture.componentInstance.editForm.parentWorkItemId = null;
-    fixture.componentInstance.submitUpdate(500);
+    detailPanel().editForm.parentWorkItemId = null;
+    detailPanel().submitUpdate(500);
 
     expect(storeStub.updateItem).toHaveBeenCalledWith(500, expect.objectContaining({ parentWorkItemId: null }));
   });
@@ -1156,75 +1206,25 @@ describe('BoardComponent work-item comments', () => {
     fixture.detectChanges();
   });
 
-  it('keeps the draft when creating a work-item comment fails and clears it on success', async () => {
-    commentsStub.createWorkItem.mockResolvedValueOnce(false);
-    fixture.componentInstance.commentDraft = '  Texto importante ';
-
-    await fixture.componentInstance.submitWorkComment();
-
-    expect(commentsStub.createWorkItem).toHaveBeenCalledWith(500, 'Texto importante');
-    expect(fixture.componentInstance.commentDraft).toBe('  Texto importante ');
-
+  // Comment list/create/edit/delete behavior is covered by
+  // work-item-comments.component.spec.ts; these check the board wiring.
+  it('renders the comments section inside the detail panel bound to the open item', async () => {
     commentsStub.createWorkItem.mockResolvedValueOnce(true);
-    await fixture.componentInstance.submitWorkComment();
+    const panel = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="detail-panel"]');
+    expect(panel?.querySelector('[data-testid="work-comment-form"]')).not.toBeNull();
 
-    expect(fixture.componentInstance.commentDraft).toBe('');
+    const comments = fixture.debugElement.query(By.directive(WorkItemCommentsComponent))
+      .componentInstance as WorkItemCommentsComponent;
+    comments.commentDraft = 'Hola';
+    await comments.submitWorkComment();
+
+    expect(commentsStub.createWorkItem).toHaveBeenCalledWith(500, 'Hola');
   });
 
-  it('stays in edit mode when saving a work-item comment fails and exits on success', async () => {
-    commentsStub.update.mockResolvedValueOnce(false);
-    fixture.componentInstance.editingCommentId.set(7);
-    fixture.componentInstance.editingContent.set('Corregido');
+  it('loads the item comments when a card is opened', () => {
+    fixture.componentInstance.openDetail(item(500, 1, 1024, 'Design schema'));
 
-    await fixture.componentInstance.saveComment(7);
-
-    expect(commentsStub.update).toHaveBeenCalledWith(7, 'Corregido', 'workItem');
-    expect(fixture.componentInstance.editingCommentId()).toBe(7);
-
-    commentsStub.update.mockResolvedValueOnce(true);
-    await fixture.componentInstance.saveComment(7);
-
-    expect(fixture.componentInstance.editingCommentId()).toBeNull();
-  });
-
-  it('keeps the delete confirmation open when deleting a work-item comment fails and closes it on success', async () => {
-    commentsStub.delete.mockResolvedValueOnce(false);
-    fixture.componentInstance.deletingCommentId.set(7);
-
-    await fixture.componentInstance.deleteCommentConfirmed();
-
-    expect(commentsStub.delete).toHaveBeenCalledWith(7, 'workItem');
-    expect(fixture.componentInstance.deletingCommentId()).toBe(7);
-
-    commentsStub.delete.mockResolvedValueOnce(true);
-    await fixture.componentInstance.deleteCommentConfirmed();
-
-    expect(fixture.componentInstance.deletingCommentId()).toBeNull();
-  });
-
-  it('shows the failure reason inside the still-open comment delete dialog, not behind its backdrop', async () => {
-    commentsStub.delete.mockImplementationOnce(async () => {
-      commentsStub.error.set('No se pudo eliminar el comentario');
-      return false;
-    });
-    fixture.componentInstance.deletingCommentId.set(7);
-    fixture.detectChanges();
-
-    await fixture.componentInstance.deleteCommentConfirmed();
-    fixture.detectChanges();
-
-    const dialog = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="comment-delete-dialog"]');
-    expect(dialog).not.toBeNull();
-    const panel = dialog?.querySelector('.fp-dialog__panel');
-    const alert = panel?.querySelector('[data-testid="comment-delete-dialog-error"]');
-    expect(alert?.getAttribute('role')).toBe('alert');
-    expect(alert?.textContent).toContain('No se pudo eliminar el comentario');
-    // The section-level copy is suppressed while the dialog is open so the
-    // same message is not announced twice by two `role="alert"` nodes.
-    const sectionAlerts = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('.work-comments [role="alert"]'),
-    );
-    expect(sectionAlerts).toHaveLength(0);
+    expect(commentsStub.loadWorkItem).toHaveBeenCalledWith(500);
   });
 });
 

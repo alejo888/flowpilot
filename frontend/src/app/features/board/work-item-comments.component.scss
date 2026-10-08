@@ -1,0 +1,72 @@
+// The host adds no box of its own: the comments section stays a direct flex
+// item of the detail panel, exactly as when it was inlined in the board.
+:host {
+  display: contents;
+}
+
+.board-error {
+  margin: 0;
+  font-family: var(--fp-font-body);
+  font-size: 0.875rem;
+  color: var(--fp-danger);
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fp-space-1);
+  font-family: var(--fp-font-body);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--fp-text);
+}
+
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--fp-border);
+  border-radius: var(--fp-radius-sm);
+  padding: var(--fp-space-2) var(--fp-space-3);
+  background: var(--fp-surface);
+  color: var(--fp-text);
+  font: 400 0.9375rem var(--fp-font-body);
+  resize: vertical;
+}
+
+.panel-actions {
+  display: flex;
+  gap: var(--fp-space-2);
+  justify-content: flex-end;
+}
+
+.work-comments {
+  border-top: 1px solid var(--fp-border);
+  padding-top: var(--fp-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--fp-space-3);
+}
+
+.work-comment {
+  border-top: 1px solid var(--fp-border);
+  padding-top: var(--fp-space-3);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--fp-space-2);
+}
+
+.work-comment span {
+  color: var(--fp-text-muted);
+  font-size: 0.875rem;
+  margin-left: var(--fp-space-2);
+}
+
+.work-comment p {
+  margin: 0;
+}
+
+.comment-actions {
+  display: flex;
+  gap: var(--fp-space-3);
+}
